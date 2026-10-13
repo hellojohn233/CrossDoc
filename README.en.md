@@ -11,9 +11,9 @@ CrossDoc is not a Pi demo. Pi is the minimal agent runtime; CrossDoc is the doma
 1. **Document consistency review**: discover contradictions, preserve evidence, and make results traceable and evaluable.
 2. **Pi Agent runtime**: use `@earendil-works/pi-agent-core` for the agent loop and `@earendil-works/pi-ai` for model access instead of writing a custom loop.
 
-Interview version:
+Design principle:
 
-> I use Pi as the minimal harness and put the engineering weight on a problem it does not solve: false-positive control for multi-document consistency review.
+> CrossDoc uses Pi as the minimal runtime harness and concentrates its engineering effort on the domain problem Pi does not solve directly: false-positive control, evidence traceability, and evaluability for multi-document consistency review.
 
 ## Why This Shape
 

@@ -11,9 +11,9 @@ CrossDoc 不是一个 Pi demo。Pi 是最小化的 Agent 运行时；CrossDoc �
 1. **文档一致性审查**：发现矛盾、保留证据，让结果可溯源、可评测。
 2. **Pi Agent 运行时**：使用 `@earendil-works/pi-agent-core` 承载 agent loop，用 `@earendil-works/pi-ai` 统一模型访问，不自己重复造 agent loop。
 
-面试一句话：
+设计原则：
 
-> 我用 Pi 这个最小 harness 做底座，把工程量全押在一个它不解决的领域问题上：多文档一致性审查的误报控制。
+> CrossDoc 使用 Pi 作为最小运行时底座，把核心工程能力集中在 Pi 不直接解决的领域问题上：多文档一致性审查的误报控制、证据追踪和结果可评测性。
 
 ## 为什么这样设计
 
