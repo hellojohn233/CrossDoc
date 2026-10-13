@@ -6,11 +6,25 @@
     <title>CrossDoc</title>
     <style>
       :root {
-        font-family:
-          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-          sans-serif;
-        background: #f6f7f9;
-        color: #17202a;
+        --bg: #f5f7fa;
+        --surface: #ffffff;
+        --surface-soft: #f9fafb;
+        --border: #dbe2ea;
+        --border-strong: #c7d0dc;
+        --text: #17202a;
+        --muted: #607086;
+        --blue: #165dff;
+        --blue-soft: #eaf1ff;
+        --green: #16825d;
+        --green-soft: #e9f7f1;
+        --amber: #9a6700;
+        --amber-soft: #fff5d9;
+        --red: #bc3434;
+        --red-soft: #fdecec;
+        --ink: #0f1720;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: var(--bg);
+        color: var(--text);
       }
 
       * {
@@ -22,12 +36,17 @@
       }
 
       header {
-        border-bottom: 1px solid #dde2e7;
-        background: #ffffff;
+        position: sticky;
+        top: 0;
+        z-index: 5;
+        border-top: 6px solid #30283f;
+        border-bottom: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.94);
+        backdrop-filter: blur(12px);
       }
 
       .shell {
-        width: min(1180px, calc(100vw - 32px));
+        width: min(1280px, calc(100vw - 32px));
         margin: 0 auto;
       }
 
@@ -36,73 +55,133 @@
         align-items: center;
         justify-content: space-between;
         gap: 24px;
-        min-height: 72px;
+        min-height: 78px;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin-top: 0;
       }
 
       h1 {
-        margin: 0;
-        font-size: 22px;
-        font-weight: 700;
-      }
-
-      .tagline {
-        margin: 4px 0 0;
-        color: #596574;
-        font-size: 14px;
-      }
-
-      main {
-        padding: 24px 0 36px;
-      }
-
-      .layout {
-        display: grid;
-        grid-template-columns: 340px 1fr;
-        gap: 20px;
-      }
-
-      section {
-        background: #ffffff;
-        border: 1px solid #dde2e7;
-        border-radius: 8px;
-      }
-
-      .panel {
-        padding: 18px;
+        margin-bottom: 2px;
+        font-size: 24px;
+        font-weight: 760;
       }
 
       h2 {
-        margin: 0 0 12px;
+        margin-bottom: 14px;
         font-size: 16px;
       }
 
-      label {
-        display: block;
+      h3 {
         margin-bottom: 8px;
-        color: #3c4653;
-        font-size: 14px;
-        font-weight: 600;
+        font-size: 15px;
       }
 
-      input[type="file"] {
+      .tagline {
+        margin-bottom: 0;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .header-actions {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        min-height: 28px;
+        padding: 4px 10px;
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        background: var(--surface-soft);
+        color: var(--muted);
+        font-size: 13px;
+        white-space: nowrap;
+      }
+
+      .pill strong {
+        color: var(--text);
+      }
+
+      main {
+        padding: 22px 0 36px;
+      }
+
+      .workspace {
+        display: grid;
+        grid-template-columns: 330px minmax(420px, 1fr) 360px;
+        gap: 16px;
+        align-items: start;
+      }
+
+      .panel {
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface);
+        box-shadow: 0 1px 2px rgba(23, 32, 42, 0.04);
+      }
+
+      .panel-body {
+        padding: 18px;
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+
+      .small {
+        font-size: 13px;
+      }
+
+      .upload-zone {
+        display: block;
+        padding: 18px;
+        border: 1px dashed var(--border-strong);
+        border-radius: 10px;
+        background: var(--surface-soft);
+        cursor: pointer;
+      }
+
+      .upload-zone:hover {
+        border-color: var(--blue);
+        background: #f6f9ff;
+      }
+
+      .upload-zone input {
         width: 100%;
-        padding: 12px;
-        border: 1px dashed #a7b0bd;
-        border-radius: 8px;
-        background: #fafbfc;
+        margin-top: 12px;
+      }
+
+      .button-row {
+        display: grid;
+        gap: 10px;
+        margin-top: 14px;
       }
 
       button {
-        width: 100%;
-        margin-top: 14px;
-        padding: 11px 14px;
-        border: 0;
+        min-height: 40px;
+        padding: 10px 14px;
+        border: 1px solid transparent;
         border-radius: 8px;
-        background: #165dff;
+        background: var(--blue);
         color: #ffffff;
         font-size: 14px;
         font-weight: 700;
         cursor: pointer;
+      }
+
+      button.secondary {
+        border-color: var(--border);
+        background: var(--surface);
+        color: var(--text);
       }
 
       button:disabled {
@@ -110,25 +189,92 @@
         cursor: not-allowed;
       }
 
-      .status {
+      .status-box {
         margin-top: 14px;
-        min-height: 22px;
-        color: #596574;
+        padding: 12px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface-soft);
+        color: var(--muted);
         font-size: 14px;
       }
 
-      .summary {
+      .steps {
         display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 12px;
-        margin-bottom: 18px;
+        gap: 8px;
+        margin: 16px 0 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .step {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .dot {
+        width: 9px;
+        height: 9px;
+        border: 2px solid var(--border-strong);
+        border-radius: 999px;
+        background: var(--surface);
+      }
+
+      .step.active {
+        color: var(--blue);
+        font-weight: 700;
+      }
+
+      .step.active .dot {
+        border-color: var(--blue);
+        background: var(--blue);
+      }
+
+      .step.done {
+        color: var(--green);
+      }
+
+      .step.done .dot {
+        border-color: var(--green);
+        background: var(--green);
+      }
+
+      .doc-list {
+        display: grid;
+        gap: 8px;
+        margin-top: 16px;
+      }
+
+      .doc-item {
+        padding: 10px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface);
+      }
+
+      .doc-item strong {
+        display: block;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .metrics {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 10px;
+        margin-bottom: 14px;
       }
 
       .metric {
-        border: 1px solid #dde2e7;
+        min-height: 76px;
+        padding: 12px;
+        border: 1px solid var(--border);
         border-radius: 8px;
-        padding: 14px;
-        background: #fafbfc;
+        background: var(--surface-soft);
       }
 
       .metric strong {
@@ -137,61 +283,183 @@
       }
 
       .metric span {
-        color: #596574;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .toolbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+
+      .segmented {
+        display: inline-flex;
+        padding: 3px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: var(--surface-soft);
+      }
+
+      .segment {
+        min-height: 30px;
+        padding: 6px 10px;
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        color: var(--muted);
         font-size: 13px;
+        font-weight: 700;
+      }
+
+      .segment.active {
+        background: var(--surface);
+        color: var(--text);
+        box-shadow: 0 1px 2px rgba(23, 32, 42, 0.08);
       }
 
       .findings {
         display: grid;
-        gap: 12px;
+        gap: 10px;
       }
 
       .finding {
-        border: 1px solid #dde2e7;
-        border-radius: 8px;
+        width: 100%;
         padding: 14px;
+        border: 1px solid var(--border);
+        border-radius: 9px;
+        background: var(--surface);
+        text-align: left;
       }
 
-      .finding h3 {
-        margin: 0 0 8px;
-        font-size: 15px;
+      .finding:hover,
+      .finding.selected {
+        border-color: var(--blue);
+        background: #f7faff;
       }
 
-      .finding p {
-        margin: 6px 0;
-        color: #3c4653;
-        line-height: 1.5;
+      .finding-title {
+        margin-bottom: 8px;
+        color: var(--text);
+        font-weight: 760;
+        line-height: 1.35;
       }
 
-      .evidence {
-        margin-top: 10px;
-        padding-left: 18px;
-        color: #596574;
+      .badges {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        min-height: 24px;
+        padding: 3px 8px;
+        border-radius: 999px;
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .badge.high {
+        background: var(--red-soft);
+        color: var(--red);
+      }
+
+      .badge.medium {
+        background: var(--amber-soft);
+        color: var(--amber);
+      }
+
+      .badge.low {
+        background: var(--green-soft);
+        color: var(--green);
+      }
+
+      .badge.neutral {
+        background: var(--blue-soft);
+        color: var(--blue);
+      }
+
+      .detail-stack {
+        display: grid;
+        gap: 14px;
+      }
+
+      .detail-card {
+        padding: 14px;
+        border: 1px solid var(--border);
+        border-radius: 9px;
+        background: var(--surface-soft);
+      }
+
+      .evidence-list {
+        display: grid;
+        gap: 10px;
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+
+      .evidence-item {
+        padding: 10px;
+        border-left: 3px solid var(--blue);
+        border-radius: 6px;
+        background: var(--surface);
+      }
+
+      .quote {
+        margin: 6px 0 0;
+        color: #344054;
         font-size: 13px;
+        line-height: 1.55;
       }
 
       pre {
         overflow: auto;
-        max-height: 440px;
+        max-height: 300px;
+        margin: 0;
         padding: 14px;
-        border: 1px solid #dde2e7;
+        border: 1px solid var(--border);
         border-radius: 8px;
-        background: #0f1720;
+        background: var(--ink);
         color: #dce7f3;
+        font-size: 13px;
         line-height: 1.5;
         white-space: pre-wrap;
       }
 
       .empty {
-        color: #596574;
+        display: grid;
+        place-items: center;
+        min-height: 220px;
+        border: 1px dashed var(--border-strong);
+        border-radius: 9px;
+        color: var(--muted);
+        text-align: center;
       }
 
-      @media (max-width: 820px) {
-        .layout {
-          grid-template-columns: 1fr;
+      @media (max-width: 1120px) {
+        .workspace {
+          grid-template-columns: 320px 1fr;
         }
 
-        .summary {
+        .details-panel {
+          grid-column: 1 / -1;
+        }
+      }
+
+      @media (max-width: 760px) {
+        .topbar,
+        .toolbar {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .workspace,
+        .metrics {
           grid-template-columns: 1fr;
         }
       }
@@ -202,46 +470,117 @@
       <div class="shell topbar">
         <div>
           <h1>CrossDoc</h1>
-          <p class="tagline">基于证据的文档一致性审查</p>
+          <p class="tagline">基于证据的多文档一致性审查工作台</p>
+        </div>
+        <div class="header-actions">
+          <span class="pill"><strong>本地运行</strong></span>
+          <span class="pill">Pi SDK runtime boundary</span>
         </div>
       </div>
     </header>
 
-    <main class="shell layout">
-      <section class="panel">
-        <h2>上传 PDF</h2>
-        <form id="review-form">
-          <label for="documents">选择一个或多个 PDF</label>
-          <input id="documents" name="documents" type="file" accept="application/pdf,.pdf" multiple />
-          <button id="submit" type="submit">开始审查</button>
-          <div id="status" class="status">等待上传。</div>
-        </form>
-      </section>
+    <main class="shell workspace">
+      <aside class="panel">
+        <div class="panel-body">
+          <h2>审查输入</h2>
+          <form id="review-form">
+            <label class="upload-zone" for="documents">
+              <strong>上传 PDF</strong>
+              <p class="muted small">选择一组需要互相校验的文档。原文件只用于本次本地审查。</p>
+              <input id="documents" name="documents" type="file" accept="application/pdf,.pdf" multiple />
+            </label>
+            <div class="button-row">
+              <button id="submit" type="submit">开始审查</button>
+              <button class="secondary" id="reset" type="button">清空结果</button>
+            </div>
+          </form>
+
+          <div id="status" class="status-box">等待上传。</div>
+
+          <ul class="steps" id="steps">
+            <li class="step" data-stage="upload"><span class="dot"></span>上传文档</li>
+            <li class="step" data-stage="parse"><span class="dot"></span>解析页面文本</li>
+            <li class="step" data-stage="extract"><span class="dot"></span>抽取 claims</li>
+            <li class="step" data-stage="compare"><span class="dot"></span>比较候选矛盾</li>
+            <li class="step" data-stage="verify"><span class="dot"></span>验证证据</li>
+            <li class="step" data-stage="report"><span class="dot"></span>生成报告</li>
+          </ul>
+
+          <div class="doc-list" id="documents-list"></div>
+        </div>
+      </aside>
 
       <section class="panel">
-        <h2>审查结果</h2>
-        <div id="summary" class="summary"></div>
-        <div id="findings" class="findings">
-          <p class="empty">上传 PDF 后，这里会显示发现的问题和证据。</p>
+        <div class="panel-body">
+          <div class="metrics" id="summary">
+            <div class="metric"><strong>0</strong><span>文档</span></div>
+            <div class="metric"><strong>0</strong><span>Claims</span></div>
+            <div class="metric"><strong>0</strong><span>全部矛盾</span></div>
+            <div class="metric"><strong>0</strong><span>已验证</span></div>
+          </div>
+
+          <div class="toolbar">
+            <div>
+              <h2 style="margin-bottom: 4px">发现项</h2>
+              <p class="muted small" style="margin-bottom: 0">按矛盾项检查证据，而不是只看一份最终报告。</p>
+            </div>
+            <div class="segmented" aria-label="finding filter">
+              <button class="segment active" type="button" data-filter="all">全部</button>
+              <button class="segment" type="button" data-filter="verified">已验证</button>
+              <button class="segment" type="button" data-filter="dismissed">已排除</button>
+            </div>
+          </div>
+
+          <div id="findings" class="findings">
+            <div class="empty">上传 PDF 后，这里会显示候选矛盾、验证状态和证据。</div>
+          </div>
         </div>
-        <h2 style="margin-top: 22px">Markdown 报告</h2>
-        <pre id="report">暂无报告。</pre>
       </section>
+
+      <aside class="panel details-panel">
+        <div class="panel-body detail-stack">
+          <div>
+            <h2>证据详情</h2>
+            <p class="muted small">选择左侧发现项，查看引用页码和原文片段。</p>
+          </div>
+
+          <div id="details" class="detail-card">
+            <p class="muted" style="margin-bottom: 0">暂无选中的发现项。</p>
+          </div>
+
+          <div>
+            <div class="toolbar">
+              <h2 style="margin-bottom: 0">Markdown 报告</h2>
+              <div class="header-actions">
+                <button class="secondary" id="copy-report" type="button">复制</button>
+                <button class="secondary" id="download-report" type="button">下载</button>
+              </div>
+            </div>
+            <pre id="report">暂无报告。</pre>
+          </div>
+        </div>
+      </aside>
     </main>
 
     <script>
       const form = document.querySelector("#review-form");
       const fileInput = document.querySelector("#documents");
       const submit = document.querySelector("#submit");
+      const reset = document.querySelector("#reset");
       const status = document.querySelector("#status");
+      const steps = [...document.querySelectorAll(".step")];
+      const documentsList = document.querySelector("#documents-list");
       const summary = document.querySelector("#summary");
       const findings = document.querySelector("#findings");
+      const details = document.querySelector("#details");
       const report = document.querySelector("#report");
+      const copyReport = document.querySelector("#copy-report");
+      const downloadReport = document.querySelector("#download-report");
+      const filters = [...document.querySelectorAll(".segment")];
 
-      function setBusy(isBusy) {
-        submit.disabled = isBusy;
-        submit.textContent = isBusy ? "审查中..." : "开始审查";
-      }
+      let currentData = null;
+      let selectedConflictId = null;
+      let activeFilter = "all";
 
       function escapeHtml(value) {
         return String(value)
@@ -252,40 +591,178 @@
           .replaceAll("'", "&#039;");
       }
 
+      function setBusy(isBusy) {
+        submit.disabled = isBusy;
+        submit.textContent = isBusy ? "审查中..." : "开始审查";
+      }
+
+      function setStage(stage) {
+        const order = ["upload", "parse", "extract", "compare", "verify", "report"];
+        const activeIndex = order.indexOf(stage);
+        steps.forEach((step) => {
+          const stepIndex = order.indexOf(step.dataset.stage);
+          step.classList.toggle("active", stepIndex === activeIndex);
+          step.classList.toggle("done", activeIndex > stepIndex);
+        });
+      }
+
+      function renderSelectedFiles(files) {
+        documentsList.innerHTML = "";
+        if (!files || files.length === 0) return;
+
+        documentsList.innerHTML = [...files]
+          .map(
+            (file) => `
+              <div class="doc-item">
+                <strong>${escapeHtml(file.name)}</strong>
+                <span class="muted small">${Math.max(1, Math.round(file.size / 1024))} KB</span>
+              </div>
+            `,
+          )
+          .join("");
+      }
+
       function renderSummary(data) {
         summary.innerHTML = `
           <div class="metric"><strong>${data.documents.length}</strong><span>文档</span></div>
           <div class="metric"><strong>${data.claimCount}</strong><span>Claims</span></div>
-          <div class="metric"><strong>${data.verifiedConflictCount}/${data.conflictCount}</strong><span>已验证/全部矛盾</span></div>
+          <div class="metric"><strong>${data.conflictCount}</strong><span>全部矛盾</span></div>
+          <div class="metric"><strong>${data.verifiedConflictCount}</strong><span>已验证</span></div>
         `;
       }
 
-      function renderFindings(conflicts) {
-        if (!conflicts.length) {
-          findings.innerHTML = '<p class="empty">没有发现矛盾。</p>';
+      function filteredConflicts() {
+        if (!currentData) return [];
+        if (activeFilter === "all") return currentData.conflicts;
+        return currentData.conflicts.filter((conflict) => conflict.status === activeFilter);
+      }
+
+      function severityClass(severity) {
+        if (severity === "high") return "high";
+        if (severity === "medium") return "medium";
+        return "low";
+      }
+
+      function renderFindings() {
+        const conflicts = filteredConflicts();
+        if (!currentData) {
+          findings.innerHTML = '<div class="empty">上传 PDF 后，这里会显示候选矛盾、验证状态和证据。</div>';
           return;
         }
 
-        findings.innerHTML = conflicts
-          .map((conflict) => {
-            const evidence = conflict.evidence
-              .map(
-                (item) =>
-                  `<li>${escapeHtml(item.documentId)} 第 ${item.page} 页：${escapeHtml(item.quote.slice(0, 220))}</li>`,
-              )
-              .join("");
+        if (!conflicts.length) {
+          findings.innerHTML = '<div class="empty">当前筛选条件下没有发现项。</div>';
+          renderDetails(null);
+          return;
+        }
 
-            return `
-              <article class="finding">
-                <h3>${escapeHtml(conflict.summary)}</h3>
-                <p>状态：${escapeHtml(conflict.status)} ｜ 严重性：${escapeHtml(conflict.severity)} ｜ 分数：${Number(conflict.score).toFixed(2)}</p>
-                <p>${escapeHtml(conflict.rationale)}</p>
-                <ul class="evidence">${evidence}</ul>
-              </article>
-            `;
-          })
+        if (!selectedConflictId || !conflicts.some((conflict) => conflict.id === selectedConflictId)) {
+          selectedConflictId = conflicts[0].id;
+        }
+
+        findings.innerHTML = conflicts
+          .map(
+            (conflict) => `
+              <button class="finding ${conflict.id === selectedConflictId ? "selected" : ""}" type="button" data-id="${escapeHtml(conflict.id)}">
+                <div class="finding-title">${escapeHtml(conflict.summary)}</div>
+                <div class="badges">
+                  <span class="badge ${severityClass(conflict.severity)}">${escapeHtml(conflict.severity)}</span>
+                  <span class="badge neutral">${escapeHtml(conflict.status)}</span>
+                  <span class="badge neutral">score ${Number(conflict.score).toFixed(2)}</span>
+                </div>
+                <p class="muted small" style="margin: 10px 0 0">${escapeHtml(conflict.rationale)}</p>
+              </button>
+            `,
+          )
           .join("");
+
+        for (const item of findings.querySelectorAll(".finding")) {
+          item.addEventListener("click", () => {
+            selectedConflictId = item.dataset.id;
+            renderFindings();
+          });
+        }
+
+        renderDetails(conflicts.find((conflict) => conflict.id === selectedConflictId));
       }
+
+      function renderDetails(conflict) {
+        if (!conflict) {
+          details.innerHTML = '<p class="muted" style="margin-bottom: 0">暂无选中的发现项。</p>';
+          return;
+        }
+
+        const evidence = conflict.evidence
+          .map(
+            (item) => `
+              <li class="evidence-item">
+                <strong>${escapeHtml(item.documentId)} · 第 ${item.page} 页</strong>
+                <p class="quote">${escapeHtml(item.quote)}</p>
+              </li>
+            `,
+          )
+          .join("");
+
+        details.innerHTML = `
+          <h3>${escapeHtml(conflict.summary)}</h3>
+          <div class="badges" style="margin-bottom: 10px">
+            <span class="badge ${severityClass(conflict.severity)}">${escapeHtml(conflict.severity)}</span>
+            <span class="badge neutral">${escapeHtml(conflict.status)}</span>
+          </div>
+          <p class="small">${escapeHtml(conflict.rationale)}</p>
+          <ul class="evidence-list">${evidence}</ul>
+        `;
+      }
+
+      function resetUi() {
+        currentData = null;
+        selectedConflictId = null;
+        activeFilter = "all";
+        fileInput.value = "";
+        status.textContent = "等待上传。";
+        documentsList.innerHTML = "";
+        report.textContent = "暂无报告。";
+        summary.innerHTML = `
+          <div class="metric"><strong>0</strong><span>文档</span></div>
+          <div class="metric"><strong>0</strong><span>Claims</span></div>
+          <div class="metric"><strong>0</strong><span>全部矛盾</span></div>
+          <div class="metric"><strong>0</strong><span>已验证</span></div>
+        `;
+        filters.forEach((filter) => filter.classList.toggle("active", filter.dataset.filter === "all"));
+        steps.forEach((step) => step.classList.remove("active", "done"));
+        renderFindings();
+        renderDetails(null);
+      }
+
+      fileInput.addEventListener("change", () => {
+        renderSelectedFiles(fileInput.files);
+        status.textContent = fileInput.files.length ? `已选择 ${fileInput.files.length} 个文件。` : "等待上传。";
+      });
+
+      filters.forEach((filter) => {
+        filter.addEventListener("click", () => {
+          activeFilter = filter.dataset.filter;
+          filters.forEach((item) => item.classList.toggle("active", item === filter));
+          renderFindings();
+        });
+      });
+
+      reset.addEventListener("click", resetUi);
+
+      copyReport.addEventListener("click", async () => {
+        await navigator.clipboard.writeText(report.textContent || "");
+        status.textContent = "报告已复制。";
+      });
+
+      downloadReport.addEventListener("click", () => {
+        const blob = new Blob([report.textContent || ""], { type: "text/markdown;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "crossdoc-review.md";
+        link.click();
+        URL.revokeObjectURL(url);
+      });
 
       form.addEventListener("submit", async (event) => {
         event.preventDefault();
@@ -301,11 +778,14 @@
         }
 
         setBusy(true);
+        setStage("upload");
         status.textContent = "正在上传并审查，请稍候。";
-        findings.innerHTML = '<p class="empty">审查中...</p>';
+        findings.innerHTML = '<div class="empty">审查中...</div>';
+        details.innerHTML = '<p class="muted" style="margin-bottom: 0">正在生成证据详情。</p>';
         report.textContent = "审查中...";
 
         try {
+          setStage("parse");
           const response = await fetch("/api/review", {
             method: "POST",
             body: formData,
@@ -315,13 +795,18 @@
             throw new Error(data.error || "审查失败。");
           }
 
+          currentData = data;
+          selectedConflictId = data.conflicts[0]?.id ?? null;
+          setStage("report");
+          steps.forEach((step) => step.classList.add("done"));
           status.textContent = "审查完成。";
           renderSummary(data);
-          renderFindings(data.conflicts);
+          renderFindings();
           report.textContent = data.reportMarkdown;
         } catch (error) {
           status.textContent = error instanceof Error ? error.message : "审查失败。";
-          findings.innerHTML = '<p class="empty">没有可显示的结果。</p>';
+          findings.innerHTML = '<div class="empty">没有可显示的结果。</div>';
+          details.innerHTML = '<p class="muted" style="margin-bottom: 0">暂无证据详情。</p>';
           report.textContent = "暂无报告。";
         } finally {
           setBusy(false);
