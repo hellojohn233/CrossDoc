@@ -1,74 +1,76 @@
 # CrossDoc
 
-CrossDoc — an evidence-grounded document consistency review agent, built on Pi.
+[中文](./README.md) | [English](./README.en.md)
 
-CrossDoc is not a Pi demo. Pi is the minimal agent runtime; CrossDoc is the domain system around multi-document consistency review: parse, extract, compare, verify, and report contradictions with evidence.
+CrossDoc — 一个基于证据的文档一致性审查 Agent，构建在 Pi 之上。
 
-## Core Idea
+CrossDoc 不是一个 Pi demo。Pi 是最小化的 Agent 运行时；CrossDoc 是围绕多文档一致性审查构建的领域系统：解析、抽取、比较、验证，并用证据报告文档之间的矛盾。
 
-1. **Document consistency review**: discover contradictions, preserve evidence, and make results traceable and evaluable.
-2. **Pi Agent runtime**: use `@earendil-works/pi-agent-core` for the agent loop and `@earendil-works/pi-ai` for model access instead of writing a custom loop.
+## 核心思想
 
-Interview version:
+1. **文档一致性审查**：发现矛盾、保留证据，让结果可溯源、可评测。
+2. **Pi Agent 运行时**：使用 `@earendil-works/pi-agent-core` 承载 agent loop，用 `@earendil-works/pi-ai` 统一模型访问，不自己重复造 agent loop。
 
-> I use Pi as the minimal harness and put the engineering weight on a problem it does not solve: false-positive control for multi-document consistency review.
+面试一句话：
 
-## Why This Shape
+> 我用 Pi 这个最小 harness 做底座，把工程量全押在一个它不解决的领域问题上：多文档一致性审查的误报控制。
 
-Pi is the engine; consistency review is the vehicle.
+## 为什么这样设计
 
-The review pipeline is owned by CrossDoc:
+Pi 是发动机，审查是整车。
 
-- `parse_doc`: parse local PDFs into page-grounded text.
-- `extract_claims`: convert document text into reviewable claims.
-- `compare_claims`: find candidate contradictions across documents.
-- `verify_conflicts`: demote weak matches and keep false positives under control.
-- `report_conflicts`: emit a traceable Markdown report with evidence.
+审查流水线由 CrossDoc 自己负责：
 
-Pi is used only as the runtime boundary:
+- `parse_doc`：把本地 PDF 解析成带页码证据的文本。
+- `extract_claims`：把文档文本转换成可审查的 claims。
+- `compare_claims`：跨文档查找候选矛盾。
+- `verify_conflicts`：降级弱匹配，控制误报。
+- `report_conflicts`：输出带证据的可溯源 Markdown 报告。
+
+Pi 只作为运行时边界使用：
 
 - agent loop
-- model provider abstraction
-- tool registration and execution
+- 模型 provider 抽象
+- 工具注册与执行
 
-## Quick Start
+## 快速开始
 
-Install dependencies:
+安装依赖：
 
 ```bash
 npm install
 ```
 
-Run a deterministic local review without an LLM:
+运行一个不依赖 LLM 的确定性本地审查：
 
 ```bash
 npm run dev -- review "./examples/docs/*.pdf"
 ```
 
-Build:
+构建：
 
 ```bash
 npm run build
 ```
 
-After build, the CLI entry is:
+构建后的 CLI 入口：
 
 ```bash
 node dist/cli.js review "./examples/docs/*.pdf"
 ```
 
-## Pi Version Discipline
+## Pi 版本纪律
 
-This project uses npm dependencies, not a forked Pi checkout.
+本项目通过 npm 依赖使用 Pi，不 fork Pi 源码。
 
-Compatible baseline:
+当前兼容基线：
 
 - `@earendil-works/pi-agent-core`: `^1.2.0`
 - `@earendil-works/pi-ai`: `^1.2.0`
 
-`package-lock.json` is committed so transitive dependency changes stay reviewable.
+`package-lock.json` 会提交到仓库，确保传递依赖变化可审查。
 
-## Project Layout
+## 项目结构
 
 ```text
 CrossDoc/
@@ -89,19 +91,19 @@ CrossDoc/
     └── docs/
 ```
 
-## Current Status
+## 当前状态
 
-This is the first development skeleton:
+这是第一版开发骨架：
 
-- PDF parsing uses `unpdf`.
-- Claim extraction is deterministic and intentionally conservative.
-- Comparison and verification are rule-based placeholders.
-- Pi wiring is isolated in `src/agent.ts` so model/provider choices do not leak into review logic.
+- PDF 解析使用 `unpdf`。
+- Claim 抽取是确定性的，并且刻意保守。
+- 比较与验证目前是基于规则的占位实现。
+- Pi 接入被隔离在 `src/agent.ts`，避免模型和 provider 选择污染审查逻辑。
 
-Next step: replace the deterministic claim extractor with a Pi tool-backed LLM extraction pass while keeping the same `Claim` and `Conflict` contracts.
+下一步：在保持 `Claim` 和 `Conflict` 数据契约不变的前提下，把确定性 claim 抽取替换为基于 Pi tools 的 LLM 抽取流程。
 
-## Acknowledgements
+## 致谢
 
-CrossDoc is built on Pi's minimal agent harness and extension philosophy. Respect and thanks to the Pi project and its maintainers:
+CrossDoc 构建在 Pi 的最小 agent harness 与扩展哲学之上。向 Pi 项目和维护者致敬：
 
-- Pi official source: https://github.com/earendil-works/pi
+- Pi 官方源码：https://github.com/earendil-works/pi
