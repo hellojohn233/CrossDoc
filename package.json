@@ -1,0 +1,38 @@
+{
+  "name": "crossdoc",
+  "version": "0.1.0",
+  "description": "Evidence-grounded document consistency review agent built on Pi.",
+  "type": "module",
+  "bin": {
+    "crossdoc": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/cli.ts",
+    "review": "tsx src/cli.ts review",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "keywords": [
+    "document-review",
+    "consistency",
+    "agent",
+    "pi",
+    "pdf"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.19.0"
+  },
+  "dependencies": {
+    "@earendil-works/pi-agent-core": "^1.2.0",
+    "@earendil-works/pi-ai": "^1.2.0",
+    "typebox": "^1.3.27",
+    "unpdf": "^1.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.8.1",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}
