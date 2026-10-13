@@ -59,6 +59,20 @@ After build, the CLI entry is:
 node dist/cli.js review "./examples/docs/*.pdf"
 ```
 
+Start the minimal Web UI:
+
+```bash
+npm run dev:web
+```
+
+Then open:
+
+```text
+http://localhost:5177
+```
+
+The Web UI is only a local visual entry point: upload PDFs, run the same review pipeline, and inspect findings plus the Markdown report. Review capability still lives in `src/review.ts`, `src/tools/`, and `src/core/`; the Pi agent runtime remains isolated in `src/agent.ts`.
+
 ## Pi Version Discipline
 
 This project uses npm dependencies, not a forked Pi checkout.

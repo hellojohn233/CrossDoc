@@ -1,0 +1,332 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>CrossDoc</title>
+    <style>
+      :root {
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+        background: #f6f7f9;
+        color: #17202a;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+      }
+
+      header {
+        border-bottom: 1px solid #dde2e7;
+        background: #ffffff;
+      }
+
+      .shell {
+        width: min(1180px, calc(100vw - 32px));
+        margin: 0 auto;
+      }
+
+      .topbar {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        min-height: 72px;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 22px;
+        font-weight: 700;
+      }
+
+      .tagline {
+        margin: 4px 0 0;
+        color: #596574;
+        font-size: 14px;
+      }
+
+      main {
+        padding: 24px 0 36px;
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: 340px 1fr;
+        gap: 20px;
+      }
+
+      section {
+        background: #ffffff;
+        border: 1px solid #dde2e7;
+        border-radius: 8px;
+      }
+
+      .panel {
+        padding: 18px;
+      }
+
+      h2 {
+        margin: 0 0 12px;
+        font-size: 16px;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 8px;
+        color: #3c4653;
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      input[type="file"] {
+        width: 100%;
+        padding: 12px;
+        border: 1px dashed #a7b0bd;
+        border-radius: 8px;
+        background: #fafbfc;
+      }
+
+      button {
+        width: 100%;
+        margin-top: 14px;
+        padding: 11px 14px;
+        border: 0;
+        border-radius: 8px;
+        background: #165dff;
+        color: #ffffff;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      button:disabled {
+        background: #a7b0bd;
+        cursor: not-allowed;
+      }
+
+      .status {
+        margin-top: 14px;
+        min-height: 22px;
+        color: #596574;
+        font-size: 14px;
+      }
+
+      .summary {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+        margin-bottom: 18px;
+      }
+
+      .metric {
+        border: 1px solid #dde2e7;
+        border-radius: 8px;
+        padding: 14px;
+        background: #fafbfc;
+      }
+
+      .metric strong {
+        display: block;
+        font-size: 24px;
+      }
+
+      .metric span {
+        color: #596574;
+        font-size: 13px;
+      }
+
+      .findings {
+        display: grid;
+        gap: 12px;
+      }
+
+      .finding {
+        border: 1px solid #dde2e7;
+        border-radius: 8px;
+        padding: 14px;
+      }
+
+      .finding h3 {
+        margin: 0 0 8px;
+        font-size: 15px;
+      }
+
+      .finding p {
+        margin: 6px 0;
+        color: #3c4653;
+        line-height: 1.5;
+      }
+
+      .evidence {
+        margin-top: 10px;
+        padding-left: 18px;
+        color: #596574;
+        font-size: 13px;
+      }
+
+      pre {
+        overflow: auto;
+        max-height: 440px;
+        padding: 14px;
+        border: 1px solid #dde2e7;
+        border-radius: 8px;
+        background: #0f1720;
+        color: #dce7f3;
+        line-height: 1.5;
+        white-space: pre-wrap;
+      }
+
+      .empty {
+        color: #596574;
+      }
+
+      @media (max-width: 820px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+
+        .summary {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="shell topbar">
+        <div>
+          <h1>CrossDoc</h1>
+          <p class="tagline">基于证据的文档一致性审查</p>
+        </div>
+      </div>
+    </header>
+
+    <main class="shell layout">
+      <section class="panel">
+        <h2>上传 PDF</h2>
+        <form id="review-form">
+          <label for="documents">选择一个或多个 PDF</label>
+          <input id="documents" name="documents" type="file" accept="application/pdf,.pdf" multiple />
+          <button id="submit" type="submit">开始审查</button>
+          <div id="status" class="status">等待上传。</div>
+        </form>
+      </section>
+
+      <section class="panel">
+        <h2>审查结果</h2>
+        <div id="summary" class="summary"></div>
+        <div id="findings" class="findings">
+          <p class="empty">上传 PDF 后，这里会显示发现的问题和证据。</p>
+        </div>
+        <h2 style="margin-top: 22px">Markdown 报告</h2>
+        <pre id="report">暂无报告。</pre>
+      </section>
+    </main>
+
+    <script>
+      const form = document.querySelector("#review-form");
+      const fileInput = document.querySelector("#documents");
+      const submit = document.querySelector("#submit");
+      const status = document.querySelector("#status");
+      const summary = document.querySelector("#summary");
+      const findings = document.querySelector("#findings");
+      const report = document.querySelector("#report");
+
+      function setBusy(isBusy) {
+        submit.disabled = isBusy;
+        submit.textContent = isBusy ? "审查中..." : "开始审查";
+      }
+
+      function escapeHtml(value) {
+        return String(value)
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;")
+          .replaceAll("'", "&#039;");
+      }
+
+      function renderSummary(data) {
+        summary.innerHTML = `
+          <div class="metric"><strong>${data.documents.length}</strong><span>文档</span></div>
+          <div class="metric"><strong>${data.claimCount}</strong><span>Claims</span></div>
+          <div class="metric"><strong>${data.verifiedConflictCount}/${data.conflictCount}</strong><span>已验证/全部矛盾</span></div>
+        `;
+      }
+
+      function renderFindings(conflicts) {
+        if (!conflicts.length) {
+          findings.innerHTML = '<p class="empty">没有发现矛盾。</p>';
+          return;
+        }
+
+        findings.innerHTML = conflicts
+          .map((conflict) => {
+            const evidence = conflict.evidence
+              .map(
+                (item) =>
+                  `<li>${escapeHtml(item.documentId)} 第 ${item.page} 页：${escapeHtml(item.quote.slice(0, 220))}</li>`,
+              )
+              .join("");
+
+            return `
+              <article class="finding">
+                <h3>${escapeHtml(conflict.summary)}</h3>
+                <p>状态：${escapeHtml(conflict.status)} ｜ 严重性：${escapeHtml(conflict.severity)} ｜ 分数：${Number(conflict.score).toFixed(2)}</p>
+                <p>${escapeHtml(conflict.rationale)}</p>
+                <ul class="evidence">${evidence}</ul>
+              </article>
+            `;
+          })
+          .join("");
+      }
+
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const files = fileInput.files;
+        if (!files || files.length === 0) {
+          status.textContent = "请先选择 PDF。";
+          return;
+        }
+
+        const formData = new FormData();
+        for (const file of files) {
+          formData.append("documents", file);
+        }
+
+        setBusy(true);
+        status.textContent = "正在上传并审查，请稍候。";
+        findings.innerHTML = '<p class="empty">审查中...</p>';
+        report.textContent = "审查中...";
+
+        try {
+          const response = await fetch("/api/review", {
+            method: "POST",
+            body: formData,
+          });
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.error || "审查失败。");
+          }
+
+          status.textContent = "审查完成。";
+          renderSummary(data);
+          renderFindings(data.conflicts);
+          report.textContent = data.reportMarkdown;
+        } catch (error) {
+          status.textContent = error instanceof Error ? error.message : "审查失败。";
+          findings.innerHTML = '<p class="empty">没有可显示的结果。</p>';
+          report.textContent = "暂无报告。";
+        } finally {
+          setBusy(false);
+        }
+      });
+    </script>
+  </body>
+</html>

@@ -59,6 +59,20 @@ npm run build
 node dist/cli.js review "./examples/docs/*.pdf"
 ```
 
+启动最简 Web UI：
+
+```bash
+npm run dev:web
+```
+
+然后打开：
+
+```text
+http://localhost:5177
+```
+
+Web UI 只是一层本地可视化入口：上传 PDF、触发同一套审查管线、查看 findings 和 Markdown 报告。审查能力仍然在 `src/review.ts`、`src/tools/` 和 `src/core/` 中，Pi agent runtime 仍然隔离在 `src/agent.ts`。
+
 ## Pi 版本纪律
 
 本项目通过 npm 依赖使用 Pi，不 fork Pi 源码。

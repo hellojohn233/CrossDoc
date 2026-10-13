@@ -3,11 +3,7 @@
 import { glob, mkdir, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-import { compareClaims } from "./tools/compare.js";
-import { extractClaims } from "./tools/extract.js";
-import { parseDoc } from "./tools/parse.js";
-import { reportConflicts } from "./tools/report.js";
-import { verifyConflicts } from "./tools/verify.js";
+import { reviewDocuments } from "./review.js";
 
 function usage(): never {
   console.error("Usage: crossdoc review <glob-or-pdf> [more-globs-or-pdfs]");
@@ -35,24 +31,17 @@ async function review(patterns: string[]): Promise<void> {
 
   console.log(`CrossDoc reviewing ${files.length} document(s)...`);
 
-  const documents = [];
-  for (const file of files) {
-    console.log(`- parse ${file}`);
-    documents.push(await parseDoc(file));
-  }
-
-  const claims = documents.flatMap(extractClaims);
-  const candidates = compareClaims(claims);
-  const conflicts = verifyConflicts(candidates);
-  const reportMarkdown = reportConflicts({ documents, claims, conflicts });
+  const result = await reviewDocuments(files, {
+    onProgress: (progress) => console.log(`- ${progress.message}`),
+  });
 
   const outDir = resolve("crossdoc-output");
   await mkdir(outDir, { recursive: true });
   const reportPath = resolve(outDir, "review.md");
-  await writeFile(reportPath, reportMarkdown, "utf8");
+  await writeFile(reportPath, result.reportMarkdown, "utf8");
 
-  console.log(`Claims: ${claims.length}`);
-  console.log(`Conflicts: ${conflicts.filter((conflict) => conflict.status === "verified").length} verified / ${conflicts.length} total`);
+  console.log(`Claims: ${result.claims.length}`);
+  console.log(`Conflicts: ${result.conflicts.filter((conflict) => conflict.status === "verified").length} verified / ${result.conflicts.length} total`);
   console.log(`Report: ${reportPath}`);
 }
 
