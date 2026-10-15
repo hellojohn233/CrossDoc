@@ -1,7 +1,7 @@
 ---
 id: pdf-002
 scope: pdf-scan-ocr
-status: in-progress
+status: done
 depends-on: [pdf-001]
 ---
 
