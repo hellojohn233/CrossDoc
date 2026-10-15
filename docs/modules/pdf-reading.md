@@ -14,7 +14,7 @@ Classification happens per page, not per file:
 | Scan | Page has no or too little meaningful selectable text, but has visible page content | Render page to an image and ask Pi vision to read it | Page-level source location |
 | Blank/unknown | No meaningful text and no vision-recognized content | Preserve an empty page and emit a warning only when appropriate | Page number; no fabricated block location |
 
-The first implementation should use a small, explicit threshold based on non-whitespace characters and extracted text area. Record the per-page classification and extraction method in metadata so the overview and Q&A can disclose OCR-derived content. A mixed PDF can therefore use both paths without special handling by the user.
+The first implementation classifies a page as text-native when it has at least 8 non-whitespace characters or the combined non-empty text item bounding-box area is at least 0.1% of the visible page area. If it falls below both thresholds, PDF paint/image operators determine whether it is a scan candidate; a page without those signals is blank/unknown. Record the per-page classification and extraction method on the parsed page so later overview and Q&A steps can disclose vision-read content. A mixed PDF can therefore use both paths without special handling by the user.
 
 Native text blocks retain PDF-space bounding boxes. Vision-read scan output is stored as page-level text blocks with page number and stable block IDs. Do not invent word/line boxes from a model response.
 

@@ -73,6 +73,10 @@ export interface ParsedPage {
   page: number;
   text: string;
   blocks: DocumentBlock[];
+  /** PDF-only page classification. Other loaders may omit it. */
+  classification?: "text-native" | "scan-candidate" | "blank-unknown";
+  /** How page text was obtained, or which reader should process it next. */
+  extractionMethod?: "native-text" | "pending-vision" | "none";
 }
 
 export interface ParsedDocument {

@@ -1,11 +1,50 @@
 import { createHash } from "node:crypto";
 import { basename, resolve } from "node:path";
 import { readFile } from "node:fs/promises";
+import { OPS } from "pdfjs-dist/legacy/build/pdf.mjs";
 import { extractTextItems, getDocumentProxy } from "unpdf";
 
 import type { DocumentBlock, ParsedDocument, ParsedPage, PdfSourceLocation } from "../core/claims.js";
 import { renderDocumentMarkdown } from "../markdown/document.js";
 import type { DocumentLoader, ParseDocumentOptions } from "./types.js";
+
+const MIN_NATIVE_TEXT_CHARACTERS = 8;
+const MIN_NATIVE_TEXT_AREA_RATIO = 0.001;
+const CONTENT_OPERATORS = new Set<number>([
+  OPS.paintImageMaskXObject,
+  OPS.paintImageMaskXObjectGroup,
+  OPS.paintImageXObject,
+  OPS.paintInlineImageXObject,
+  OPS.paintInlineImageXObjectGroup,
+  OPS.paintImageXObjectRepeat,
+  OPS.paintImageMaskXObjectRepeat,
+  OPS.paintSolidColorImageMask,
+  OPS.fill,
+  OPS.eoFill,
+  OPS.stroke,
+  OPS.closeStroke,
+  OPS.fillStroke,
+  OPS.eoFillStroke,
+  OPS.closeFillStroke,
+  OPS.closeEOFillStroke,
+  OPS.shadingFill,
+]);
+
+type PdfPageClassification = NonNullable<ParsedPage["classification"]>;
+
+function hasMeaningfulText(text: string, textAreaRatio: number): boolean {
+  const characterCount = text.replace(/\s/gu, "").length;
+  return characterCount >= MIN_NATIVE_TEXT_CHARACTERS || textAreaRatio >= MIN_NATIVE_TEXT_AREA_RATIO;
+}
+
+function hasVisiblePageContent(operatorFunctions: number[]): boolean {
+  return operatorFunctions.some((operator) => CONTENT_OPERATORS.has(operator));
+}
+
+function classifyPage(text: string, textAreaRatio: number, hasVisibleContent: boolean): PdfPageClassification {
+  if (hasMeaningfulText(text, textAreaRatio)) return "text-native";
+  return hasVisibleContent ? "scan-candidate" : "blank-unknown";
+}
 
 function makeDocumentId(path: string): string {
   const safeName = basename(path).replace(/[^A-Za-z0-9._-]/g, "_");
@@ -35,6 +74,7 @@ export const pdfLoader: DocumentLoader = {
       ];
       let pageText = "";
       const pageBlocks: DocumentBlock[] = [];
+      let textArea = 0;
 
       for (const [itemIndex, item] of pageItems.entries()) {
         const start = pageText.length;
@@ -44,6 +84,9 @@ export const pdfLoader: DocumentLoader = {
         const bottom = Math.min(item.y, item.y + item.height);
         const right = Math.max(item.x, item.x + item.width);
         const top = Math.max(item.y, item.y + item.height);
+        if (item.str.trim().length > 0) {
+          textArea += Math.max(0, right - left) * Math.max(0, top - bottom);
+        }
         const source: PdfSourceLocation = {
           type: "pdf",
           page: pageNumber,
@@ -67,12 +110,26 @@ export const pdfLoader: DocumentLoader = {
         if (item.hasEOL) pageText += "\n";
       }
 
-      pages.push({ page: pageNumber, text: pageText, blocks: pageBlocks });
+      const pageArea = Math.max(0, pageBounds[2] - pageBounds[0]) * Math.max(0, pageBounds[3] - pageBounds[1]);
+      const textAreaRatio = pageArea > 0 ? textArea / pageArea : 0;
+      const meaningfulText = hasMeaningfulText(pageText, textAreaRatio);
+      const visibleContent = meaningfulText
+        ? false
+        : hasVisiblePageContent((await pageProxy.getOperatorList()).fnArray);
+      const classification = classifyPage(pageText, textAreaRatio, visibleContent);
+      pages.push({
+        page: pageNumber,
+        text: pageText,
+        blocks: pageBlocks,
+        classification,
+        extractionMethod:
+          classification === "text-native" ? "native-text" : classification === "scan-candidate" ? "pending-vision" : "none",
+      });
     }
 
     const warnings = pages
-      .filter((page) => page.text.trim().length === 0)
-      .map((page) => `Page ${page.page} has no selectable text; OCR is not enabled yet.`);
+      .filter((page) => page.classification === "scan-candidate")
+      .map((page) => `Page ${page.page} contains visual content without meaningful selectable text and needs vision reading.`);
     const document: Omit<ParsedDocument, "markdown"> = {
       id: options.id ?? makeDocumentId(path),
       title: options.title ?? basename(path),
