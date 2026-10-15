@@ -13,7 +13,8 @@
     "review": "tsx src/cli.ts review",
     "start:web": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "verify:pdf-page-render": "tsx scripts/verify-pdf-page-render.mjs"
+    "verify:pdf-page-render": "tsx scripts/verify-pdf-page-render.mjs",
+    "verify:document-search": "tsx scripts/verify-document-search.mjs"
   },
   "keywords": [
     "document-review",
