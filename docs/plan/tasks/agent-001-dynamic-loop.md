@@ -1,7 +1,7 @@
 ---
 id: agent-001
 scope: agent-runtime
-status: pending
+status: in-progress
 depends-on: [pdf-001, pdf-002, skill-001]
 ---
 

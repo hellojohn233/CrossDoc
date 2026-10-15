@@ -23,8 +23,8 @@ All tasks are pending. The scan-reading engine is Pi vision, as selected by the 
 |---|---|---|---|---|
 | `pdf-001` | PDF ingestion | Classify pages as text-native, scan, or blank/unknown; preserve native text blocks and PDF locations | — | done |
 | `pdf-002` | Scan reading | Render scanned pages, read them with Pi vision, save page-level text blocks, and emit page warnings | `pdf-001` | done |
-| `skill-001` | Overview and Q&A | Add a concise document-overview skill and source-grounded follow-up retrieval behavior | `pdf-001`, `pdf-002` | in-progress |
-| `agent-001` | Pi orchestration | Make Pi task-directed; expose scoped inspect, skill, parse, and search tools; keep review optional | `pdf-001`, `pdf-002`, `skill-001` | pending |
+| `skill-001` | Overview and Q&A | Add a concise document-overview skill and source-grounded follow-up retrieval behavior | `pdf-001`, `pdf-002` | done |
+| `agent-001` | Pi orchestration | Make Pi task-directed; expose scoped inspect, skill, parse, and search tools; keep review optional | `pdf-001`, `pdf-002`, `skill-001` | in-progress |
 | `agent-002` | Concurrent reading | Parse selected PDFs concurrently under a cap, retain order, and report partial failures | `agent-001` | pending |
 | `web-001` | Web integration | Start reading after selection, show overview and cited follow-up Q&A, and archive source/Markdown | `agent-001`, `agent-002` | pending |
 | `e2e-001` | PDF acceptance | Verify native, scanned, and mixed PDFs through actual UI, Pi loop, loaders, library, overview, and citations | `pdf-001`, `pdf-002`, `skill-001`, `agent-001`, `agent-002`, `web-001` | pending |

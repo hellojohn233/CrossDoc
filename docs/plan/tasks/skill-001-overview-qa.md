@@ -1,7 +1,7 @@
 ---
 id: skill-001
 scope: document-reading-skills
-status: in-progress
+status: done
 depends-on: [pdf-001, pdf-002]
 ---
 
