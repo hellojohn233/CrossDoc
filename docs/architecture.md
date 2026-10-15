@@ -43,7 +43,7 @@ The server passes the agent only the files selected for the current task. Agent 
 
 ## PDF Reading Slice
 
-PDFs are classified per page, because a single file may mix selectable text and scanned pages. Text-native pages use PDF.js text items and their PDF-space bounding boxes. Scan pages are rendered to images and passed to an OCR adapter; OCR word/line boxes are mapped back into PDF page coordinates. The common `ParsedDocument` contract and Markdown renderer are used for both. A blank page remains blank and is not mislabeled as an OCR failure.
+PDFs are classified per page, because a single file may mix selectable text and scanned pages. Text-native pages use PDF.js text items and their PDF-space bounding boxes. Scan pages are rendered as PNG at scale 1.5 and passed to Pi vision; the renderer respects page rotation and CropBox and rejects output sides above 4,500 pixels. Vision-read text has page-level provenance; it does not receive fabricated word or line boxes. The common `ParsedDocument` contract and Markdown renderer are used for both. A blank page remains blank and is not mislabeled as a vision-read failure.
 
 The first reader path invokes a concise overview skill after the selected PDFs have been parsed and archived. The skill explains the document's topic, structure, key points, and any extraction uncertainty, with page citations. Follow-up Q&A retrieves relevant normalized blocks from the selected/library documents and requires the answer to cite their source pages. The first slice uses bounded lexical retrieval over parsed blocks; it does not require a vector database, and it does not run consistency review unless requested.
 
@@ -83,7 +83,7 @@ The current connected format is PDF, so its source is saved as `source.pdf`. `da
 
 ## Current Implementation State
 
-- PDF parsing is connected and keeps selectable-text page coordinates; scan OCR is not yet connected.
+- PDF parsing is connected and keeps selectable-text page coordinates. The bounded PNG renderer for scan pages is available; Pi vision reading and saving its page text are the next integration steps.
 - DOCX, XLSX, and image source-location types exist, but matching loaders and skills are not connected.
 - The Web and CLI entry points still call the deterministic `reviewDocuments()` pipeline directly.
 - `createCrossDocAgent()` currently registers parsing/review tools and its prompt prescribes a fixed order; it is not yet the Web request orchestrator.
