@@ -63,7 +63,7 @@ npm run build
 node dist/cli.js review "./examples/docs/*.pdf"
 ```
 
-配置所选 Pi AI provider 的凭据（示例模型使用 `GOOGLE_API_KEY`），并设置图像输入模型。缺少模型设置、模型不在 Pi AI 内置目录、provider 凭据缺失或模型不支持图像时，Pi Agent 创建会在读取开始前报出设置错误。可在 `.env.example` 查看配置格式。启动 Web UI：
+配置所选 Pi AI provider 的凭据（示例模型使用 `GOOGLE_API_KEY`），并设置图像输入模型。缺少模型设置、模型不在 Pi AI 内置目录、provider 凭据缺失或模型不支持图像时，Pi Agent 创建会在读取开始前报出设置错误。可在 [.env.example](./.env.example) 查看配置格式。启动 Web UI：
 
 ```bash
 export CROSSDOC_VISION_MODEL=google/gemini-2.5-flash
@@ -77,7 +77,9 @@ npm run dev:web
 http://localhost:5177
 ```
 
-Web UI 只是一层本地可视化入口：上传 PDF、触发同一套审查管线、查看 findings 和 Markdown 报告，并点击引用打开对应原 PDF 页。上传文件暂存于 `.crossdoc/uploads/`，审查 JSON 和 Markdown 保存在 `.crossdoc/reviews/`。审查成功的资料会同时归档到本地 `data/library/<资料 ID>/`，其中包含 `source.pdf`、`document.md` 和 `metadata.json`；该目录已加入 `.gitignore`，不会进入 Git 提交。开始读取页只提供资料库入口，文件列表在资料库页面中查看。
+Web UI 的主要入口用于阅读：选择 PDF 后由 Pi Agent 按文件格式调用解析工具，扫描页通过视觉模型读取，接着生成简短概述并支持基于同一会话追问。阅读进度通过可重放的 SSE 事件发送，引用可以打开归档 PDF 的对应页。确定性一致性审查仍由独立的 `/api/review` 路由提供。
+
+上传源文件暂存于 `.crossdoc/uploads/`，解析成功后源 PDF 和转换 Markdown 归档在本地 `data/library/<资料 ID>/`，并带有 `metadata.json`；临时上传在读取任务结束后清理。`data/` 已加入 `.gitignore`，不会进入 Git 提交。开始页仅提供资料库入口和文件选择，不会预览库内文档。
 
 ## Pi 版本纪律
 
@@ -134,7 +136,7 @@ CrossDoc/
 - 比较与验证目前是基于规则的占位实现。
 - Pi 接入仍隔离在 `src/agent.ts`，格式解析和报告生成不依赖 Pi。
 
-下一步：把 request-scoped Pi Agent 接入 Web 读取页，展示自动概述并支持引用来源页的后续提问。
+Web 阅读入口、request-scoped Pi Agent、自动概述和引用来源页的后续提问已接通。后续可以在同一 source-location 契约下增加 DOCX、XLSX 与图片加载器。
 
 ## 致谢
 

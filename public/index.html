@@ -1009,6 +1009,65 @@
         color: var(--red);
       }
 
+      .reading-screen {
+        display: grid;
+        width: min(100% - 48px, 1280px);
+        min-height: calc(100vh - 88px);
+        grid-template-rows: auto minmax(0, 1fr);
+        gap: 24px;
+        margin: 0 auto;
+        padding: 36px 0 48px;
+      }
+
+      .reading-screen[hidden] { display: none; }
+
+      .reading-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        padding-bottom: 18px;
+        border-bottom: 2px solid var(--ink);
+      }
+
+      .reading-header h2 { margin: 0; font-size: 27px; letter-spacing: -0.035em; }
+      .reading-header-actions { display: flex; gap: 8px; }
+      .reading-layout { display: grid; min-height: 0; grid-template-columns: 300px minmax(0, 1fr); border: 1px solid var(--line-dark); background: rgba(255, 253, 248, 0.72); }
+      .reading-files { padding: 20px 16px; border-right: 1px solid var(--line); }
+      .reading-files h3 { margin: 0 0 14px; font-size: 14px; }
+      .reading-file-list { display: grid; align-content: start; gap: 8px; }
+      .reading-file { display: grid; grid-template-columns: 10px minmax(0, 1fr); gap: 10px; padding: 10px 8px; border-bottom: 1px solid var(--line); }
+      .reading-file-dot { width: 8px; height: 8px; margin-top: 5px; border-radius: 50%; background: #b6ab99; }
+      .reading-file[data-state="reading"] .reading-file-dot { background: var(--blue); box-shadow: 0 0 0 4px var(--blue-soft); }
+      .reading-file[data-state="ready"] .reading-file-dot { background: #43835a; }
+      .reading-file[data-state="failed"] .reading-file-dot { background: var(--red); }
+      .reading-file-name { overflow-wrap: anywhere; font-size: 13px; font-weight: 700; }
+      .reading-file-state { margin-top: 4px; color: var(--muted); font-size: 12px; }
+      .reading-file-error { margin: 5px 0 0; color: var(--red); font-size: 12px; overflow-wrap: anywhere; }
+      .reading-cancel { margin-top: 22px; color: var(--muted); }
+      .reading-conversation { display: grid; min-width: 0; grid-template-rows: auto minmax(0, 1fr) auto; }
+      .reading-overview { padding: 22px 28px; border-bottom: 1px solid var(--line); }
+      .reading-overview h3 { margin: 0 0 12px; font-size: 15px; }
+      .reading-prose { color: var(--ink); font-size: 15px; line-height: 1.8; overflow-wrap: anywhere; white-space: pre-wrap; }
+      .reading-prose a { color: var(--blue); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
+      .reading-placeholder { color: var(--muted); }
+      .reading-answers { display: grid; align-content: start; gap: 18px; max-height: 46vh; overflow: auto; padding: 20px 28px; }
+      .reading-answer { padding: 14px 16px; border-left: 3px solid var(--blue); background: rgba(238, 243, 248, 0.68); }
+      .reading-question { margin: 0 0 8px; color: var(--muted); font-size: 13px; }
+      .reading-composer { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 10px; padding: 18px 28px; border-top: 1px solid var(--line); }
+      .reading-composer textarea { width: 100%; min-height: 76px; resize: vertical; padding: 12px 14px; border: 1px solid var(--line-dark); border-radius: 5px; background: #fffdf8; color: var(--ink); font: inherit; }
+      .reading-composer button { min-height: 44px; }
+      .reading-notice { margin: 0; padding: 0 28px 14px; color: var(--red); font-size: 13px; }
+      body:not(.review-open) .brand p,
+      body:not(.review-open) .case-strip,
+      body:not(.review-open) .top-actions {
+        display: none;
+      }
+
+      body.reading-open .brand p { display: block; }
+      body.reading-open .top-actions { display: flex; }
+      body.review-open .top-actions { display: flex; }
+
       .ingest-empty {
         display: grid;
         width: min(100%, 980px);
@@ -1228,6 +1287,10 @@
         display: none;
       }
 
+      body.reading-open .ingest-screen { display: none; }
+      body.reading-open .reading-screen { display: grid; }
+      body.library-open .reading-screen { display: none; }
+
       body.library-open .library-screen {
         display: block;
       }
@@ -1246,6 +1309,16 @@
           width: min(100% - 32px, 980px);
           padding-top: 32px;
         }
+
+        .reading-screen { width: min(100% - 32px, 980px); padding-top: 22px; }
+        .reading-header { align-items: flex-start; flex-direction: column; }
+        .reading-header-actions { width: 100%; }
+        .reading-header-actions button { flex: 1; }
+        .reading-layout { grid-template-columns: 1fr; }
+        .reading-files { border-right: 0; border-bottom: 1px solid var(--line); }
+        .reading-file-list { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+        .reading-overview, .reading-answers { padding-inline: 18px; }
+        .reading-composer { padding-inline: 18px; }
 
         .library-header {
           align-items: flex-start;
@@ -1333,8 +1406,8 @@
         </div>
       </div>
       <div class="top-actions">
-        <button class="primary" id="submit-top" type="button">Run review</button>
-        <button class="ghost" id="reset-top" type="button">Reset</button>
+        <button id="open-library-top" type="button">资料库</button>
+        <button id="back-to-reading" type="button" hidden>返回阅读</button>
       </div>
     </header>
 
@@ -1379,6 +1452,35 @@
           </footer>
         </section>
       </form>
+    </main>
+
+    <main class="reading-screen" id="reading-screen" hidden>
+      <header class="reading-header">
+        <h2>当前阅读</h2>
+        <div class="reading-header-actions">
+          <button id="review-reading" type="button" disabled>一致性审查</button>
+          <button id="back-to-selection" type="button">返回选择文件</button>
+        </div>
+      </header>
+      <div class="reading-layout">
+        <aside class="reading-files">
+          <h3>已选文件</h3>
+          <div class="reading-file-list" id="reading-file-list"></div>
+          <button class="reading-cancel" id="cancel-reading" type="button" hidden>取消读取</button>
+        </aside>
+        <section class="reading-conversation" aria-live="polite">
+          <div class="reading-overview">
+            <h3>概述</h3>
+            <div class="reading-prose reading-placeholder" id="reading-overview">正在读取文档…</div>
+          </div>
+          <div class="reading-answers" id="reading-answers"></div>
+          <p class="reading-notice" id="reading-notice" hidden></p>
+          <form class="reading-composer" id="reading-question-form">
+            <textarea id="reading-question" placeholder="询问所选文档…" aria-label="询问所选文档" disabled></textarea>
+            <button class="primary" id="send-question" type="submit" disabled>发送</button>
+          </form>
+        </section>
+      </div>
     </main>
 
     <main class="library-screen" id="library-screen" hidden>
@@ -1589,10 +1691,20 @@
       const ingestCount = document.querySelector("#ingest-count");
       const ingestStatus = document.querySelector("#ingest-status");
       const submit = document.querySelector("#submit");
-      const submitTop = document.querySelector("#submit-top");
-      const resetTop = document.querySelector("#reset-top");
+      const openLibraryTop = document.querySelector("#open-library-top");
       const libraryScreen = document.querySelector("#library-screen");
       const libraryList = document.querySelector("#library-list");
+      const readingScreen = document.querySelector("#reading-screen");
+      const reviewReading = document.querySelector("#review-reading");
+      const backToReading = document.querySelector("#back-to-reading");
+      const readingFileList = document.querySelector("#reading-file-list");
+      const readingOverview = document.querySelector("#reading-overview");
+      const readingAnswers = document.querySelector("#reading-answers");
+      const readingNotice = document.querySelector("#reading-notice");
+      const readingQuestionForm = document.querySelector("#reading-question-form");
+      const readingQuestion = document.querySelector("#reading-question");
+      const sendQuestion = document.querySelector("#send-question");
+      const cancelReadingButton = document.querySelector("#cancel-reading");
       const statusText = document.querySelector("#status");
       const runState = document.querySelector("#run-state");
       const runDot = document.querySelector("#run-dot");
@@ -1629,6 +1741,12 @@
       let activeRenderTask = null;
       const pdfCache = new Map();
       let selectedFiles = [];
+      let readingSession = null;
+      let readingEvents = null;
+      let readDocuments = [];
+      let readingDone = false;
+      let questionBusy = false;
+      let lastReadEventId = 0;
 
       function escapeHtml(value) {
         return String(value ?? "")
@@ -1650,7 +1768,7 @@
       function setRunState(state, message) {
         runState.textContent = state;
         statusText.textContent = message;
-        if (ingestStatus && !document.body.classList.contains("review-open")) {
+        if (ingestStatus && !document.body.classList.contains("review-open") && !document.body.classList.contains("reading-open")) {
           ingestStatus.textContent = state === "Idle" ? "" : message;
         }
         runDot.className = "run-dot";
@@ -1702,6 +1820,167 @@
           }).join("");
         } catch (error) {
           libraryList.innerHTML = `<div class="library-empty library-error">${escapeHtml(error instanceof Error ? error.message : "资料库读取失败。")}</div>`;
+        }
+      }
+
+      function renderReadingFiles() {
+        const labels = { waiting: "等待读取", reading: "正在读取", ready: "已完成", failed: "读取失败" };
+        readingFileList.innerHTML = readDocuments.map((item) => `
+          <div class="reading-file" data-state="${escapeHtml(item.state)}">
+            <span class="reading-file-dot" aria-hidden="true"></span>
+            <div><div class="reading-file-name">${escapeHtml(item.title)}</div>
+              <div class="reading-file-state">${escapeHtml(labels[item.state] || item.state)}${item.pages ? ` · ${escapeHtml(item.pages)} 页` : ""}</div>
+              ${item.error ? `<p class="reading-file-error">${escapeHtml(item.error)}</p>` : ""}
+            </div>
+          </div>`).join("");
+      }
+
+      function renderCitations(text) {
+        const knownDocuments = new Map(readDocuments.filter((item) => item.state === "ready").map((item) => [item.id, item]));
+        const uuid = "[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
+        return escapeHtml(text).replace(new RegExp(`\\[\\[cite:(${uuid}):(\\d+)\\]\\]`, "gi"), (token, id, page) => {
+          const pageNumber = Number(page);
+          const source = knownDocuments.get(id);
+          if (!source || !Number.isSafeInteger(pageNumber) || pageNumber < 1 || !Number.isSafeInteger(source.pages) || pageNumber > source.pages) return token;
+          const href = `/api/library/${encodeURIComponent(id)}/source#page=${pageNumber}`;
+          return `<a href="${href}" target="_blank" rel="noopener noreferrer">[第 ${pageNumber} 页]</a>`;
+        });
+      }
+
+      function setQuestionBusy(busy) {
+        questionBusy = busy;
+        const enabled = readingDone && !busy && !readingSession?.cancelled;
+        readingQuestion.disabled = !enabled;
+        sendQuestion.disabled = !enabled;
+        if (readingDone) cancelReadingButton.hidden = !busy;
+      }
+
+      function handleReadEvent(type, data) {
+        if (type === "progress") {
+          const phaseLabels = { detection: "正在识别文件", extraction: "正在提取文字", "scan-reading": "正在读取扫描页", overview: "正在生成概述", answer: "正在查找并回答", search: "正在查找相关内容", cancellation: "正在取消", processing: "正在处理" };
+          if (data.phase === "answer") setQuestionBusy(data.state === "active");
+          const title = data.title ? `：${data.title}` : "";
+          setRunState(data.state === "complete" ? "Ready" : "Running", `${phaseLabels[data.phase] || "正在处理"}${title}`);
+        } else if (type === "document") {
+          const index = readDocuments.findIndex((item) => item.id === data.id);
+          if (index >= 0) readDocuments[index] = { ...readDocuments[index], ...data };
+          renderReadingFiles();
+        } else if (type === "overview") {
+          readingOverview.classList.remove("reading-placeholder");
+          readingOverview.innerHTML = renderCitations(data.text || "");
+        } else if (type === "answer") {
+          const answer = document.createElement("article");
+          answer.className = "reading-answer";
+          answer.innerHTML = `<p class="reading-question">${escapeHtml(data.question || "")}</p><div class="reading-prose">${renderCitations(data.text || "")}</div>`;
+          readingAnswers.append(answer);
+          readingAnswers.scrollTop = readingAnswers.scrollHeight;
+        } else if (type === "error") {
+          readingNotice.hidden = false;
+          readingNotice.textContent = data.message || "读取时发生错误。";
+          if (data.operation === "question") setQuestionBusy(false);
+        } else if (type === "done") {
+          readingDone = true;
+          reviewReading.disabled = !readDocuments.some((item) => item.state === "ready");
+          cancelReadingButton.hidden = true;
+          if (data.status === "cancelled" && readingSession) readingSession.cancelled = true;
+          setQuestionBusy(false);
+          const label = data.operation === "question" && data.status === "cancelled" ? "追问已取消" : data.status === "partial" ? "部分文件读取完成" : data.status === "cancelled" ? "读取已取消" : data.status === "failed" ? "读取未完成" : "读取完成";
+          setRunState(data.status === "failed" ? "Failed" : "Ready", label);
+          if (data.status === "cancelled" || data.status === "failed") readingQuestion.disabled = sendQuestion.disabled = true;
+        }
+      }
+
+      function connectReadEvents(sessionId) {
+        readingEvents?.close();
+        readingEvents = new EventSource(`/api/read/${encodeURIComponent(sessionId)}/events?after=${lastReadEventId}`);
+        for (const type of ["progress", "document", "overview", "answer", "error", "done"]) {
+          readingEvents.addEventListener(type, (event) => {
+            try {
+              if (event.lastEventId) lastReadEventId = Number(event.lastEventId) || lastReadEventId;
+              handleReadEvent(type, JSON.parse(event.data));
+            }
+            catch { readingNotice.hidden = false; readingNotice.textContent = "无法读取服务器进度事件。"; }
+          });
+        }
+        readingEvents.onerror = () => {
+          if (readingEvents?.readyState === EventSource.CLOSED && !readingDone) {
+            readingNotice.hidden = false;
+            readingNotice.textContent = "与读取会话的连接中断，请重新连接。";
+          }
+        };
+      }
+
+      async function startReading() {
+        const files = selectedFiles.filter(({ file }) => isPdf(file));
+        if (!files.length) {
+          ingestStatus.textContent = "请先选择 PDF 文件。";
+          return;
+        }
+        const formData = new FormData();
+        files.forEach(({ file, path }) => formData.append("documents[]", file, path));
+        submit.disabled = true;
+        readingDone = false;
+        lastReadEventId = 0;
+        questionBusy = false;
+        readDocuments = [];
+        readingAnswers.replaceChildren();
+        readingNotice.hidden = true;
+        readingNotice.textContent = "";
+        readingOverview.classList.add("reading-placeholder");
+        readingOverview.textContent = "正在读取文档…";
+        reviewReading.disabled = true;
+        setRunState("Running", "正在准备读取会话。");
+        try {
+          const response = await fetch("/api/read", { method: "POST", body: formData });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(data.error || "无法开始读取文档。");
+          readingSession = { id: data.sessionId, cancelled: false };
+          readDocuments = data.documents || [];
+          renderReadingFiles();
+          document.body.classList.add("reading-open");
+          document.body.classList.remove("library-open");
+          readingScreen.hidden = false;
+          cancelReadingButton.hidden = false;
+          cancelReadingButton.disabled = false;
+          setQuestionBusy(false);
+          connectReadEvents(readingSession.id);
+        } catch (error) {
+          setRunState("Failed", error instanceof Error ? error.message : "无法开始读取文档。");
+          ingestStatus.textContent = error instanceof Error ? error.message : "无法开始读取文档。";
+          submit.disabled = false;
+        }
+      }
+
+      async function askQuestion() {
+        if (!readingSession || questionBusy) return;
+        const question = readingQuestion.value.trim();
+        if (!question) return;
+        readingQuestion.value = "";
+        setQuestionBusy(true);
+        try {
+          const response = await fetch(`/api/read/${encodeURIComponent(readingSession.id)}/questions`, {
+            method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question }),
+          });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(data.error || "问题提交失败。");
+        } catch (error) {
+          setQuestionBusy(false);
+          readingNotice.hidden = false;
+          readingNotice.textContent = error instanceof Error ? error.message : "问题提交失败。";
+        }
+      }
+
+      async function cancelReading() {
+        if (!readingSession || (readingDone && !questionBusy)) return;
+        cancelReadingButton.disabled = true;
+        try {
+          await fetch(`/api/read/${encodeURIComponent(readingSession.id)}/cancel`, { method: "POST" });
+        } catch {
+          readingNotice.hidden = false;
+          readingNotice.textContent = "取消请求未能送达。";
+        } finally {
+          readingSession.cancelled = true;
+          readingQuestion.disabled = sendQuestion.disabled = true;
         }
       }
 
@@ -1787,8 +2066,8 @@
       }
 
       function renderFileTree(node) {
-        const folders = Array.from(node.folders.entries()).sort(([a], [b]) => a.localeCompare(b, "zh-CN"));
-        const files = [...node.files].sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
+        const folders = Array.from(node.folders.entries());
+        const files = [...node.files];
         const fileRows = files.map(({ file, name }) => {
           const supported = isPdf(file);
           const extension = name.includes(".") ? name.split(".").at(-1) : "FILE";
@@ -2064,9 +2343,12 @@
         const formData = new FormData();
         files.forEach(({ file, path }) => formData.append("documents", file, path));
         submit.disabled = true;
-        submitTop.disabled = true;
         selectedConflictId = null;
+        readingEvents?.close();
+        document.body.classList.remove("reading-open");
+        readingScreen.hidden = true;
         document.body.classList.add("review-open");
+        backToReading.hidden = false;
         document.querySelector(".shell").hidden = false;
         setRunState("Running", "正在上传并解析文档。");
         setPipeline(0);
@@ -2106,7 +2388,6 @@
         } finally {
           timers.forEach(window.clearTimeout);
           submit.disabled = false;
-          submitTop.disabled = false;
         }
       }
 
@@ -2125,7 +2406,12 @@
         setPipeline(-1);
         setRunState("Idle", "等待上传。");
         document.body.classList.remove("review-open");
+        document.body.classList.remove("reading-open");
         document.body.classList.remove("library-open");
+        readingEvents?.close();
+        readingEvents = null;
+        backToReading.hidden = true;
+        readingScreen.hidden = true;
         libraryScreen.hidden = true;
         document.querySelector(".shell").hidden = true;
         updateFiles();
@@ -2133,10 +2419,18 @@
 
       form.addEventListener("submit", (event) => {
         event.preventDefault();
-        runReview();
+        void startReading();
       });
-      submitTop.addEventListener("click", runReview);
-      resetTop.addEventListener("click", resetAll);
+      openLibraryTop.addEventListener("click", openLibrary);
+      reviewReading.addEventListener("click", runReview);
+      backToReading.addEventListener("click", () => {
+        document.body.classList.remove("review-open");
+        document.body.classList.add("reading-open");
+        document.querySelector(".shell").hidden = true;
+        readingScreen.hidden = false;
+        backToReading.hidden = true;
+        if (readingSession) connectReadEvents(readingSession.id);
+      });
       document.querySelector("#open-library").addEventListener("click", openLibrary);
       document.querySelector("#back-to-ingest").addEventListener("click", () => {
         document.body.classList.remove("library-open");
@@ -2152,6 +2446,24 @@
         folderInput.value = "";
         updateFiles();
         setRunState("Idle", "");
+      });
+      document.querySelector("#back-to-selection").addEventListener("click", () => {
+        readingEvents?.close();
+        readingEvents = null;
+        document.body.classList.remove("reading-open");
+        readingScreen.hidden = true;
+        submit.disabled = selectedFiles.every(({ file }) => !isPdf(file));
+      });
+      cancelReadingButton.addEventListener("click", cancelReading);
+      readingQuestionForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        void askQuestion();
+      });
+      readingQuestion.addEventListener("keydown", (event) => {
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          void askQuestion();
+        }
       });
       document.body.addEventListener("click", (event) => {
         const link = event.target.closest?.("[data-source-id]");
