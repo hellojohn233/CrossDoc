@@ -7,7 +7,7 @@ depends-on: [agent-001]
 
 # Objective
 
-Enable independent document parsing to run concurrently through Pi's parallel tool-call support and enforce a CrossDoc concurrency limit. Preserve input order in results, report per-file failures independently, and keep each parsed document's source locations intact.
+Enable independent document parsing to run concurrently through Pi's parallel tool-call support and enforce a fixed CrossDoc concurrency limit of three active parses. Preserve input order in results, report per-file failures independently, and keep each parsed document's source locations intact. The cap applies to parse and persistence work for a document; scan-page vision calls remain individually bounded to one page per tool call.
 
 # Context
 

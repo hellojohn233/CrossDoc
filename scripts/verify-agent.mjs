@@ -24,22 +24,31 @@ function makeModels(model = makeModel(), auth = { type: "api_key" }) {
   };
 }
 
-function fakeParsedDocument(id, title) {
+function fakeParsedDocument(id, title, withNativeText = false) {
+  const nativeText = withNativeText ? "表格编号 A-19" : "";
+  const nativeBlock = withNativeText ? {
+    id: `${id}:p1:b1`,
+    kind: "text",
+    text: nativeText,
+    source: { type: "pdf", page: 1, bbox: [25, 600, 98, 612], pageBounds: [0, 0, 612, 792] },
+    start: 0,
+    end: nativeText.length,
+  } : undefined;
   return {
     id,
     title,
     format: "pdf",
     pages: [{
       page: 1,
-      text: "",
-      blocks: [],
+      text: nativeText,
+      blocks: nativeBlock ? [nativeBlock] : [],
       pageBounds: [0, 0, 612, 792],
       classification: "scan-candidate",
       extractionMethod: "pending-vision",
     }],
-    blocks: [],
-    text: "",
-    markdown: `# ${title}\n\n## Page 1\n\n> needs vision reading\n`,
+    blocks: nativeBlock ? [nativeBlock] : [],
+    text: nativeText,
+    markdown: `# ${title}\n\n## Page 1\n\n${nativeText}\n`,
     warnings: ["Page 1 contains visual content without meaningful selectable text and needs vision reading."],
   };
 }
@@ -108,7 +117,7 @@ async function main() {
     models: makeModels(),
     streamFn,
     visionModel: "test-provider/vision-test",
-    parseDocument: async (_path, options) => fakeParsedDocument(options.id, options.title),
+    parseDocument: async (_path, options) => fakeParsedDocument(options.id, options.title, true),
     renderScanPage: async () => ({ bytes: new Uint8Array([1, 2, 3]), width: 100, height: 140 }),
     onDocumentUpdated: async (document, source) => savedUpdates.push({ document, source }),
   });
@@ -121,12 +130,26 @@ async function main() {
   assert.equal(usedTools.some((name) => name === "compare_claims" || name === "verify_conflicts" || name === "report_conflicts"), false);
   assert.equal(savedUpdates.length, 2, "parse and scan-text mutations should each invoke the persistence callback");
   const saved = savedUpdates.at(-1).document;
-  assert.equal(saved.blocks[0].id, "opaque-pdf-id:p1:vision");
-  assert.equal(saved.blocks[0].source.page, 1);
+  assert.deepEqual(saved.blocks.map((block) => block.id), ["opaque-pdf-id:p1:b1", "opaque-pdf-id:p1:vision"]);
+  assert.deepEqual(saved.blocks[0].source.bbox, [25, 600, 98, 612], "native block coordinates must be retained");
+  assert.equal(saved.blocks[1].source.page, 1);
   assert.equal(saved.pages[0].extractionMethod, "vision-text");
+  assert.match(saved.pages[0].text, /表格编号 A-19[\s\S]*扫描页识别出的合同条款/);
+  assert.match(saved.text, /表格编号 A-19[\s\S]*扫描页识别出的合同条款/);
+  assert.match(saved.markdown, /表格编号 A-19[\s\S]*扫描页识别出的合同条款/);
   assert.match(saved.markdown, /扫描页识别出的合同条款/);
   assert.deepEqual(saved.warnings, []);
   assert.match(agent.state.messages.map((item) => JSON.stringify(item)).join("\n"), /Saved page 1 text/);
+
+  const saveScanText = agent.state.tools.find((tool) => tool.name === "save_scan_page_text");
+  await saveScanText.execute("retry-save", { documentId: selectedSource.id, page: 1, text: "扫描页识别出的合同条款。" });
+  assert.equal(savedUpdates.length, 3, "an identical retry may persist again without adding a duplicate block");
+  assert.equal(savedUpdates.at(-1).document.blocks.length, 2);
+  const scopedSearch = agent.state.tools.find((tool) => tool.name === "search_document");
+  const nativeEvidence = await scopedSearch.execute("search-native", { query: "表格编号", documentIds: [selectedSource.id] });
+  const visionEvidence = await scopedSearch.execute("search-vision", { query: "合同条款", documentIds: [selectedSource.id] });
+  assert.equal(nativeEvidence.structuredContent.excerpts[0].source.blockId, "opaque-pdf-id:p1:b1");
+  assert.equal(visionEvidence.structuredContent.excerpts[0].source.blockId, "opaque-pdf-id:p1:vision");
 
   const scopedTools = createCrossDocTools({ documents: [selectedSource] });
   const inspect = scopedTools.find((tool) => tool.name === "inspect_document");

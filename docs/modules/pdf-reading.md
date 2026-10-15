@@ -16,7 +16,7 @@ Classification happens per page, not per file:
 
 The first implementation classifies a page as text-native when it has at least 8 non-whitespace characters or the combined non-empty text item bounding-box area is at least 0.1% of the visible page area. If it falls below both thresholds, PDF paint/image operators determine whether it is a scan candidate; a page without those signals is blank/unknown. Record the per-page classification and extraction method on the parsed page so later overview and Q&A steps can disclose vision-read content. A mixed PDF can therefore use both paths without special handling by the user.
 
-Native text blocks retain PDF-space bounding boxes. Vision-read scan output is stored as page-level text blocks with page number and stable block IDs. Do not invent word/line boxes from a model response.
+Native text blocks retain PDF-space bounding boxes. A scan-candidate page can still contain sparse selectable text, so the vision transcript is appended as a separate page-level block without replacing its existing text or blocks. Vision blocks use stable IDs and page bounds; do not invent word/line boxes from a model response. Identical save retries reuse the existing vision block and do not append duplicate text.
 
 ## Scan Reading with Pi Vision
 

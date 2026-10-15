@@ -1,7 +1,7 @@
 ---
 id: agent-001
 scope: agent-runtime
-status: in-progress
+status: done
 depends-on: [pdf-001, pdf-002, skill-001]
 ---
 
@@ -10,6 +10,8 @@ depends-on: [pdf-001, pdf-002, skill-001]
 Make the existing `pi-agent-core` agent a task-directed tool loop for the PDF reader. Remove the prompt that requires every task to call parse, extract, compare, verify, and report in order. Supply request-scoped inspect, overview-skill, PDF-reading, scan-page rendering, page-text saving, and search tools; connect the checked-in overview skill and lexical retrieval utility; retain review tools as optional capabilities. Register Pi AI built-in providers and resolve the explicit authenticated, image-capable model named by `CROSSDOC_VISION_MODEL`; fail before accepting work with an actionable error if it is absent or unsuitable.
 
 The request scope maps opaque document IDs to server-provided file paths and stores parsed documents in memory. Required read tools are `inspect_document`, `load_document_skill`, `parse_document`, `render_scan_page`, `save_scan_page_text`, and `search_document`. Only `render_scan_page` returns image content; it must reject pages outside the parsed document's `scan-candidate` set. `save_scan_page_text` assigns a stable block ID and PDF page source, updates page/document text, regenerates Markdown, marks the page as vision-read, and calls the supplied persistence callback. Model tool arguments must never provide a filesystem path or complete document object.
+
+When a scan-candidate page contains sparse native text, `save_scan_page_text` preserves its existing blocks, coordinates, and text, then appends the vision transcript as a separate stable block. Identical save retries must not add duplicate blocks or text.
 
 `parse_document` returns source-aware page text to the model with an 80,000-character budget per read turn, divided evenly across selected documents; every document result explicitly reports truncation. The request keeps full parsed content, so `search_document` is not limited by this output budget. `save_scan_page_text` also returns the saved page text and page number for the active overview context.
 

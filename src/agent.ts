@@ -306,13 +306,12 @@ export function createCrossDocTools(options: CrossDocAgentOptions): AgentTool<an
       if (targetPage.classification !== "scan-candidate") throw new Error(`Page ${page} is not classified as a scan candidate.`);
       const normalizedText = text.trim();
       if (!normalizedText) throw new Error("Vision returned no page text. Keep the page warning and report it as unreadable.");
+      const visionBlockId = `${document.id}:p${page}:vision`;
+      const savedVisionBlock = targetPage.blocks.find((block) => block.id === visionBlockId);
       if (targetPage.extractionMethod === "vision-text") {
-        const savedText = targetPage.blocks[0]?.text;
-        if (savedText !== normalizedText) throw new Error(`Page ${page} already has saved vision text that differs from this retry.`);
+        if (savedVisionBlock?.text !== normalizedText) throw new Error(`Page ${page} already has saved vision text that differs from this retry.`);
         await persist(documentId);
-        const block = targetPage.blocks[0];
-        if (!block) throw new Error(`Page ${page} is marked as vision-read but has no saved text block.`);
-        const result = { documentId, page, blockId: block.id, characters: [...normalizedText].length, markdownUpdated: true };
+        const result = { documentId, page, blockId: savedVisionBlock.id, characters: [...normalizedText].length, markdownUpdated: true };
         return {
           content: [{ type: "text", text: `${JSON.stringify(result)}\n\nSaved page ${page} text:\n${normalizedText}` }],
           structuredContent: asJson({ ...result, text: normalizedText }),
@@ -321,16 +320,24 @@ export function createCrossDocTools(options: CrossDocAgentOptions): AgentTool<an
       }
       const pageBounds: [number, number, number, number] =
         targetPage.pageBounds ?? findPdfLocation(document, page)?.pageBounds ?? [0, 0, 0, 0];
+      if (savedVisionBlock && savedVisionBlock.text !== normalizedText) {
+        throw new Error(`Page ${page} already has saved vision text that differs from this retry.`);
+      }
+      const existingText = targetPage.text;
+      const separator = existingText.length > 0 && !existingText.endsWith("\n") ? "\n" : "";
+      const blockStart = existingText.length + separator.length;
       const block: DocumentBlock = {
-        id: `${document.id}:p${page}:vision`,
+        id: visionBlockId,
         kind: "text",
         text: normalizedText,
         source: { type: "pdf", page, bbox: [...pageBounds], pageBounds } satisfies PdfSourceLocation,
-        start: 0,
-        end: normalizedText.length,
+        start: blockStart,
+        end: blockStart + normalizedText.length,
       };
-      targetPage.text = normalizedText;
-      targetPage.blocks = [block];
+      targetPage.text = savedVisionBlock ? existingText : `${existingText}${separator}${normalizedText}`;
+      targetPage.blocks = savedVisionBlock
+        ? targetPage.blocks.map((item) => item.id === visionBlockId ? block : item)
+        : [...targetPage.blocks, block];
       targetPage.extractionMethod = "vision-text";
       document.blocks = document.pages.flatMap((item) => item.blocks);
       document.text = document.pages.map((item) => item.text).join("\n\n");
