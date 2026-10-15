@@ -1,143 +1,440 @@
-import { Agent, type AgentTool } from "@earendil-works/pi-agent-core";
-import { createModels, type JsonValue } from "@earendil-works/pi-ai";
-import { Type, type Static } from "typebox";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 
-import type { Claim, ParsedDocument } from "./core/claims.js";
+import { Agent, type AgentTool, type StreamFn } from "@earendil-works/pi-agent-core";
+import type { Models } from "@earendil-works/pi-ai/models";
+import type { JsonValue } from "@earendil-works/pi-ai";
+import { builtinModels } from "@earendil-works/pi-ai/providers/all";
+import { Type } from "typebox";
+
+import type { Claim, DocumentBlock, ParsedDocument, PdfSourceLocation } from "./core/claims.js";
 import type { Conflict } from "./core/types.js";
+import { renderPdfPage, type RenderedPdfPage } from "./loaders/render-pdf-page.js";
+import type { ParseDocumentOptions } from "./loaders/types.js";
+import { renderDocumentMarkdown } from "./markdown/document.js";
 import { compareClaims } from "./tools/compare.js";
 import { extractClaims } from "./tools/extract.js";
 import { parseDoc } from "./tools/parse.js";
 import { reportConflicts } from "./tools/report.js";
+import { searchDocument } from "./tools/search-document.js";
 import { verifyConflicts } from "./tools/verify.js";
 
-const parseDocParameters = Type.Object({
-  path: Type.String({ description: "Local PDF path to parse." }),
+const inspectParameters = Type.Object({ documentId: Type.String({ minLength: 1 }) });
+const skillParameters = Type.Object({
+  skill: Type.Union([Type.Literal("pdf-reading"), Type.Literal("document-overview")]),
 });
-
-const extractClaimsParameters = Type.Object({
-  document: Type.Any({ description: "ParsedDocument returned by parse_doc." }),
+const documentIdParameters = Type.Object({ documentId: Type.String({ minLength: 1 }) });
+const pageParameters = Type.Object({
+  documentId: Type.String({ minLength: 1 }),
+  page: Type.Integer({ minimum: 1 }),
 });
-
-const compareClaimsParameters = Type.Object({
+const savePageParameters = Type.Object({
+  documentId: Type.String({ minLength: 1 }),
+  page: Type.Integer({ minimum: 1 }),
+  text: Type.String({ minLength: 1, maxLength: 100_000 }),
+});
+const searchParameters = Type.Object({
+  query: Type.String({ minLength: 1, maxLength: 500 }),
+  documentIds: Type.Array(Type.String({ minLength: 1 }), { minItems: 1, maxItems: 32 }),
+});
+const documentIdsParameters = Type.Object({
+  documentIds: Type.Array(Type.String({ minLength: 1 }), { minItems: 1, maxItems: 32 }),
+});
+const claimsParameters = Type.Object({ claims: Type.Array(Type.Any()) });
+const conflictsParameters = Type.Object({ conflicts: Type.Array(Type.Any()) });
+const reportParameters = Type.Object({
+  documentIds: Type.Array(Type.String({ minLength: 1 }), { minItems: 1, maxItems: 32 }),
   claims: Type.Array(Type.Any()),
-});
-
-const verifyConflictsParameters = Type.Object({
   conflicts: Type.Array(Type.Any()),
 });
+const MAX_READ_TURN_CONTENT_CHARACTERS = 80_000;
 
-const reportConflictsParameters = Type.Object({
-  documents: Type.Array(Type.Any()),
-  claims: Type.Array(Type.Any()),
-  conflicts: Type.Array(Type.Any()),
-});
+export interface ScopedDocument {
+  id: string;
+  title: string;
+  path: string;
+  /** Optional archived source identity used by the persistence callback. */
+  sourceName?: string;
+}
 
-function toJsonValue(value: unknown): JsonValue {
+export interface CrossDocAgentOptions {
+  documents: readonly ScopedDocument[];
+  onDocumentUpdated?: (document: ParsedDocument, source: ScopedDocument) => Promise<void> | void;
+  /** Injected model collection and stream function are intended for deterministic integration tests. */
+  models?: Models;
+  streamFn?: StreamFn;
+  visionModel?: string;
+  /** Narrow seams for deterministic tool integration tests. */
+  parseDocument?: (path: string, options?: ParseDocumentOptions) => Promise<ParsedDocument>;
+  renderScanPage?: (path: string, page: number) => Promise<RenderedPdfPage>;
+}
+
+export class CrossDocVisionModelConfigError extends Error {
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options);
+    this.name = "CrossDocVisionModelConfigError";
+  }
+}
+
+export class CrossDocRequestScopeError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CrossDocRequestScopeError";
+  }
+}
+
+export function createBuiltinModels(): Models {
+  return builtinModels();
+}
+
+export async function resolveVisionModel(
+  models: Pick<Models, "getModel" | "checkAuth">,
+  configuredModel = process.env.CROSSDOC_VISION_MODEL,
+) {
+  if (!configuredModel?.trim()) {
+    throw new CrossDocVisionModelConfigError(
+      "CROSSDOC_VISION_MODEL is required (provider/model-id), for example google/gemini-2.5-flash.",
+    );
+  }
+  const separator = configuredModel.indexOf("/");
+  if (separator < 1 || separator === configuredModel.length - 1) {
+    throw new CrossDocVisionModelConfigError("CROSSDOC_VISION_MODEL must use provider/model-id form.");
+  }
+  const providerId = configuredModel.slice(0, separator).trim();
+  const modelId = configuredModel.slice(separator + 1).trim();
+  const model = models.getModel(providerId, modelId);
+  if (!model) {
+    throw new CrossDocVisionModelConfigError(
+      `Model ${providerId}/${modelId} is not in Pi AI's built-in catalog. Check CROSSDOC_VISION_MODEL and the installed pi-ai model catalog.`,
+    );
+  }
+  if (!model.input.includes("image")) {
+    throw new CrossDocVisionModelConfigError(
+      `Model ${providerId}/${modelId} does not support image input. Choose a Pi model whose input includes images.`,
+    );
+  }
+  try {
+    const auth = await models.checkAuth(providerId);
+    if (!auth) {
+      throw new CrossDocVisionModelConfigError(
+        `No credentials are configured for provider ${providerId}. Configure its Pi AI provider credentials before reading PDFs.`,
+      );
+    }
+  } catch (error) {
+    if (error instanceof CrossDocVisionModelConfigError) throw error;
+    throw new CrossDocVisionModelConfigError(
+      `Could not validate credentials for provider ${providerId}: ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error },
+    );
+  }
+  return model;
+}
+
+function asJson(value: unknown): JsonValue {
   return value as JsonValue;
 }
 
-type ParseDocInput = Static<typeof parseDocParameters>;
-type ExtractClaimsInput = Static<typeof extractClaimsParameters>;
-type CompareClaimsInput = Static<typeof compareClaimsParameters>;
-type VerifyConflictsInput = Static<typeof verifyConflictsParameters>;
-type ReportConflictsInput = Static<typeof reportConflictsParameters>;
-
-export function createCrossDocTools(): AgentTool[] {
-  return [
-    {
-      name: "parse_doc",
-      label: "Parse document",
-      description: "Parse a local PDF into positioned text blocks and source-aware Markdown.",
-      parameters: parseDocParameters,
-      execute: async (_toolCallId, params) => {
-        const input = params as ParseDocInput;
-        const document = await parseDoc(input.path);
-        return {
-          content: [{ type: "text", text: `Parsed ${document.title} with ${document.pages.length} pages.` }],
-          structuredContent: toJsonValue(document),
-          details: { documentId: document.id },
-        };
-      },
-    },
-    {
-      name: "extract_claims",
-      label: "Extract claims",
-      description: "Extract conservative, evidence-grounded claims from a parsed document.",
-      parameters: extractClaimsParameters,
-      execute: async (_toolCallId, params) => {
-        const input = params as ExtractClaimsInput;
-        const claims = extractClaims(input.document as ParsedDocument);
-        return {
-          content: [{ type: "text", text: `Extracted ${claims.length} claims.` }],
-          structuredContent: toJsonValue(claims),
-          details: { count: claims.length },
-        };
-      },
-    },
-    {
-      name: "compare_claims",
-      label: "Compare claims",
-      description: "Compare claims across documents and return candidate conflicts.",
-      parameters: compareClaimsParameters,
-      execute: async (_toolCallId, params) => {
-        const input = params as CompareClaimsInput;
-        const conflicts = compareClaims(input.claims as Claim[]);
-        return {
-          content: [{ type: "text", text: `Found ${conflicts.length} candidate conflicts.` }],
-          structuredContent: toJsonValue(conflicts),
-          details: { count: conflicts.length },
-        };
-      },
-    },
-    {
-      name: "verify_conflicts",
-      label: "Verify conflicts",
-      description: "Verify candidate conflicts and demote weak matches to control false positives.",
-      parameters: verifyConflictsParameters,
-      execute: async (_toolCallId, params) => {
-        const input = params as VerifyConflictsInput;
-        const conflicts = verifyConflicts(input.conflicts as Conflict[]);
-        return {
-          content: [{ type: "text", text: `Verified ${conflicts.filter((item) => item.status === "verified").length} conflicts.` }],
-          structuredContent: toJsonValue(conflicts),
-          details: { count: conflicts.length },
-        };
-      },
-    },
-    {
-      name: "report_conflicts",
-      label: "Report conflicts",
-      description: "Render a traceable Markdown report from documents, claims, and conflicts.",
-      parameters: reportConflictsParameters,
-      execute: async (_toolCallId, params) => {
-        const input = params as ReportConflictsInput;
-        const report = reportConflicts({
-          documents: input.documents as ParsedDocument[],
-          claims: input.claims as Claim[],
-          conflicts: input.conflicts as Conflict[],
-        });
-        return {
-          content: [{ type: "text", text: report }],
-          structuredContent: { report },
-          details: { length: report.length },
-        };
-      },
-    },
-  ];
+function boundedPageMarkdown(document: ParsedDocument, budget: number): { markdown: string; truncated: boolean } {
+  const fullLength = document.pages.reduce((total, page) => {
+    const body = page.blocks.map((block) => `${block.text} [${block.id}; page ${page.page}]`).join("\n") || page.text;
+    return total + `## Page ${page.page}\n\n${body}\n\n`.length;
+  }, 0);
+  let remaining = budget;
+  const sections: string[] = [];
+  for (const page of document.pages) {
+    const header = `## Page ${page.page}\n\n`;
+    if (remaining <= header.length) break;
+    const fullBody = page.blocks.map((block) => `${block.text} [${block.id}; page ${page.page}]`).join("\n") || page.text;
+    const available = remaining - header.length;
+    const bodyBudget = Math.max(0, available - 25);
+    let bodyPrefix = "";
+    for (const character of fullBody) {
+      if (bodyPrefix.length + character.length > bodyBudget) break;
+      bodyPrefix += character;
+    }
+    const body = fullBody.length <= available
+      ? fullBody
+      : `${bodyPrefix}…[page truncated]`;
+    sections.push(`${header}${body}`);
+    remaining -= header.length + body.length + 2;
+    if (body.length < fullBody.length) break;
+  }
+  return { markdown: sections.join("\n\n"), truncated: fullLength > budget };
 }
 
-export function createCrossDocAgent() {
-  const models = createModels();
+function skillPath(skill: "pdf-reading" | "document-overview"): string {
+  return resolve(".agents/skills", skill, "SKILL.md");
+}
 
+export function createCrossDocTools(options: CrossDocAgentOptions): AgentTool<any>[] {
+  const ids = new Set<string>();
+  for (const source of options.documents) {
+    if (!source.id.trim() || !source.title.trim() || !source.path.trim()) {
+      throw new CrossDocRequestScopeError("Every selected document needs a non-empty ID, title, and server path.");
+    }
+    if (ids.has(source.id)) throw new CrossDocRequestScopeError(`Duplicate selected document ID: ${source.id}.`);
+    ids.add(source.id);
+  }
+  const sources = new Map(options.documents.map((source) => [source.id, { ...source, path: resolve(source.path) }]));
+  const parsed = new Map<string, ParsedDocument>();
+  const parseBudget = Math.floor(MAX_READ_TURN_CONTENT_CHARACTERS / Math.max(1, sources.size));
+
+  function getSource(documentId: string): ScopedDocument {
+    const source = sources.get(documentId);
+    if (!source) throw new CrossDocRequestScopeError(`Document ${documentId} is not available in this request.`);
+    return source;
+  }
+
+  function getParsed(documentId: string): ParsedDocument {
+    getSource(documentId);
+    const document = parsed.get(documentId);
+    if (!document) throw new CrossDocRequestScopeError(`Document ${documentId} has not been parsed in this request yet.`);
+    return document;
+  }
+
+  async function persist(documentId: string): Promise<void> {
+    const document = getParsed(documentId);
+    const source = getSource(documentId);
+    await options.onDocumentUpdated?.(document, source);
+  }
+
+  const inspect = {
+    name: "inspect_document",
+    label: "Inspect document",
+    description: "Identify the format and page types of one document available in this request.",
+    parameters: inspectParameters,
+    executionMode: "parallel",
+    async execute(_callId, { documentId }) {
+      const source = getSource(documentId);
+      const extension = source.path.slice(source.path.lastIndexOf(".")).toLowerCase();
+      if (extension !== ".pdf") throw new Error(`Unsupported document format ${extension || "(unknown)"}.`);
+      const loaded = parsed.get(documentId);
+      const result = {
+        documentId,
+        title: source.title,
+        format: "pdf",
+        parsed: Boolean(loaded),
+        pages: loaded?.pages.map((page) => ({ page: page.page, classification: page.classification, extractionMethod: page.extractionMethod })) ?? [],
+      };
+      return { content: [{ type: "text", text: JSON.stringify(result) }], structuredContent: asJson(result), details: result };
+    },
+  } satisfies AgentTool<typeof inspectParameters>;
+
+  const loadSkill = {
+    name: "load_document_skill",
+    label: "Load document skill",
+    description: "Load CrossDoc's trusted instructions for PDF extraction or concise document overview.",
+    parameters: skillParameters,
+    executionMode: "parallel",
+    async execute(_callId, { skill }) {
+      const content = await readFile(skillPath(skill), "utf8");
+      return { content: [{ type: "text", text: content }], structuredContent: { skill, content }, details: { skill } };
+    },
+  } satisfies AgentTool<typeof skillParameters>;
+
+  const parse = {
+    name: "parse_document",
+    label: "Parse document",
+    description: "Parse a document already selected for this request, preserving source locations and page classifications.",
+    parameters: documentIdParameters,
+    executionMode: "sequential",
+    async execute(_callId, { documentId }) {
+      const source = getSource(documentId);
+      const document = await (options.parseDocument ?? parseDoc)(source.path, { id: source.id, title: source.title });
+      parsed.set(documentId, document);
+      await persist(documentId);
+      const normalized = boundedPageMarkdown(document, parseBudget);
+      const result = {
+        documentId,
+        title: document.title,
+        pages: document.pages.length,
+        scanPages: document.pages.filter((page) => page.classification === "scan-candidate").map((page) => page.page),
+        warnings: document.warnings,
+        normalizedContent: normalized.markdown,
+        contentTruncated: normalized.truncated,
+      };
+      return {
+        content: [{
+          type: "text",
+          text: `${JSON.stringify({ ...result, normalizedContent: undefined })}\n\nSource-aware page text${result.contentTruncated ? ` (truncated to ${parseBudget} characters for this document; full artifact is archived)` : ""}:\n${result.normalizedContent}`,
+        }],
+        structuredContent: asJson(result),
+        details: { ...result, normalizedContent: undefined },
+      };
+    },
+  } satisfies AgentTool<typeof documentIdParameters>;
+
+  const render = {
+    name: "render_scan_page",
+    label: "Render scan page",
+    description: "Render one classified scan page as an image for visual reading. Read one page per call.",
+    parameters: pageParameters,
+    executionMode: "sequential",
+    async execute(_callId, { documentId, page }) {
+      const source = getSource(documentId);
+      const document = getParsed(documentId);
+      const parsedPage = document.pages.find((item) => item.page === page);
+      if (!parsedPage) throw new Error(`Page ${page} does not exist in ${document.title}.`);
+      if (parsedPage.classification !== "scan-candidate") {
+        throw new Error(`Page ${page} is not classified as a scan candidate.`);
+      }
+      if (parsedPage.extractionMethod === "vision-text") {
+        throw new Error(`Page ${page} has already been read with vision.`);
+      }
+      const image = await (options.renderScanPage ?? renderPdfPage)(source.path, page);
+      return {
+        content: [
+          { type: "text", text: `Read this scanned PDF page and transcribe its meaningful visible text. Preserve paragraph structure and mark uncertain text; do not infer missing content.` },
+          { type: "image", data: Buffer.from(image.bytes).toString("base64"), mimeType: "image/png" },
+        ],
+        structuredContent: asJson({ documentId, page, width: image.width, height: image.height }),
+        details: { documentId, page, width: image.width, height: image.height },
+      };
+    },
+  } satisfies AgentTool<typeof pageParameters>;
+
+  const savePage = {
+    name: "save_scan_page_text",
+    label: "Save scan page text",
+    description: "Save the text read from a scan page as a stable page-cited block and refresh its Markdown artifact.",
+    parameters: savePageParameters,
+    executionMode: "sequential",
+    async execute(_callId, { documentId, page, text }) {
+      const document = getParsed(documentId);
+      const targetPage = document.pages.find((item) => item.page === page);
+      if (!targetPage) throw new Error(`Page ${page} does not exist in ${document.title}.`);
+      if (targetPage.classification !== "scan-candidate") throw new Error(`Page ${page} is not classified as a scan candidate.`);
+      const normalizedText = text.trim();
+      if (!normalizedText) throw new Error("Vision returned no page text. Keep the page warning and report it as unreadable.");
+      if (targetPage.extractionMethod === "vision-text") {
+        const savedText = targetPage.blocks[0]?.text;
+        if (savedText !== normalizedText) throw new Error(`Page ${page} already has saved vision text that differs from this retry.`);
+        await persist(documentId);
+        const block = targetPage.blocks[0];
+        if (!block) throw new Error(`Page ${page} is marked as vision-read but has no saved text block.`);
+        const result = { documentId, page, blockId: block.id, characters: [...normalizedText].length, markdownUpdated: true };
+        return {
+          content: [{ type: "text", text: `${JSON.stringify(result)}\n\nSaved page ${page} text:\n${normalizedText}` }],
+          structuredContent: asJson({ ...result, text: normalizedText }),
+          details: { ...result, text: normalizedText },
+        };
+      }
+      const pageBounds: [number, number, number, number] =
+        targetPage.pageBounds ?? findPdfLocation(document, page)?.pageBounds ?? [0, 0, 0, 0];
+      const block: DocumentBlock = {
+        id: `${document.id}:p${page}:vision`,
+        kind: "text",
+        text: normalizedText,
+        source: { type: "pdf", page, bbox: [...pageBounds], pageBounds } satisfies PdfSourceLocation,
+        start: 0,
+        end: normalizedText.length,
+      };
+      targetPage.text = normalizedText;
+      targetPage.blocks = [block];
+      targetPage.extractionMethod = "vision-text";
+      document.blocks = document.pages.flatMap((item) => item.blocks);
+      document.text = document.pages.map((item) => item.text).join("\n\n");
+      document.warnings = document.warnings.filter((warning) => !warning.startsWith(`Page ${page} `));
+      document.markdown = renderDocumentMarkdown(document);
+      await persist(documentId);
+      const result = { documentId, page, blockId: block.id, characters: [...normalizedText].length, markdownUpdated: true };
+      return {
+        content: [{ type: "text", text: `${JSON.stringify(result)}\n\nSaved page ${page} text:\n${normalizedText}` }],
+        structuredContent: asJson({ ...result, text: normalizedText }),
+        details: { ...result, text: normalizedText },
+      };
+    },
+  } satisfies AgentTool<typeof savePageParameters>;
+
+  const search = {
+    name: "search_document",
+    label: "Search document",
+    description: "Find relevant normalized excerpts in parsed documents from this request and return their source references.",
+    parameters: searchParameters,
+    executionMode: "parallel",
+    async execute(_callId, { query, documentIds }) {
+      const docs = [...new Set(documentIds)].map(getParsed);
+      const result = searchDocument({ query, documents: docs });
+      return { content: [{ type: "text", text: JSON.stringify(result) }], structuredContent: asJson(result), details: result };
+    },
+  } satisfies AgentTool<typeof searchParameters>;
+
+  const extract = {
+    name: "extract_claims",
+    label: "Extract claims",
+    description: "Extract evidence-grounded claims from parsed documents when the user requests a consistency review.",
+    parameters: documentIdsParameters,
+    executionMode: "parallel",
+    async execute(_callId, { documentIds }) {
+      const claims = [...new Set(documentIds)].flatMap((id) => extractClaims(getParsed(id)));
+      return { content: [{ type: "text", text: JSON.stringify(claims) }], structuredContent: asJson(claims), details: { count: claims.length } };
+    },
+  } satisfies AgentTool<typeof documentIdsParameters>;
+  const compare = {
+    name: "compare_claims",
+    label: "Compare claims",
+    description: "Compare supplied claims for candidate contradictions when the user requests a consistency review.",
+    parameters: claimsParameters,
+    executionMode: "parallel",
+    async execute(_callId, { claims }) {
+      const conflicts = compareClaims(claims as Claim[]);
+      return { content: [{ type: "text", text: JSON.stringify(conflicts) }], structuredContent: asJson(conflicts), details: { count: conflicts.length } };
+    },
+  } satisfies AgentTool<typeof claimsParameters>;
+  const verify = {
+    name: "verify_conflicts",
+    label: "Verify conflicts",
+    description: "Verify candidate conflicts when the user requests a consistency review.",
+    parameters: conflictsParameters,
+    executionMode: "parallel",
+    async execute(_callId, { conflicts }) {
+      const result = verifyConflicts(conflicts as Conflict[]);
+      return { content: [{ type: "text", text: JSON.stringify(result) }], structuredContent: asJson(result), details: { count: result.length } };
+    },
+  } satisfies AgentTool<typeof conflictsParameters>;
+  const report = {
+    name: "report_conflicts",
+    label: "Report conflicts",
+    description: "Render a traceable review report from scoped parsed documents, claims, and conflicts.",
+    parameters: reportParameters,
+    executionMode: "parallel",
+    async execute(_callId, { documentIds, claims, conflicts }) {
+      const result = reportConflicts({
+        documents: [...new Set(documentIds)].map(getParsed),
+        claims: claims as Claim[],
+        conflicts: conflicts as Conflict[],
+      });
+      return { content: [{ type: "text", text: result }], structuredContent: { report: result }, details: { length: result.length } };
+    },
+  } satisfies AgentTool<typeof reportParameters>;
+
+  return [inspect, loadSkill, parse, render, savePage, search, extract, compare, verify, report] as AgentTool<any>[];
+}
+
+export async function createCrossDocAgent(options: CrossDocAgentOptions): Promise<Agent> {
+  const models = options.models ?? createBuiltinModels();
+  const model = await resolveVisionModel(models, options.visionModel);
   return new Agent({
     initialState: {
+      model,
       systemPrompt: [
-        "You are CrossDoc, an evidence-grounded document consistency review agent.",
-        "Your priority is false-positive control: every finding must cite exact evidence.",
-        "Use parse_doc, extract_claims, compare_claims, verify_conflicts, and report_conflicts in that order unless the user asks otherwise.",
+        "You are CrossDoc, a document-reading agent that grounds statements in selected source files.",
+        "Choose tools to fit the user's task. Never use a filesystem path from model arguments; use the opaque document IDs supplied for this request.",
+        "For a request to read or summarize selected PDFs: inspect each document, load pdf-reading, parse it, render and read every scan-candidate page one at a time, and save the recognized text. Then load document-overview and give a brief cited overview. Do not call review tools for ordinary reading or overview.",
+        "For follow-up questions, use search_document with the user's question and selected parsed document IDs. Answer only from returned evidence and cite each source page. If no evidence matches, say so.",
+        "Call extract_claims, compare_claims, verify_conflicts, and report_conflicts only when the user asks for a consistency review or comparison.",
+        "If a scan page is unreadable, do not invent its content; report its page number and keep the warning visible.",
       ].join("\n"),
-      tools: createCrossDocTools(),
+      tools: createCrossDocTools(options),
     },
-    streamFn: models.streamSimple.bind(models),
+    streamFn: options.streamFn ?? models.streamSimple.bind(models),
   });
+}
+
+function findPdfLocation(document: ParsedDocument, pageNumber: number): PdfSourceLocation | undefined {
+  for (const page of document.pages) {
+    const block = page.blocks.find((item) => item.source.type === "pdf" && item.source.page === pageNumber);
+    if (block?.source.type === "pdf") return block.source;
+  }
+  return undefined;
 }

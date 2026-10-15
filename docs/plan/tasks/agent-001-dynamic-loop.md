@@ -11,6 +11,8 @@ Make the existing `pi-agent-core` agent a task-directed tool loop for the PDF re
 
 The request scope maps opaque document IDs to server-provided file paths and stores parsed documents in memory. Required read tools are `inspect_document`, `load_document_skill`, `parse_document`, `render_scan_page`, `save_scan_page_text`, and `search_document`. Only `render_scan_page` returns image content; it must reject pages outside the parsed document's `scan-candidate` set. `save_scan_page_text` assigns a stable block ID and PDF page source, updates page/document text, regenerates Markdown, marks the page as vision-read, and calls the supplied persistence callback. Model tool arguments must never provide a filesystem path or complete document object.
 
+`parse_document` returns source-aware page text to the model with an 80,000-character budget per read turn, divided evenly across selected documents; every document result explicitly reports truncation. The request keeps full parsed content, so `search_document` is not limited by this output budget. `save_scan_page_text` also returns the saved page text and page number for the active overview context.
+
 # Context
 
 - `docs/INDEX.md`

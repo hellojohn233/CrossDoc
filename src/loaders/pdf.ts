@@ -134,6 +134,7 @@ export const pdfLoader: DocumentLoader = {
         page: pageNumber,
         text: pageText,
         blocks: pageBlocks,
+        pageBounds,
         classification,
         extractionMethod:
           classification === "text-native" ? "native-text" : classification === "scan-candidate" ? "pending-vision" : "none",

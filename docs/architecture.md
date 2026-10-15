@@ -57,6 +57,7 @@ The OCR adapter is an explicit implementation choice in [the PDF reading design]
 
 - A document has a stable ID, format, pages, full text, positioned blocks, Markdown, and warnings. PDF page/block metadata records whether text came from the native text layer or OCR.
 - Each block retains a source location. PDF locations include page number and PDF coordinates; future DOCX, XLSX, and image loaders add format-appropriate locations.
+- `parse_document` gives the model source-aware Markdown within an 80,000-character per-read-turn budget divided evenly across selected documents. Request-scoped `ParsedDocument` values remain complete, and lexical search uses their full content. Saving a scan page returns its text and citation in the current tool result.
 - Claims, answers, and findings must cite source block IDs and locations when making document-grounded statements.
 - Local filesystem paths stay in the server/storage boundary and are not included in normalized document data.
 
@@ -83,10 +84,10 @@ The current connected format is PDF, so its source is saved as `source.pdf`. `da
 
 ## Current Implementation State
 
-- PDF parsing is connected and keeps selectable-text page coordinates. The bounded PNG renderer for scan pages is available; Pi vision reading and saving its page text are the next integration steps.
+- The request-scoped Pi Agent provides inspection, skill loading, PDF parsing, scan image rendering, vision text saving, and lexical search. Pi AI's built-in provider catalog is registered and `CROSSDOC_VISION_MODEL` is checked for model availability, image input, and provider credentials before the Agent is created.
 - DOCX, XLSX, and image source-location types exist, but matching loaders and skills are not connected.
 - The Web and CLI entry points still call the deterministic `reviewDocuments()` pipeline directly.
-- `createCrossDocAgent()` currently registers parsing/review tools and its prompt prescribes a fixed order; it is not yet the Web request orchestrator.
+- The agent adapter supports source-bounded persistence callbacks, but the Web request lifecycle, automatic overview presentation, and follow-up chat are still owned by `web-001`.
 - Local library storage saves source PDFs, parsed Markdown, and metadata under `data/library/`.
 
 The delivery plan under `docs/plan/` first completes the PDF text/scan reading path, overview, and cited Q&A, then replaces the fixed review entry point with the broader agent-directed path.

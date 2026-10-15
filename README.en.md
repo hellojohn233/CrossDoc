@@ -27,7 +27,7 @@ The review pipeline is owned by CrossDoc:
 - `verify_conflicts`: demote weak matches and keep false positives under control.
 - `report_conflicts`: render a Markdown report with source citations from structured review data.
 
-Each extracted text block keeps a source ID and location. The current PDF loader stores page numbers and PDF coordinates. Scanned pages are flagged as needing OCR instead of being silently treated as blank. Clicking a citation in the Web UI opens the corresponding PDF page and highlights the source text block.
+Each extracted text block keeps a source ID and location. PDF pages are classified as selectable text or scans: native text retains PDF coordinates, while Pi vision reads scan pages with page-level provenance. A citation opens the corresponding PDF page; scan text has page-level location in this first version.
 
 Pi is used only as the runtime boundary:
 
@@ -63,9 +63,11 @@ After build, the CLI entry is:
 node dist/cli.js review "./examples/docs/*.pdf"
 ```
 
-Start the minimal Web UI:
+Configure credentials for the selected Pi AI provider first (the example model uses `GOOGLE_API_KEY`) and set an image input model. Pi Agent creation fails before reading starts if the model setting is absent, the model is missing from Pi AI's built-in catalog, provider credentials are missing, or the model does not support images. See `.env.example` for the configuration shape. Start the Web UI:
 
 ```bash
+export CROSSDOC_VISION_MODEL=google/gemini-2.5-flash
+export GOOGLE_API_KEY=your-key
 npm run dev:web
 ```
 
@@ -127,12 +129,12 @@ Current data flow:
 - PDF text blocks keep page coordinates, and extracted claims point back to those source blocks.
 - `markdown/` renders per-document Markdown and the final review report separately.
 - `storage/` writes JSON and Markdown before the UI presents the results.
-- OCR for scanned pages and DOCX/XLSX loaders are not connected yet.
+- Scanned PDF pages are read by the configured Pi vision model; DOCX/XLSX loaders are not connected yet.
 - Claim extraction is deterministic and intentionally conservative.
 - Comparison and verification are rule-based placeholders.
 - Pi wiring remains isolated in `src/agent.ts`; parsing and report generation do not depend on Pi.
 
-Next step: add DOCX, XLSX, and scanned-document OCR through the same loader contract, then extend the Web preview to highlight PDF coordinate regions.
+Next step: connect the request-scoped Pi Agent to the Web reading surface, show its automatic overview, and support follow-up questions with source-page citations.
 
 ## Acknowledgements
 

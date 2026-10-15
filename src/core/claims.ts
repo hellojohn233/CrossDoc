@@ -73,10 +73,12 @@ export interface ParsedPage {
   page: number;
   text: string;
   blocks: DocumentBlock[];
+  /** PDF visible page rectangle in PDF user space, including for scan-only pages. */
+  pageBounds?: [number, number, number, number];
   /** PDF-only page classification. Other loaders may omit it. */
   classification?: "text-native" | "scan-candidate" | "blank-unknown";
   /** How page text was obtained, or which reader should process it next. */
-  extractionMethod?: "native-text" | "pending-vision" | "none";
+  extractionMethod?: "native-text" | "pending-vision" | "vision-text" | "none";
 }
 
 export interface ParsedDocument {

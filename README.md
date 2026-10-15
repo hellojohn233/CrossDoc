@@ -27,7 +27,7 @@ Pi 是发动机，审查是整车。
 - `verify_conflicts`：降级弱匹配，控制误报。
 - `report_conflicts`：从结构化审查结果生成带来源引用的 Markdown 报告。
 
-每个解析出的文字块都会保留来源 ID 和位置。当前 PDF 解析会保存页码及 PDF 坐标；图片扫描页会明确标记“需要 OCR”，不会悄悄当作空白文本处理。点击 Web UI 中的引用会打开对应 PDF 页并高亮来源文字块。
+每个解析出的文字块都会保留来源 ID 和位置。PDF 按页区分可提取文字和扫描内容：文字层保留 PDF 坐标，扫描页由 Pi 视觉模型读取并保留页码来源。点击引用会打开对应 PDF 页；首版扫描文字只保证页级定位。
 
 Pi 只作为运行时边界使用：
 
@@ -63,9 +63,11 @@ npm run build
 node dist/cli.js review "./examples/docs/*.pdf"
 ```
 
-启动最简 Web UI：
+配置所选 Pi AI provider 的凭据（示例模型使用 `GOOGLE_API_KEY`），并设置图像输入模型。缺少模型设置、模型不在 Pi AI 内置目录、provider 凭据缺失或模型不支持图像时，Pi Agent 创建会在读取开始前报出设置错误。可在 `.env.example` 查看配置格式。启动 Web UI：
 
 ```bash
+export CROSSDOC_VISION_MODEL=google/gemini-2.5-flash
+export GOOGLE_API_KEY=your-key
 npm run dev:web
 ```
 
@@ -127,12 +129,12 @@ CrossDoc/
 - PDF 内容块记录页码、文字和坐标，抽取的 claim 会指回这些来源块。
 - `markdown/` 分别生成单文档转换 Markdown 和最终审查报告。
 - `storage/` 在展示报告前保存 JSON 和 Markdown。
-- 图片扫描件的 OCR、Word 和 Excel 解析器还未接入。
+- PDF 扫描页由配置的 Pi 视觉模型读取；Word 和 Excel 解析器还未接入。
 - Claim 抽取是确定性的，并且刻意保守。
 - 比较与验证目前是基于规则的占位实现。
 - Pi 接入仍隔离在 `src/agent.ts`，格式解析和报告生成不依赖 Pi。
 
-下一步：用相同的 loader 契约加入 DOCX、XLSX 和扫描件 OCR，并扩展 Web 预览以高亮 PDF 坐标区域。
+下一步：把 request-scoped Pi Agent 接入 Web 读取页，展示自动概述并支持引用来源页的后续提问。
 
 ## 致谢
 

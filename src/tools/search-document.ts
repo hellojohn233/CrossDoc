@@ -197,7 +197,7 @@ function validateDocument(value: unknown, index: number): asserts value is Parse
       !isRecord(page) || !Number.isInteger(page.page) || Number(page.page) < 1 ||
       typeof page.text !== "string" || !Array.isArray(page.blocks) ||
       (page.classification !== undefined && !["text-native", "scan-candidate", "blank-unknown"].includes(String(page.classification))) ||
-      (page.extractionMethod !== undefined && !["native-text", "pending-vision", "none"].includes(String(page.extractionMethod)))
+      (page.extractionMethod !== undefined && !["native-text", "pending-vision", "vision-text", "none"].includes(String(page.extractionMethod)))
     ) {
       throw new SearchDocumentInputError(`documents[${index}].pages[${pageIndex}] is invalid`);
     }
