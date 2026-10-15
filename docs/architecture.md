@@ -4,7 +4,7 @@ CrossDoc uses Pi's small agent runtime as an engine and adds only the document c
 
 ## Runtime Boundary
 
-The project uses `@earendil-works/pi-agent-core`, not the complete Pi Coding Agent CLI. Do not assume CLI facilities such as built-in filesystem tools or automatic skill discovery exist in the embedded runtime. CrossDoc supplies its own narrowly scoped tools and loads only the skill instructions needed for the current documents. It also registers Pi AI built-in providers and requires an explicit `CROSSDOC_VISION_MODEL=provider/model-id` whose authenticated chat model supports image input; embedded code must not assume Pi CLI settings are inherited.
+The project uses `@earendil-works/pi-agent-core`, not the complete Pi Coding Agent CLI. Do not assume CLI facilities such as built-in filesystem tools or automatic skill discovery exist in the embedded runtime. CrossDoc supplies its own narrowly scoped tools and loads only the skill instructions needed for the current documents. Pi AI built-in providers are registered by the app. Main and vision profiles are stored in local SQLite; each request uses the selected profile's API key and optional endpoint. The main chat model may be text-only. Only the scoped scan-page tool sends a rendered page to the image-capable vision model.
 
 Skills are instructions for choosing and using document capabilities. Loaders are executable format adapters that do the parsing. A skill may guide the agent to use a loader, but it cannot replace the loader's source-location contract.
 
@@ -17,7 +17,7 @@ User task + selected files
   -> agent loads the matching format/task skill
   -> format loader extracts text and source locations
        └─ PDF loader classifies pages individually as text-native or scan
-             └─ scan pages go through the selected OCR adapter
+             └─ scan tool sends one rendered page to the separate Pi AI vision model
   -> loader returns normalized blocks + source locations + Markdown
   -> CrossDoc archives source + Markdown in data/library/<document-id>/
   -> agent runs the document-overview skill for the initial reading response
@@ -37,13 +37,13 @@ There is no required `parse -> extract -> compare -> verify -> report` chain. Th
 | Skills | On-demand instructions and format-specific reading guidance | Executable parser implementation or source coordinate fabrication |
 | Loaders | Format parsing, normalized blocks, page/sheet/paragraph locations, Markdown | User intent or whether to compare documents |
 | Optional review tools | Claim extraction, comparison, verification, report rendering | Mandatory orchestration for every task |
-| Library storage | Original source, normalized Markdown, and metadata under `data/library/` | Database, remote sync, or review decisions |
+| Library storage | Original source and derived JSON/Markdown files under `data/library/`; SQLite document index and settings | Remote sync or review decisions |
 
 The server passes the agent only the files selected for the current task. Agent tools resolve document IDs through that scope; model-provided arbitrary filesystem paths are not accepted as document input.
 
 ## PDF Reading Slice
 
-PDFs are classified per page, because a single file may mix selectable text and scanned pages. Text-native pages use PDF.js text items and their PDF-space bounding boxes. Scan pages are rendered as PNG at scale 1.5 and passed to Pi vision; the renderer respects page rotation and CropBox and rejects output sides above 4,500 pixels. Vision-read text has page-level provenance; it does not receive fabricated word or line boxes. The common `ParsedDocument` contract and Markdown renderer are used for both. A blank page remains blank and is not mislabeled as a vision-read failure.
+PDFs are classified per page, because a single file may mix selectable text and scanned pages. Text-native pages use PDF.js text items and their PDF-space bounding boxes. Scan pages are rendered as PNG at scale 1.5 and sent one at a time to the separately configured Pi AI vision model with `Models.completeSimple()`; the main Agent sees the transcript, not the image. The renderer respects page rotation and CropBox and rejects output sides above 4,500 pixels. Vision-read text has page-level provenance; it does not receive fabricated word or line boxes. The common `ParsedDocument` contract and Markdown renderer are used for both. A blank page remains blank and is not mislabeled as a vision-read failure.
 
 The first reader path invokes a concise overview skill after the selected PDFs have been parsed and archived. The skill explains the document's topic, structure, key points, and any extraction uncertainty, with page citations. Follow-up Q&A retrieves relevant normalized blocks from the selected/library documents and requires the answer to cite their source pages. The first slice uses bounded lexical retrieval over parsed blocks; it does not require a vector database, and it does not run consistency review unless requested.
 
@@ -56,6 +56,8 @@ Session memory has finite retention: at most six sessions, a 60-minute idle TTL,
 The reading page is the primary Web route. It shows a compact ordered file status list beside the overview and follow-up conversation. The deterministic `/api/review` endpoint remains available as a separate optional capability. Model-generated text is HTML-escaped before citation tokens are converted into page links; a token is linked only when its document UUID belongs to the active session and its page is a positive integer.
 
 The OCR adapter is an explicit implementation choice in [the PDF reading design](./modules/pdf-reading.md). OCR failure, unsupported language data, or unusable scan output must be visible in document warnings and in the reading response, never silently converted to an empty document.
+
+Local library and model configuration are specified in [local storage and model configuration](./modules/local-storage-and-models.md). `data/crossdoc.sqlite` indexes relative paths to source PDFs, canonical structured `document.json`, and rendered `document.md`; it also stores single-user app settings and the plaintext main/vision model profiles. Production HTTP binds to loopback (`127.0.0.1`) only; settings rely on this local-only boundary and have no user authentication. `GET /api/settings` returns model IDs and whether a key is configured, never the key itself. The settings form validates models against Pi AI's local catalog and rejects text-only vision models. Main streaming and one-page vision requests pass saved keys through request options; missing profile/auth setup is reported before the Agent starts a read. Startup imports legacy metadata records idempotently.
 
 ## Document Contract and Provenance
 
@@ -77,23 +79,24 @@ Format inspection precedes format-specific skill selection. Once the formats and
 
 ## Markdown, Source Files, and Library
 
-`src/markdown/document.ts` renders parsed content and source references. `src/storage/library-store.ts` stores successful imports at `data/library/<document-id>/`:
+`src/markdown/document.ts` renders parsed content and source references. `src/storage/library-store.ts` stores successful imports at `data/library/<document-id>/`, indexed by `data/crossdoc.sqlite`:
 
 ```text
 data/library/<document-id>/
 ├── source.<original-extension>
+├── document.json
 ├── document.md
-└── metadata.json
+└── metadata.json (legacy import compatibility)
 ```
 
 The current connected format is PDF, so its source is saved as `source.pdf`. `data/` is local application data and is ignored by Git. Review runs may additionally create derived reports under `.crossdoc/reviews/` or `crossdoc-output/`.
 
 ## Current Implementation State
 
-- The request-scoped Pi Agent provides inspection, skill loading, PDF parsing, scan image rendering, vision text saving, and lexical search. Pi AI's built-in provider catalog is registered and `CROSSDOC_VISION_MODEL` is checked for model availability, image input, and provider credentials before the Agent is created.
+- The request-scoped Pi Agent provides inspection, skill loading, PDF parsing, scan image rendering/transcription through a separate vision profile, vision text saving, and lexical search. Main and vision models resolve independently from the local model catalog; the main model may be text-only.
 - DOCX, XLSX, and image source-location types exist, but matching loaders and skills are not connected.
 - The Web reading entry point runs a request-scoped Pi Agent, streams progress through bounded replayable SSE, presents overview and Q&A, and archives parsed source/Markdown artifacts. `/api/review` and the CLI review command remain deterministic optional review paths.
 - The agent adapter's source-bounded persistence callback is wired to the local Library. Web sessions retain the Pi transcript and parsed scope only in memory; a server restart ends active sessions while archived files remain.
-- Local library storage saves source PDFs, parsed Markdown, and metadata under `data/library/`.
+- Local library storage saves source PDFs, canonical parsed JSON, and Markdown under `data/library/`; versioned SQLite migrations store the relative-path index and model/settings configuration, and import existing metadata records idempotently.
 
 The delivery plan under `docs/plan/` first completes the PDF text/scan reading path, overview, and cited Q&A, then replaces the fixed review entry point with the broader agent-directed path.

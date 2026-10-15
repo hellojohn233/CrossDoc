@@ -1,18 +1,20 @@
 import { randomUUID } from "node:crypto";
 import { access, mkdir, readFile, rm } from "node:fs/promises";
-import { basename, resolve } from "node:path";
+import { basename, dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import type { Agent, AgentEvent } from "@earendil-works/pi-agent-core";
-import express, { type Request, type Response } from "express";
+import express, { type Express, type Request, type Response } from "express";
 import multer from "multer";
 
-import { createCrossDocAgent, CrossDocVisionModelConfigError, type CrossDocAgentOptions, type ScopedDocument } from "./agent.js";
+import { createBuiltinModels, createCrossDocAgent, CrossDocVisionModelConfigError, type CrossDocAgentOptions, type ScopedDocument } from "./agent.js";
 import { reviewDocuments } from "./review.js";
-import { listLibraryDocuments, saveLibraryDocument } from "./storage/library-store.js";
+import { getLibraryDocument, listLibraryDocuments, saveLibraryDocument } from "./storage/library-store.js";
+import { LocalDatabase, type ModelProfile, type ModelRole } from "./storage/database.js";
 import { writeReviewArtifacts } from "./storage/review-store.js";
 
 const port = Number(process.env.PORT ?? 5177);
+export const LOCAL_BIND_HOST = "127.0.0.1";
 const documentIdPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MAX_UPLOADS = 12;
 const MAX_FILE_SIZE = 25 * 1024 * 1024;
@@ -83,6 +85,7 @@ export interface WebAppOptions {
   publicDirectory?: string;
   uploadDirectory?: string;
   libraryDirectory?: string;
+  dataDirectory?: string;
   reviewDirectory?: string;
   pdfjsDirectory?: string;
   /** Test seam for exercising aggregate upload rejection without allocating 100 MiB. */
@@ -120,6 +123,9 @@ export function createWebApp(options: WebAppOptions = {}) {
   const uploadDirectory = resolve(options.uploadDirectory ?? ".crossdoc/uploads");
   const publicDirectory = resolve(options.publicDirectory ?? "public");
   const libraryDirectory = resolve(options.libraryDirectory ?? "data/library");
+  const dataDirectory = resolve(options.dataDirectory ?? dirname(libraryDirectory));
+  const database = new LocalDatabase(dataDirectory);
+  const modelCatalog = createBuiltinModels();
   const reviewDirectory = resolve(options.reviewDirectory ?? ".crossdoc/reviews");
   const pdfjsDirectory = resolve(options.pdfjsDirectory ?? "node_modules/pdfjs-dist/build");
   const maxTotalUploadBytes = options.maxTotalUploadBytes ?? MAX_TOTAL_UPLOAD_SIZE;
@@ -146,9 +152,64 @@ export function createWebApp(options: WebAppOptions = {}) {
   });
 
   const app = express();
+  app.locals.database = database;
   app.use(express.json({ limit: "32kb" }));
   app.use(express.static(publicDirectory));
   app.use("/vendor/pdfjs", express.static(pdfjsDirectory, { maxAge: "1y", immutable: true }));
+
+  const publicModelProfile = (role: ModelRole) => {
+    const profile = database.getModelProfile(role);
+    if (!profile) return null;
+    return {
+      role,
+      provider: profile.provider,
+      modelId: profile.modelId,
+      baseUrl: profile.baseUrl ?? "",
+      options: profile.options ?? {},
+      apiKeyConfigured: Boolean(profile.apiKey),
+    };
+  };
+
+  app.get("/api/settings", (_request, response) => {
+    response.json({ models: { main: publicModelProfile("main"), vision: publicModelProfile("vision") }, preferences: {} });
+  });
+
+  app.put("/api/settings/models/:role", (request, response) => {
+    const role = request.params.role;
+    if (role !== "main" && role !== "vision") return response.status(404).json({ error: "Unknown model role." });
+    const body = request.body as Record<string, unknown>;
+    const provider = typeof body.provider === "string" ? body.provider.trim() : "";
+    const modelId = typeof body.modelId === "string" ? body.modelId.trim() : "";
+    if (!provider || !modelId) return response.status(400).json({ error: "Provider and model ID are required." });
+    const model = modelCatalog.getModel(provider, modelId);
+    if (!model) return response.status(400).json({ error: `Model ${provider}/${modelId} is not in Pi AI's model catalog.` });
+    if (role === "vision" && !model.input.includes("image")) {
+      return response.status(400).json({ error: `Model ${provider}/${modelId} does not accept images. Choose an image-capable vision model.` });
+    }
+    if (body.baseUrl !== undefined && (typeof body.baseUrl !== "string" || body.baseUrl.length > 2_000)) {
+      return response.status(400).json({ error: "Base URL must be text under 2,000 characters." });
+    }
+    if (body.apiKey !== undefined && (typeof body.apiKey !== "string" || body.apiKey.length > 8_000)) {
+      return response.status(400).json({ error: "API key must be text under 8,000 characters." });
+    }
+    const options = body.options === undefined ? undefined : body.options;
+    if (options !== undefined && (!options || typeof options !== "object" || Array.isArray(options) || JSON.stringify(options).length > 8_000)) {
+      return response.status(400).json({ error: "Provider options must be a JSON object under 8,000 characters." });
+    }
+    try {
+      database.saveModelProfile({
+        role,
+        provider,
+        modelId,
+        ...(typeof body.baseUrl === "string" && body.baseUrl.trim() ? { baseUrl: body.baseUrl.trim() } : {}),
+        ...(typeof body.apiKey === "string" && body.apiKey.trim() ? { apiKey: body.apiKey.trim() } : {}),
+        ...(options === undefined ? {} : { options: options as Record<string, unknown> }),
+      }, body.clearApiKey === true);
+      response.json({ model: publicModelProfile(role) });
+    } catch (error) {
+      response.status(400).json({ error: error instanceof Error ? error.message : "Unable to save model settings." });
+    }
+  });
 
   function emit(session: ReadSession, type: ReadEventType, data: Record<string, unknown>) {
     const serializedData = JSON.stringify(data);
@@ -239,6 +300,7 @@ export function createWebApp(options: WebAppOptions = {}) {
   }
 
   function trackAgent(session: ReadSession) {
+    const scanToolCalls = new Map<string, { documentId: string; page?: number }>();
     session.agent.subscribe((event) => {
       if (event.type === "message_end" && event.message.role === "assistant") {
         const rawText = eventText(event.message);
@@ -249,6 +311,9 @@ export function createWebApp(options: WebAppOptions = {}) {
       if (event.type === "tool_execution_start") {
         const args = event.args as Record<string, unknown> | undefined;
         const documentId = typeof args?.documentId === "string" ? args.documentId : undefined;
+        if ((event.toolName === "render_scan_page" || event.toolName === "save_scan_page_text") && documentId) {
+          scanToolCalls.set(event.toolCallId, { documentId, ...(typeof args?.page === "number" ? { page: args.page } : {}) });
+        }
         if (documentId) setDocument(session, documentId, { state: "reading" });
         const phase = event.toolName === "inspect_document" ? "detection"
           : event.toolName === "parse_document" ? "extraction"
@@ -277,8 +342,18 @@ export function createWebApp(options: WebAppOptions = {}) {
             });
           }
         }
-        if (event.toolName === "save_scan_page_text" && typeof details.documentId === "string") {
-          emit(session, "progress", { phase: "scan-reading", state: "complete", documentId: details.documentId, page: details.page });
+        if ((event.toolName === "render_scan_page" || event.toolName === "save_scan_page_text") && typeof details.documentId === "string") {
+          emit(session, "progress", {
+            phase: "scan-reading",
+            state: event.isError ? "failed" : "complete",
+            documentId: details.documentId,
+            page: details.page,
+          });
+          scanToolCalls.delete(event.toolCallId);
+        } else if (event.toolName === "render_scan_page" || event.toolName === "save_scan_page_text") {
+          const scanCall = scanToolCalls.get(event.toolCallId);
+          if (scanCall) emit(session, "progress", { phase: "scan-reading", state: event.isError ? "failed" : "complete", ...scanCall });
+          scanToolCalls.delete(event.toolCallId);
         }
       }
     });
@@ -345,7 +420,7 @@ export function createWebApp(options: WebAppOptions = {}) {
 
   app.get("/api/library", async (_request, response) => {
     try {
-      const documents = await listLibraryDocuments(libraryDirectory);
+      const documents = await listLibraryDocuments(libraryDirectory, database);
       response.json({ documents: documents.map((document) => ({
         ...document,
         sourceUrl: `/api/library/${document.id}/source`,
@@ -359,8 +434,10 @@ export function createWebApp(options: WebAppOptions = {}) {
   app.get("/api/library/:id/source", async (request, response) => {
     const { id } = request.params;
     if (!id || !documentIdPattern.test(id)) return response.status(404).json({ error: "Document not found." });
-    const filePath = resolve(libraryDirectory, id, "source.pdf");
     try {
+      const stored = getLibraryDocument(id, database);
+      if (!stored) return response.status(404).json({ error: "Document not found." });
+      const filePath = stored.sourcePath;
       await access(filePath);
       response.type("application/pdf").sendFile(filePath, { headers: { "Cache-Control": "no-store" } });
     } catch {
@@ -371,8 +448,10 @@ export function createWebApp(options: WebAppOptions = {}) {
   app.get("/api/library/:id/markdown", async (request, response) => {
     const { id } = request.params;
     if (!id || !documentIdPattern.test(id)) return response.status(404).json({ error: "Document not found." });
-    const filePath = resolve(libraryDirectory, id, "document.md");
     try {
+      const stored = getLibraryDocument(id, database);
+      if (!stored?.markdownPath) return response.status(404).json({ error: "Document not found." });
+      const filePath = stored.markdownPath;
       await access(filePath);
       response.type("text/markdown; charset=utf-8").sendFile(filePath, { headers: { "Cache-Control": "no-store" } });
     } catch {
@@ -412,6 +491,11 @@ export function createWebApp(options: WebAppOptions = {}) {
 
       let hasSessionReservation = false;
       try {
+        const mainProfile = database.getModelProfile("main");
+        const visionProfile = database.getModelProfile("vision");
+        if (!options.agentFactory && (!mainProfile || !visionProfile)) {
+          throw new CrossDocVisionModelConfigError("Configure both the main and vision models in Settings before reading documents.");
+        }
         await mkdir(uploadDirectory, { recursive: true });
         await reserveSessionSlot();
         hasSessionReservation = true;
@@ -438,8 +522,10 @@ export function createWebApp(options: WebAppOptions = {}) {
         let session: ReadSession | undefined;
         const agent = await agentFactory({
           documents: sources,
+          ...(mainProfile ? { mainProfile } : {}),
+          ...(visionProfile ? { visionProfile } : {}),
           onDocumentUpdated: async (document, source) => {
-            await saveLibraryDocument(document, source.path, source.sourceName ?? source.title, libraryDirectory);
+            await saveLibraryDocument(document, source.path, source.sourceName ?? source.title, libraryDirectory, database);
             session?.archivedDocumentIds.add(document.id);
           },
           onDocumentRejected: async (documentId, _source, reason) => {
@@ -605,7 +691,7 @@ export function createWebApp(options: WebAppOptions = {}) {
         await Promise.all(result.documents.map((document) => {
           const sourceFile = files.find((file) => file.filename === `${document.id}.pdf`);
           if (!sourceFile) throw new Error(`Uploaded source file missing for document ${document.id}.`);
-          return saveLibraryDocument(document, sourceFile.path, cleanDisplayName(sourceFile.originalname), libraryDirectory);
+          return saveLibraryDocument(document, sourceFile.path, cleanDisplayName(sourceFile.originalname), libraryDirectory, database);
         }));
         response.json({
           reviewId,
@@ -631,9 +717,14 @@ export function createWebApp(options: WebAppOptions = {}) {
   return app;
 }
 
+export function listenWebApp(app: Express, listenPort = port) {
+  return app.listen(listenPort, LOCAL_BIND_HOST);
+}
+
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {
   const app = createWebApp();
-  app.listen(port, async () => {
+  const server = listenWebApp(app, port);
+  server.once("listening", async () => {
     await mkdir(resolve(".crossdoc/uploads"), { recursive: true });
     console.log(`CrossDoc Web UI: http://localhost:${port}`);
   });

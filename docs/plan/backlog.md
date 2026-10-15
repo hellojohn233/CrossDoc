@@ -6,3 +6,4 @@
 - **P2 · Web session and scan-budget edge coverage:** Add tests for six busy sessions and seventh-session rejection/idle eviction, plus a session-wide text budget crossed only by scan-page appends. See `docs/plan/reviews/web-001-001.md`.
 - **P2 · Web SSE backpressure and recovery coverage:** Bound slow or numerous SSE listeners and test event-ring compaction snapshot replay. See `docs/plan/reviews/web-001-001.md`.
 - **P2 · Web terminal read states:** Replace the overview placeholder after all-failed/cancelled/no-text runs and expose a reconnect action after terminal EventSource failure. See `docs/plan/reviews/web-001-001.md`.
+- **P2 · SQLite library symlink containment:** `resolveDataPath()` checks lexical containment but not symlink targets. Before serving indexed source/Markdown paths, verify their real paths remain under the data directory. See `docs/plan/reviews/storage-001-001.md`.

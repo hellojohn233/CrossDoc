@@ -63,11 +63,9 @@ npm run build
 node dist/cli.js review "./examples/docs/*.pdf"
 ```
 
-配置所选 Pi AI provider 的凭据（示例模型使用 `GOOGLE_API_KEY`），并设置图像输入模型。缺少模型设置、模型不在 Pi AI 内置目录、provider 凭据缺失或模型不支持图像时，Pi Agent 创建会在读取开始前报出设置错误。可在 [.env.example](./.env.example) 查看配置格式。启动 Web UI：
+首次读取前，在开始页右上角的“设置”中分别配置主模型和扫描页视觉模型。两种模型必须来自 Pi AI 内置目录；视觉模型必须支持图像输入。主模型可以是纯文本模型。API Key、可选的兼容 API 地址和模型选项保存在本机 `data/crossdoc.sqlite`。本项目面向单用户本机使用，Web 服务只绑定到 `127.0.0.1`，API Key 以明文保存在该 SQLite 文件中。
 
 ```bash
-export CROSSDOC_VISION_MODEL=google/gemini-2.5-flash
-export GOOGLE_API_KEY=your-key
 npm run dev:web
 ```
 
@@ -79,7 +77,7 @@ http://localhost:5177
 
 Web UI 的主要入口用于阅读：选择 PDF 后由 Pi Agent 按文件格式调用解析工具，扫描页通过视觉模型读取，接着生成简短概述并支持基于同一会话追问。阅读进度通过可重放的 SSE 事件发送，引用可以打开归档 PDF 的对应页。确定性一致性审查仍由独立的 `/api/review` 路由提供。
 
-上传源文件暂存于 `.crossdoc/uploads/`，解析成功后源 PDF 和转换 Markdown 归档在本地 `data/library/<资料 ID>/`，并带有 `metadata.json`；临时上传在读取任务结束后清理。`data/` 已加入 `.gitignore`，不会进入 Git 提交。开始页仅提供资料库入口和文件选择，不会预览库内文档。
+上传源文件暂存于 `.crossdoc/uploads/`，解析成功后源 PDF、标准化结构化 JSON 和转换 Markdown 归档在本地 `data/library/<资料 ID>/`。SQLite 保存资料索引与两个模型角色的设置，并在启动时幂等导入已有 `metadata.json` 条目。临时上传在读取任务结束后清理。`data/` 已加入 `.gitignore`，不会进入 Git 提交。开始页仅提供资料库入口、设置入口和文件选择，不会预览库内文档。
 
 ## Pi 版本纪律
 

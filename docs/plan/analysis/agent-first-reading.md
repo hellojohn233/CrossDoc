@@ -15,7 +15,7 @@ The later agent-directed architecture keeps Pi Agent Core as the engine and adds
 - `src/agent.ts` defines a Pi agent, but the system prompt mandates a fixed parse/claims/compare/verify/report order and the code creates an empty provider collection.
 - `src/server.ts` uses `reviewDocuments()` directly; there is no reading overview or follow-up question path.
 - Local library storage saves source PDF plus parsed Markdown under `data/library/`.
-- Local inspection found `unpdf`, `pdfjs-dist`, and `@napi-rs/canvas`; no local OCR engine is installed. The user selected Pi vision for scan pages with page-level provenance; Pi AI must resolve an authenticated image-capable model from `CROSSDOC_VISION_MODEL` because CLI settings are not available in this embedded app.
+- Local inspection found `unpdf`, `pdfjs-dist`, and `@napi-rs/canvas`; no local OCR engine is installed. The user selected Pi vision for scan pages with page-level provenance. CrossDoc stores separate main and vision profiles locally because Pi CLI settings are not available in this embedded app; only the scan tool sends rendered images to the image-capable vision profile.
 
 ## Module Decomposition
 

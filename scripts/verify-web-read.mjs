@@ -5,7 +5,7 @@ import { join } from "node:path";
 
 import { createAssistantMessageEventStream } from "@earendil-works/pi-ai/utils/event-stream";
 import { createCrossDocAgent, CrossDocVisionModelConfigError } from "../src/agent.ts";
-import { createWebApp, isUploadSelectionWithinLimit } from "../src/server.ts";
+import { createWebApp, isUploadSelectionWithinLimit, listenWebApp } from "../src/server.ts";
 import { parseDoc } from "../src/tools/parse.ts";
 
 function pdfBytes(text) {
@@ -150,7 +150,6 @@ async function main() {
         if (selected.title === "scan-budget.pdf") {
           if (!results.some((item) => item.toolName === "parse_document")) return scriptedMessage(assistant([toolCall("parse_document", { documentId: selected.id })], "toolUse"));
           if (!results.some((item) => item.toolName === "render_scan_page")) return scriptedMessage(assistant([toolCall("render_scan_page", { documentId: selected.id, page: 1 })], "toolUse"));
-          if (!results.some((item) => item.toolName === "save_scan_page_text")) return scriptedMessage(assistant([toolCall("save_scan_page_text", { documentId: selected.id, page: 1, text: "xy" })], "toolUse"));
           if (!results.some((item) => item.toolName === "load_document_skill" && item.content?.some((part) => part.type === "text" && part.text.includes("Initial overview")))) {
             return scriptedMessage(assistant([toolCall("load_document_skill", { skill: "document-overview" })], "toolUse"));
           }
@@ -199,7 +198,10 @@ async function main() {
         ...options,
         models: models(),
         streamFn,
+        mainProfile: { role: "main", provider: "test-provider", modelId: "scripted-vision", apiKey: "main-key" },
+        visionProfile: { role: "vision", provider: "test-provider", modelId: "scripted-vision", apiKey: "vision-key" },
         visionModel: "test-provider/scripted-vision",
+        visionCompleteSimple: async () => assistant([{ type: "text", text: "scripted OCR" }], "stop"),
         parseDocument: async (path, parseOptions) => {
           activeReadOperations += 1;
           maxActiveReadOperations = Math.max(maxActiveReadOperations, activeReadOperations);
@@ -245,11 +247,13 @@ async function main() {
       });
     },
   });
-  const server = app.listen(0);
+  const server = listenWebApp(app, 0);
+  await new Promise((resolve) => server.once("listening", resolve));
   const address = server.address();
   assert.ok(address && typeof address === "object");
   const baseUrl = `http://127.0.0.1:${address.port}`;
-  const uploadLimitServer = createWebApp({ uploadDirectory: limitedUploadDirectory, maxTotalUploadBytes: 1 }).listen(0);
+  const uploadLimitServer = listenWebApp(createWebApp({ uploadDirectory: limitedUploadDirectory, maxTotalUploadBytes: 1 }), 0);
+  await new Promise((resolve) => uploadLimitServer.once("listening", resolve));
   const uploadLimitAddress = uploadLimitServer.address();
   assert.ok(uploadLimitAddress && typeof uploadLimitAddress === "object");
   const uploadLimitUrl = `http://127.0.0.1:${uploadLimitAddress.port}`;

@@ -128,6 +128,8 @@ async function main() {
       documents: selected.map(({ id, title, path }) => ({ id, title, path, sourceName: title })),
       models: makeModels(),
       streamFn,
+      mainProfile: { role: "main", provider: "test-provider", modelId: "vision-test", apiKey: "main-key" },
+      visionProfile: { role: "vision", provider: "test-provider", modelId: "vision-test", apiKey: "vision-key" },
       visionModel: "test-provider/vision-test",
       parseDocument: async (path, parseOptions) => {
         const item = selected.find((candidate) => candidate.path === path);
