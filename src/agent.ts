@@ -47,7 +47,7 @@ export function createCrossDocTools(): AgentTool[] {
     {
       name: "parse_doc",
       label: "Parse document",
-      description: "Parse a local PDF into page-grounded text.",
+      description: "Parse a local PDF into positioned text blocks and source-aware Markdown.",
       parameters: parseDocParameters,
       execute: async (_toolCallId, params) => {
         const input = params as ParseDocInput;

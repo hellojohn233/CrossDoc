@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 
-import { glob, mkdir, writeFile } from "node:fs/promises";
+import { glob, mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import { reviewDocuments } from "./review.js";
+import { writeReviewArtifacts } from "./storage/review-store.js";
 
 function usage(): never {
   console.error("Usage: crossdoc review <glob-or-pdf> [more-globs-or-pdfs]");
@@ -37,12 +38,13 @@ async function review(patterns: string[]): Promise<void> {
 
   const outDir = resolve("crossdoc-output");
   await mkdir(outDir, { recursive: true });
-  const reportPath = resolve(outDir, "review.md");
-  await writeFile(reportPath, result.reportMarkdown, "utf8");
+  await writeReviewArtifacts(result, outDir);
 
   console.log(`Claims: ${result.claims.length}`);
   console.log(`Conflicts: ${result.conflicts.filter((conflict) => conflict.status === "verified").length} verified / ${result.conflicts.length} total`);
-  console.log(`Report: ${reportPath}`);
+  console.log(`Structured review: ${resolve(outDir, "review.json")}`);
+  console.log(`Report: ${resolve(outDir, "review.md")}`);
+  console.log(`Parsed documents: ${resolve(outDir, "documents")}`);
 }
 
 async function main(): Promise<void> {

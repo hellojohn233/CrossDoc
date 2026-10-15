@@ -24,12 +24,19 @@ function sentenceCandidates(page: ParsedPage): string[] {
     .filter((sentence) => sentence.length >= 12);
 }
 
-function claimFromSentence(document: ParsedDocument, page: ParsedPage, sentence: string, index: number): Claim {
+function claimFromSentence(document: ParsedDocument, page: ParsedPage, sentence: string, index: number, sentenceStart: number): Claim {
   const kind = inferKind(sentence);
   const value = sentence.slice(0, 500);
+  const sentenceEnd = sentenceStart + value.length;
+  const sourceBlocks = sentenceStart < 0
+    ? []
+    : page.blocks
+        .filter((block) => block.start < sentenceEnd && block.end > sentenceStart)
+        .map((block) => ({ blockId: block.id, location: block.source }));
+  const claimId = `${document.id}:p${page.page}:c${index + 1}`;
 
   return {
-    id: `${document.id}:p${page.page}:c${index + 1}`,
+    id: claimId,
     documentId: document.id,
     kind,
     subject: document.title,
@@ -38,10 +45,11 @@ function claimFromSentence(document: ParsedDocument, page: ParsedPage, sentence:
     normalizedValue: normalizeValue(value),
     evidence: [
       {
+        id: `${claimId}:e1`,
         documentId: document.id,
-        documentPath: document.path,
         page: page.page,
         quote: value,
+        sourceBlocks,
       },
     ],
     confidence: 0.45,
@@ -49,7 +57,12 @@ function claimFromSentence(document: ParsedDocument, page: ParsedPage, sentence:
 }
 
 export function extractClaims(document: ParsedDocument): Claim[] {
-  return document.pages.flatMap((page) =>
-    sentenceCandidates(page).map((sentence, index) => claimFromSentence(document, page, sentence, index)),
-  );
+  return document.pages.flatMap((page) => {
+    let searchFrom = 0;
+    return sentenceCandidates(page).map((sentence, index) => {
+      const sentenceStart = page.text.indexOf(sentence, searchFrom);
+      if (sentenceStart >= 0) searchFrom = sentenceStart + sentence.length;
+      return claimFromSentence(document, page, sentence, index, sentenceStart);
+    });
+  });
 }

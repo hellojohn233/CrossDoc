@@ -398,6 +398,13 @@
         font-size: 12px;
       }
 
+      .doc-item button {
+        min-height: 30px;
+        margin-top: 8px;
+        padding: 5px 8px;
+        font-size: 12px;
+      }
+
       .hero {
         display: grid;
         grid-template-columns: minmax(0, 1fr) 240px;
@@ -680,6 +687,25 @@
         font-weight: 850;
       }
 
+      .source-link {
+        display: inline-flex;
+        min-height: 30px;
+        align-items: center;
+        margin-top: 10px;
+        padding: 5px 9px;
+        border: 1px solid var(--blue);
+        background: var(--blue-soft);
+        color: var(--blue);
+        font-size: 12px;
+        font-weight: 850;
+        text-decoration: none;
+      }
+
+      .source-link:hover {
+        background: var(--blue);
+        color: #fff;
+      }
+
       .quote {
         margin: 0;
         color: var(--ink-2);
@@ -704,6 +730,99 @@
         font-size: 12px;
         line-height: 1.55;
         white-space: pre-wrap;
+      }
+
+      .report-citation {
+        color: #a9c3ff;
+        font-weight: 850;
+        text-decoration: underline;
+        text-underline-offset: 2px;
+      }
+
+      .source-dialog {
+        width: min(1100px, 96vw);
+        height: min(92vh, 920px);
+        max-width: none;
+        max-height: none;
+        padding: 0;
+        border: 2px solid var(--ink);
+        background: var(--panel);
+        box-shadow: 12px 12px 0 rgba(21, 25, 31, 0.3);
+      }
+
+      .source-dialog::backdrop {
+        background: rgba(15, 18, 22, 0.72);
+      }
+
+      .source-dialog-shell {
+        display: grid;
+        grid-template-rows: auto auto minmax(0, 1fr);
+        height: 100%;
+      }
+
+      .source-dialog-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        align-items: center;
+        padding: 14px 18px;
+        border-bottom: 1px solid var(--line-dark);
+        background: #171411;
+        color: #fff8ea;
+      }
+
+      .source-dialog-head strong {
+        display: block;
+        font-size: 16px;
+      }
+
+      .source-dialog-head span {
+        display: block;
+        margin-top: 4px;
+        color: #c7bda9;
+        font-size: 12px;
+      }
+
+      .source-status {
+        min-height: 36px;
+        margin: 0;
+        padding: 9px 18px;
+        border-bottom: 1px solid var(--line);
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .source-preview {
+        overflow: auto;
+        padding: 22px;
+        background: #6c6b69;
+        text-align: center;
+      }
+
+      .pdf-page {
+        position: relative;
+        display: inline-block;
+        margin: 0 auto;
+        background: white;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+        text-align: left;
+      }
+
+      .pdf-page canvas {
+        display: block;
+      }
+
+      .source-overlays {
+        position: absolute;
+        inset: 0;
+        pointer-events: none;
+      }
+
+      .source-highlight {
+        position: absolute;
+        border: 3px solid #e22914;
+        background: rgba(255, 221, 0, 0.26);
+        box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.76);
       }
 
       @media (max-width: 1180px) {
@@ -966,6 +1085,25 @@
       </aside>
     </main>
 
+    <dialog class="source-dialog" id="source-dialog" aria-labelledby="source-title">
+      <div class="source-dialog-shell">
+        <header class="source-dialog-head">
+          <div>
+            <strong id="source-title">Source document</strong>
+            <span id="source-caption"></span>
+          </div>
+          <button class="ghost" id="close-source" type="button">Close</button>
+        </header>
+        <p class="source-status" id="source-status">Loading source…</p>
+        <div class="source-preview" id="source-preview">
+          <div class="pdf-page" id="pdf-page">
+            <canvas id="source-canvas"></canvas>
+            <div class="source-overlays" id="source-overlays"></div>
+          </div>
+        </div>
+      </div>
+    </dialog>
+
     <script>
       const form = document.querySelector("#review-form");
       const fileInput = document.querySelector("#documents");
@@ -983,6 +1121,14 @@
       const claimPair = document.querySelector("#claim-pair");
       const evidenceList = document.querySelector("#evidence-list");
       const reportEl = document.querySelector("#report");
+      const sourceDialog = document.querySelector("#source-dialog");
+      const sourceTitle = document.querySelector("#source-title");
+      const sourceCaption = document.querySelector("#source-caption");
+      const sourceStatus = document.querySelector("#source-status");
+      const sourcePreview = document.querySelector("#source-preview");
+      const sourceCanvas = document.querySelector("#source-canvas");
+      const sourceOverlays = document.querySelector("#source-overlays");
+      const closeSource = document.querySelector("#close-source");
       const copyReport = document.querySelector("#copy-report");
       const downloadReport = document.querySelector("#download-report");
       const metricDocs = document.querySelector("#metric-docs");
@@ -997,6 +1143,10 @@
       let result = null;
       let selectedConflictId = null;
       let filter = "all";
+      let pdfjsRuntime = null;
+      let sourceRenderToken = 0;
+      let activeRenderTask = null;
+      const pdfCache = new Map();
 
       function escapeHtml(value) {
         return String(value ?? "")
@@ -1054,6 +1204,35 @@
             `,
           )
           .join("");
+      }
+
+      function renderReviewedDocuments(documents) {
+        docList.innerHTML = documents
+          .map(
+            (document) => `
+              <div class="doc-item">
+                <strong>${escapeHtml(document.title)}</strong>
+                <span>${escapeHtml(document.format.toUpperCase())} · ${escapeHtml(document.pages)} pages</span>
+                ${(document.warnings ?? []).map((warning) => `<span>${escapeHtml(warning)}</span>`).join("")}
+                <button type="button" data-document-markdown="${escapeHtml(document.id)}">Download converted Markdown</button>
+              </div>
+            `,
+          )
+          .join("");
+
+        docList.querySelectorAll("[data-document-markdown]").forEach((button) => {
+          button.addEventListener("click", () => {
+            const document = documents.find((item) => item.id === button.dataset.documentMarkdown);
+            if (!document) return;
+            const blob = new Blob([document.markdown], { type: "text/markdown;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+            const link = window.document.createElement("a");
+            link.href = url;
+            link.download = `${document.title.replace(/\.pdf$/i, "")}.md`;
+            link.click();
+            URL.revokeObjectURL(url);
+          });
+        });
       }
 
       function updateMetrics(data) {
@@ -1119,7 +1298,93 @@
       function claimSource(claim) {
         const evidence = claim?.evidence?.[0];
         if (!evidence) return claim?.documentId ?? "Unknown source";
-        return `${evidence.documentId ?? claim?.documentId ?? "Unknown document"} · page ${evidence.page ?? "?"}`;
+        const title = documentForId(evidence.documentId)?.title ?? evidence.documentId ?? claim?.documentId ?? "Unknown document";
+        return `${title} · page ${evidence.page ?? "?"}`;
+      }
+
+      function citationLabel(evidenceId) {
+        const evidence = [];
+        for (const conflict of result?.conflicts ?? []) {
+          for (const item of conflict.evidence ?? []) {
+            if (!evidence.some((candidate) => candidate.id === item.id)) evidence.push(item);
+          }
+        }
+        const index = evidence.findIndex((item) => item.id === evidenceId);
+        return index < 0 ? "Source" : `E${index + 1}`;
+      }
+
+      function documentForId(documentId) {
+        return (result?.documents ?? []).find((document) => document.id === documentId);
+      }
+
+      async function openSource(evidence) {
+        const sourceDocument = documentForId(evidence.documentId);
+        if (!sourceDocument?.sourceUrl) return;
+        const renderToken = ++sourceRenderToken;
+        activeRenderTask?.cancel();
+        activeRenderTask = null;
+        const pageNumber = Number(evidence.page ?? 1);
+        const locations = (evidence.sourceBlocks ?? [])
+          .map((source) => source.location)
+          .filter((location) => location?.type === "pdf" && location.page === pageNumber);
+
+        sourceTitle.textContent = sourceDocument.title;
+        sourceCaption.textContent = `Page ${pageNumber} · Citation ${citationLabel(evidence.id)}`;
+        sourceStatus.textContent = "Loading the cited page…";
+        sourceOverlays.replaceChildren();
+        sourcePreview.scrollTop = 0;
+        if (!sourceDialog.open) sourceDialog.showModal();
+
+        try {
+          pdfjsRuntime ??= import("/vendor/pdfjs/pdf.mjs");
+          const pdfjs = await pdfjsRuntime;
+          pdfjs.GlobalWorkerOptions.workerSrc = "/vendor/pdfjs/pdf.worker.mjs";
+          let pdfPromise = pdfCache.get(sourceDocument.id);
+          if (!pdfPromise) {
+            pdfPromise = pdfjs.getDocument({ url: sourceDocument.sourceUrl }).promise;
+            pdfCache.set(sourceDocument.id, pdfPromise);
+          }
+          const pdf = await pdfPromise;
+          if (renderToken !== sourceRenderToken) return;
+          const page = await pdf.getPage(pageNumber);
+          const baseViewport = page.getViewport({ scale: 1 });
+          const availableWidth = Math.max(280, sourcePreview.clientWidth - 48);
+          const scale = Math.min(1.5, availableWidth / baseViewport.width);
+          const viewport = page.getViewport({ scale });
+          const outputScale = window.devicePixelRatio || 1;
+          sourceCanvas.width = Math.floor(viewport.width * outputScale);
+          sourceCanvas.height = Math.floor(viewport.height * outputScale);
+          sourceCanvas.style.width = `${viewport.width}px`;
+          sourceCanvas.style.height = `${viewport.height}px`;
+          sourceOverlays.style.width = `${viewport.width}px`;
+          sourceOverlays.style.height = `${viewport.height}px`;
+          const context = sourceCanvas.getContext("2d");
+          if (!context) throw new Error("Could not create a PDF preview canvas.");
+          context.setTransform(outputScale, 0, 0, outputScale, 0, 0);
+          const renderTask = page.render({ canvasContext: context, viewport });
+          activeRenderTask = renderTask;
+          await renderTask.promise;
+          if (activeRenderTask === renderTask) activeRenderTask = null;
+          if (renderToken !== sourceRenderToken) return;
+
+          for (const location of locations) {
+            const [x1, y1, x2, y2] = viewport.convertToViewportRectangle(location.bbox);
+            const highlight = window.document.createElement("div");
+            highlight.className = "source-highlight";
+            highlight.style.left = `${Math.min(x1, x2)}px`;
+            highlight.style.top = `${Math.min(y1, y2)}px`;
+            highlight.style.width = `${Math.abs(x2 - x1)}px`;
+            highlight.style.height = `${Math.abs(y2 - y1)}px`;
+            sourceOverlays.append(highlight);
+          }
+
+          sourceStatus.textContent = locations.length > 0
+            ? `Highlighted ${locations.length} source text block${locations.length === 1 ? "" : "s"}.`
+            : "The page was located, but no text rectangle was captured for this citation.";
+        } catch (error) {
+          if (renderToken !== sourceRenderToken) return;
+          sourceStatus.textContent = error instanceof Error ? error.message : "Could not load the source PDF.";
+        }
       }
 
       function renderInspector() {
@@ -1150,10 +1415,11 @@
                   (item) => `
                     <div class="evidence">
                       <div class="evidence-meta">
-                        <span>${escapeHtml(item.documentId ?? "document")}</span>
+                        <span>[${escapeHtml(citationLabel(item.id))}] ${escapeHtml(documentForId(item.documentId)?.title ?? item.documentId ?? "document")}</span>
                         <span>page ${escapeHtml(item.page ?? "?")}</span>
                       </div>
                       <p class="quote">${escapeHtml(item.quote ?? "No quote captured.")}</p>
+                      ${documentForId(item.documentId)?.sourceUrl ? `<a class="source-link" data-source-id="${escapeHtml(item.id)}" href="${escapeHtml(documentForId(item.documentId).sourceUrl)}#page=${encodeURIComponent(item.page ?? 1)}">Open cited page ↗</a>` : ""}
                     </div>
                   `,
                 )
@@ -1162,7 +1428,25 @@
       }
 
       function renderReport(markdown) {
-        reportEl.textContent = markdown || "暂无报告。";
+        if (!markdown) {
+          reportEl.textContent = "暂无报告。";
+          return;
+        }
+
+        const sources = [];
+        for (const conflict of result?.conflicts ?? []) {
+          for (const item of conflict.evidence ?? []) {
+            if (!sources.some((candidate) => candidate.id === item.id)) sources.push(item);
+          }
+        }
+        const escaped = escapeHtml(markdown).replace(/\[\^(E\d+)\]/g, (reference, label) => {
+          const item = sources[Number(label.slice(1)) - 1];
+          const source = item && documentForId(item.documentId);
+          if (!item || !source?.sourceUrl) return reference;
+          const href = `${source.sourceUrl}#page=${encodeURIComponent(item.page ?? 1)}`;
+          return `<a class="report-citation" data-source-id="${escapeHtml(item.id)}" href="${escapeHtml(href)}">[${label}]</a>`;
+        });
+        reportEl.innerHTML = escaped;
       }
 
       async function runReview() {
@@ -1205,6 +1489,7 @@
           }
 
           result = data;
+          renderReviewedDocuments(data.documents);
           updateMetrics(data);
           renderFindings();
           renderInspector();
@@ -1246,6 +1531,26 @@
       submitTop.addEventListener("click", runReview);
       reset.addEventListener("click", resetAll);
       resetTop.addEventListener("click", resetAll);
+      document.body.addEventListener("click", (event) => {
+        const link = event.target.closest?.("[data-source-id]");
+        if (!link) return;
+        const evidence = [];
+        for (const conflict of result?.conflicts ?? []) {
+          for (const item of conflict.evidence ?? []) {
+            if (!evidence.some((candidate) => candidate.id === item.id)) evidence.push(item);
+          }
+        }
+        const source = evidence.find((item) => item.id === link.dataset.sourceId);
+        if (!source) return;
+        event.preventDefault();
+        openSource(source);
+      });
+      closeSource.addEventListener("click", () => sourceDialog.close());
+      sourceDialog.addEventListener("close", () => {
+        sourceRenderToken += 1;
+        activeRenderTask?.cancel();
+        activeRenderTask = null;
+      });
       fileInput.addEventListener("change", () => {
         updateFiles();
         setRunState("Idle", "文件已选择，准备开始审查。");

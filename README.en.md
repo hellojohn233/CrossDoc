@@ -21,11 +21,13 @@ Pi is the engine; consistency review is the vehicle.
 
 The review pipeline is owned by CrossDoc:
 
-- `parse_doc`: parse local PDFs into page-grounded text.
+- `parse_doc`: use a format loader to produce normalized JSON with source positions.
 - `extract_claims`: convert document text into reviewable claims.
 - `compare_claims`: find candidate contradictions across documents.
 - `verify_conflicts`: demote weak matches and keep false positives under control.
-- `report_conflicts`: emit a traceable Markdown report with evidence.
+- `report_conflicts`: render a Markdown report with source citations from structured review data.
+
+Each extracted text block keeps a source ID and location. The current PDF loader stores page numbers and PDF coordinates. Scanned pages are flagged as needing OCR instead of being silently treated as blank. Clicking a citation in the Web UI opens the corresponding PDF page and highlights the source text block.
 
 Pi is used only as the runtime boundary:
 
@@ -46,6 +48,8 @@ Run a deterministic local review without an LLM:
 ```bash
 npm run dev -- review "./examples/docs/*.pdf"
 ```
+
+The CLI writes `review.json` and `review.md` under `crossdoc-output/`, plus structured JSON and source-footnoted Markdown for each document under `documents/`.
 
 Build:
 
@@ -71,7 +75,7 @@ Then open:
 http://localhost:5177
 ```
 
-The Web UI is only a local visual entry point: upload PDFs, run the same review pipeline, and inspect findings plus the Markdown report. Review capability still lives in `src/review.ts`, `src/tools/`, and `src/core/`; the Pi agent runtime remains isolated in `src/agent.ts`.
+The Web UI is a local visual entry point: upload PDFs, run the same review pipeline, inspect findings and the Markdown report, and click citations to open the source PDF page. Uploaded files are kept in `.crossdoc/uploads/`; review JSON and Markdown are kept in `.crossdoc/reviews/`.
 
 ## Pi Version Discipline
 
@@ -95,6 +99,15 @@ CrossDoc/
 │   ├── core/
 │   │   ├── claims.ts
 │   │   └── types.ts
+│   ├── loaders/
+│   │   ├── index.ts
+│   │   ├── pdf.ts
+│   │   └── types.ts
+│   ├── markdown/
+│   │   ├── document.ts
+│   │   └── review-report.ts
+│   ├── storage/
+│   │   └── review-store.ts
 │   └── tools/
 │       ├── compare.ts
 │       ├── extract.ts
@@ -107,14 +120,18 @@ CrossDoc/
 
 ## Current Status
 
-This is the first development skeleton:
+Current data flow:
 
-- PDF parsing uses `unpdf`.
+- `loaders/` reads each format into the shared structure defined in `core/`; PDF is connected first.
+- PDF text blocks keep page coordinates, and extracted claims point back to those source blocks.
+- `markdown/` renders per-document Markdown and the final review report separately.
+- `storage/` writes JSON and Markdown before the UI presents the results.
+- OCR for scanned pages and DOCX/XLSX loaders are not connected yet.
 - Claim extraction is deterministic and intentionally conservative.
 - Comparison and verification are rule-based placeholders.
-- Pi wiring is isolated in `src/agent.ts` so model/provider choices do not leak into review logic.
+- Pi wiring remains isolated in `src/agent.ts`; parsing and report generation do not depend on Pi.
 
-Next step: replace the deterministic claim extractor with a Pi tool-backed LLM extraction pass while keeping the same `Claim` and `Conflict` contracts.
+Next step: add DOCX, XLSX, and scanned-document OCR through the same loader contract, then extend the Web preview to highlight PDF coordinate regions.
 
 ## Acknowledgements
 

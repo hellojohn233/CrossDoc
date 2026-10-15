@@ -1,4 +1,5 @@
 import type { ReviewResult } from "./core/types.js";
+import type { ParseDocumentOptions } from "./loaders/types.js";
 import { compareClaims } from "./tools/compare.js";
 import { extractClaims } from "./tools/extract.js";
 import { parseDoc } from "./tools/parse.js";
@@ -14,14 +15,15 @@ export interface ReviewProgress {
 
 export interface ReviewOptions {
   onProgress?: (progress: ReviewProgress) => void;
+  documents?: ParseDocumentOptions[];
 }
 
 export async function reviewDocuments(paths: string[], options: ReviewOptions = {}): Promise<ReviewResult> {
   const documents = [];
 
-  for (const path of paths) {
+  for (const [index, path] of paths.entries()) {
     options.onProgress?.({ stage: "parse", message: `Parsing ${path}` });
-    documents.push(await parseDoc(path));
+    documents.push(await parseDoc(path, options.documents?.[index]));
   }
 
   options.onProgress?.({ stage: "extract", message: "Extracting claims" });
