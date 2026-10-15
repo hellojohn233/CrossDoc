@@ -37,8 +37,14 @@ function hasMeaningfulText(text: string, textAreaRatio: number): boolean {
   return characterCount >= MIN_NATIVE_TEXT_CHARACTERS || textAreaRatio >= MIN_NATIVE_TEXT_AREA_RATIO;
 }
 
-function hasVisiblePageContent(operatorFunctions: number[]): boolean {
-  return operatorFunctions.some((operator) => CONTENT_OPERATORS.has(operator));
+function hasVisiblePageContent(operatorFunctions: number[], operatorArguments: unknown[][]): boolean {
+  return operatorFunctions.some((operator, index) => {
+    if (CONTENT_OPERATORS.has(operator)) return true;
+    if (operator !== OPS.constructPath) return false;
+
+    const [paintOperator] = operatorArguments[index] ?? [];
+    return typeof paintOperator === "number" && CONTENT_OPERATORS.has(paintOperator);
+  });
 }
 
 function classifyPage(text: string, textAreaRatio: number, hasVisibleContent: boolean): PdfPageClassification {
@@ -113,10 +119,17 @@ export const pdfLoader: DocumentLoader = {
       const pageArea = Math.max(0, pageBounds[2] - pageBounds[0]) * Math.max(0, pageBounds[3] - pageBounds[1]);
       const textAreaRatio = pageArea > 0 ? textArea / pageArea : 0;
       const meaningfulText = hasMeaningfulText(pageText, textAreaRatio);
-      const visibleContent = meaningfulText
-        ? false
-        : hasVisiblePageContent((await pageProxy.getOperatorList()).fnArray);
-      const classification = classifyPage(pageText, textAreaRatio, visibleContent);
+      let classification: PdfPageClassification;
+      if (meaningfulText) {
+        classification = "text-native";
+      } else {
+        const operatorList = await pageProxy.getOperatorList();
+        classification = classifyPage(
+          pageText,
+          textAreaRatio,
+          hasVisiblePageContent(operatorList.fnArray, operatorList.argsArray),
+        );
+      }
       pages.push({
         page: pageNumber,
         text: pageText,

@@ -21,8 +21,8 @@ All tasks are pending. The scan-reading engine is Pi vision, as selected by the 
 
 | ID | Scope | Objective | Depends on | Status |
 |---|---|---|---|---|
-| `pdf-001` | PDF ingestion | Classify pages as text-native, scan, or blank/unknown; preserve native text blocks and PDF locations | — | in-progress |
-| `pdf-002` | Scan reading | Render scanned pages, read them with Pi vision, save page-level text blocks, and emit page warnings | `pdf-001` | pending |
+| `pdf-001` | PDF ingestion | Classify pages as text-native, scan, or blank/unknown; preserve native text blocks and PDF locations | — | done |
+| `pdf-002` | Scan reading | Render scanned pages, read them with Pi vision, save page-level text blocks, and emit page warnings | `pdf-001` | in-progress |
 | `skill-001` | Overview and Q&A | Add a concise document-overview skill and source-grounded follow-up retrieval behavior | `pdf-001`, `pdf-002` | pending |
 | `agent-001` | Pi orchestration | Make Pi task-directed; expose scoped inspect, skill, parse, and search tools; keep review optional | `pdf-001`, `pdf-002`, `skill-001` | pending |
 | `agent-002` | Concurrent reading | Parse selected PDFs concurrently under a cap, retain order, and report partial failures | `agent-001` | pending |

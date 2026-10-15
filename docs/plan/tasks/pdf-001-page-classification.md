@@ -1,7 +1,7 @@
 ---
 id: pdf-001
 scope: pdf-ingestion
-status: in-progress
+status: done
 depends-on: []
 ---
 
