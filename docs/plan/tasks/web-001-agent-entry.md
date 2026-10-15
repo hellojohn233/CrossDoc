@@ -38,4 +38,9 @@ Follow [the Web reading surface contract](../../modules/web-reading.md) for page
 - Progress events distinguish detection, extraction/OCR, overview, and response without forcing review stages.
 - Empty task, unsupported file, model misconfiguration, abort, and partial parser failure have visible actionable UI states.
 - The start page continues to show only the Library entry and file/folder selection; it does not list library documents.
-- Run typecheck and browser/API integration verification.
+- `npm run typecheck`
+- `npm run verify:agent`
+- `npm run verify:agent-parallel`
+- `npm run verify:document-search`
+- `npm run verify:web-read`
+- Browser check of the local selection page and browser console; scripted API integration uses an injected Pi stream so it does not require credentials.

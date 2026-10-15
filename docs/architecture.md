@@ -49,6 +49,12 @@ The first reader path invokes a concise overview skill after the selected PDFs h
 
 For browser navigation, a PDF citation opens the archived original with `#page=<n>`. The parser retains block bounding boxes for future in-page highlighting; initial navigation guarantees the correct page, while exact PDF viewer coordinate highlighting is viewer-dependent.
 
+The Web reading lifecycle is hosted in `src/server.ts`. `POST /api/read` stages a bounded multipart selection, assigns opaque UUIDs, validates PDF signatures, and creates one request-scoped Pi Agent. A session holds its Agent, parsed-document scope, ordered per-file states, and monotonically numbered SSE events in memory. Reconnecting with `Last-Event-ID` replays only newer events; if the cursor predates the 500-event ring, the server sends current document, overview, recent-answer, and completion snapshots. Reconnecting never starts another prompt. Each accepted session starts one read prompt, and follow-up questions are admitted only while the Agent is idle, then sent to that same Agent. Cancellation aborts the active run; cancelling a later question emits its own error/progress result and a terminal cancelled event. Successfully parsed documents are archived through the agent persistence callback; staged upload files are removed when the run settles, including invalid or failed inputs.
+
+Session memory has finite retention: at most six sessions, a 60-minute idle TTL, a four-hour absolute lifetime, and 30 accepted follow-up questions per session. The server retains at most 500 SSE events, capped at 256 KiB per session and 4 MiB process-wide, plus 10 answer snapshots per session; displayed assistant text is capped at 12,000 characters. Web parse-plus-archive concurrency is capped at three across the process, total uploads at 100 MiB per session, and extracted text at 1,000,000 characters per document / 2,000,000 per session. At session capacity it evicts the least recently active idle session or rejects a new read with HTTP 503 if all sessions are busy. A file is marked ready only after parsing and the Library persistence callback both succeed. Session restart/expiry only removes in-memory Agent and parsed state; archived Library files remain durable.
+
+The reading page is the primary Web route. It shows a compact ordered file status list beside the overview and follow-up conversation. The deterministic `/api/review` endpoint remains available as a separate optional capability. Model-generated text is HTML-escaped before citation tokens are converted into page links; a token is linked only when its document UUID belongs to the active session and its page is a positive integer.
+
 The OCR adapter is an explicit implementation choice in [the PDF reading design](./modules/pdf-reading.md). OCR failure, unsupported language data, or unusable scan output must be visible in document warnings and in the reading response, never silently converted to an empty document.
 
 ## Document Contract and Provenance
@@ -86,8 +92,8 @@ The current connected format is PDF, so its source is saved as `source.pdf`. `da
 
 - The request-scoped Pi Agent provides inspection, skill loading, PDF parsing, scan image rendering, vision text saving, and lexical search. Pi AI's built-in provider catalog is registered and `CROSSDOC_VISION_MODEL` is checked for model availability, image input, and provider credentials before the Agent is created.
 - DOCX, XLSX, and image source-location types exist, but matching loaders and skills are not connected.
-- The Web and CLI entry points still call the deterministic `reviewDocuments()` pipeline directly.
-- The agent adapter supports source-bounded persistence callbacks, but the Web request lifecycle, automatic overview presentation, and follow-up chat are still owned by `web-001`.
+- The Web reading entry point runs a request-scoped Pi Agent, streams progress through bounded replayable SSE, presents overview and Q&A, and archives parsed source/Markdown artifacts. `/api/review` and the CLI review command remain deterministic optional review paths.
+- The agent adapter's source-bounded persistence callback is wired to the local Library. Web sessions retain the Pi transcript and parsed scope only in memory; a server restart ends active sessions while archived files remain.
 - Local library storage saves source PDFs, parsed Markdown, and metadata under `data/library/`.
 
 The delivery plan under `docs/plan/` first completes the PDF text/scan reading path, overview, and cited Q&A, then replaces the fixed review entry point with the broader agent-directed path.
