@@ -863,6 +863,282 @@
           border-top: 1px solid var(--line-dark);
         }
       }
+
+      .ingest-screen {
+        display: grid;
+        min-height: calc(100vh - 88px);
+        place-items: center;
+        padding: 48px 28px;
+      }
+
+      .ingest-form {
+        width: min(100%, 1216px);
+      }
+
+      .ingest-empty {
+        display: grid;
+        width: min(100%, 980px);
+        min-height: 590px;
+        place-items: center;
+        padding: 42px;
+        border: 2px dashed #9b8f7d;
+        background: rgba(255, 253, 248, 0.76);
+        text-align: center;
+        transition: border-color 140ms ease, background-color 140ms ease;
+      }
+
+      .ingest-empty.dragover {
+        border-color: var(--blue);
+        background: var(--blue-soft);
+      }
+
+      .ingest-empty-content {
+        display: grid;
+        justify-items: center;
+        gap: 18px;
+      }
+
+      .ingest-empty h2 {
+        margin: 0;
+        font-size: clamp(30px, 4vw, 44px);
+        letter-spacing: -0.04em;
+      }
+
+      .ingest-prompt {
+        margin: 0;
+        color: var(--muted);
+        font-size: 18px;
+      }
+
+      .ingest-actions,
+      .ingest-heading-actions,
+      .ingest-footer {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .ingest-actions button,
+      .ingest-heading-actions button,
+      .ingest-footer button {
+        min-height: 48px;
+        padding-inline: 22px;
+      }
+
+      .ingest-hint {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .file-input {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        clip-path: inset(50%);
+      }
+
+      .ingest-selected {
+        overflow: hidden;
+        width: min(100%, 1216px);
+        border: 1px solid var(--line-dark);
+        background: rgba(255, 253, 248, 0.94);
+      }
+
+      .ingest-selected[hidden],
+      .ingest-empty[hidden],
+      .shell[hidden],
+      .ingest-screen[hidden] {
+        display: none;
+      }
+
+      .ingest-selected-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+        padding: 32px 40px 24px;
+      }
+
+      .ingest-selected-head h2 {
+        margin: 0 0 8px;
+        font-size: 30px;
+        letter-spacing: -0.035em;
+      }
+
+      .ingest-count {
+        margin: 0;
+        color: var(--muted);
+      }
+
+      .file-tree {
+        max-height: min(56vh, 520px);
+        overflow: auto;
+        margin: 0 32px;
+        padding: 8px 20px;
+        border: 1px solid var(--line);
+        background: rgba(255, 253, 248, 0.64);
+      }
+
+      .tree-folder,
+      .tree-file {
+        min-height: 52px;
+        border-bottom: 1px solid rgba(210, 200, 184, 0.62);
+      }
+
+      .tree-folder:last-child,
+      .tree-file:last-child {
+        border-bottom: 0;
+      }
+
+      .tree-folder summary,
+      .tree-file {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        min-height: 52px;
+        color: var(--ink);
+        font-size: 16px;
+      }
+
+      .tree-folder summary {
+        cursor: pointer;
+        font-weight: 760;
+        list-style-position: inside;
+      }
+
+      .tree-folder summary::marker {
+        color: var(--muted);
+      }
+
+      .tree-children {
+        margin-left: 28px;
+        padding-left: 16px;
+        border-left: 1px solid var(--line);
+      }
+
+      .tree-file {
+        justify-content: space-between;
+        padding-left: 8px;
+      }
+
+      .tree-file-name {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        min-width: 0;
+      }
+
+      .tree-extension {
+        flex: 0 0 auto;
+        min-width: 42px;
+        color: var(--muted);
+        font-size: 11px;
+        font-weight: 820;
+        letter-spacing: 0.04em;
+        text-align: center;
+        text-transform: uppercase;
+      }
+
+      .tree-file.unsupported {
+        color: var(--muted);
+      }
+
+      .tree-file-status {
+        flex: 0 0 auto;
+        color: var(--amber);
+        font-size: 12px;
+      }
+
+      .ingest-footer {
+        justify-content: flex-end;
+        padding: 24px 32px 32px;
+      }
+
+      .ingest-clear {
+        border-color: transparent;
+        background: transparent;
+        color: var(--muted);
+      }
+
+      .ingest-status {
+        min-height: 20px;
+        margin: 0 32px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      body:not(.review-open) .brand p,
+      body:not(.review-open) .case-strip,
+      body:not(.review-open) .top-actions {
+        display: none;
+      }
+
+      body:not(.review-open) .topbar {
+        grid-template-columns: 1fr;
+        min-height: 88px;
+      }
+
+      body:not(.review-open) .shell {
+        display: none;
+      }
+
+      body.review-open .ingest-screen {
+        display: none;
+      }
+
+      body.review-open .shell {
+        display: grid;
+      }
+
+      @media (max-width: 820px) {
+        .ingest-screen {
+          min-height: calc(100vh - 76px);
+          padding: 24px 16px;
+        }
+
+        .ingest-empty {
+          min-height: 480px;
+          padding: 24px 16px;
+        }
+
+        .ingest-selected-head {
+          align-items: flex-start;
+          flex-direction: column;
+          padding: 24px 20px 20px;
+        }
+
+        .ingest-heading-actions {
+          width: 100%;
+        }
+
+        .ingest-heading-actions button {
+          flex: 1;
+          padding-inline: 10px;
+        }
+
+        .file-tree {
+          max-height: 52vh;
+          margin-inline: 16px;
+          padding-inline: 12px;
+        }
+
+        .ingest-footer {
+          padding: 20px 16px 24px;
+        }
+
+        .ingest-footer .primary {
+          flex: 1;
+          padding-inline: 12px;
+        }
+
+        .ingest-status {
+          margin-inline: 16px;
+        }
+      }
     </style>
   </head>
   <body>
@@ -898,30 +1174,44 @@
       </div>
     </header>
 
-    <main class="shell">
-      <aside class="rail">
-        <form id="review-form">
-          <section class="panel">
-            <div class="panel-head">
-              <div>
-                <h2>Document Set</h2>
-                <p>上传一组 PDF，CrossDoc 会把它们当作同一个审查 case。</p>
-              </div>
+    <main class="ingest-screen" id="ingest-screen">
+      <form class="ingest-form" id="review-form">
+        <input class="file-input" id="documents" name="documents" type="file" accept="application/pdf,.pdf" multiple />
+        <input class="file-input" id="folders" name="folders" type="file" accept="application/pdf,.pdf" multiple webkitdirectory directory />
+        <section class="ingest-empty" id="dropzone" aria-label="添加待读取文件">
+          <div class="ingest-empty-content">
+            <h2>开始读取文档</h2>
+            <p class="ingest-prompt">拖放文件到此处</p>
+            <div class="ingest-actions">
+              <button class="primary" id="choose-files" type="button">选择文件</button>
+              <button id="choose-folder" type="button">选择文件夹</button>
             </div>
-            <div class="panel-body">
-              <label class="dropzone" id="dropzone">
-                <span class="drop-title">Drop PDFs here</span>
-                <span class="drop-note">支持多个 PDF。审查会输出冲突、证据片段和 Markdown 报告。</span>
-                <input class="file-input" id="documents" name="documents" type="file" accept="application/pdf,.pdf" multiple />
-              </label>
-              <div class="upload-actions">
-                <button class="primary" id="submit" type="submit">Run review</button>
-                <button id="reset" type="button">Reset</button>
-              </div>
+            <p class="ingest-hint">当前支持 PDF</p>
+          </div>
+        </section>
+        <section class="ingest-selected" id="selected-state" hidden>
+          <header class="ingest-selected-head">
+            <div>
+              <h2>待读取内容</h2>
+              <p class="ingest-count" id="ingest-count">0 个文件</p>
             </div>
-          </section>
-        </form>
+            <div class="ingest-heading-actions">
+              <button id="add-files" type="button">添加文件</button>
+              <button id="add-folder" type="button">添加文件夹</button>
+            </div>
+          </header>
+          <div class="file-tree" id="file-tree" aria-label="待读取文件列表"></div>
+          <p class="ingest-status" id="ingest-status" aria-live="polite"></p>
+          <footer class="ingest-footer">
+            <button class="ingest-clear" id="clear-selection" type="button">清空列表</button>
+            <button class="primary" id="submit" type="submit" disabled>开始读取</button>
+          </footer>
+        </section>
+      </form>
+    </main>
 
+    <main class="shell" hidden>
+      <aside class="rail">
         <section class="panel">
           <div class="panel-head">
             <div>
@@ -1107,10 +1397,15 @@
     <script>
       const form = document.querySelector("#review-form");
       const fileInput = document.querySelector("#documents");
+      const folderInput = document.querySelector("#folders");
       const dropzone = document.querySelector("#dropzone");
+      const emptyState = document.querySelector("#dropzone");
+      const selectedState = document.querySelector("#selected-state");
+      const fileTree = document.querySelector("#file-tree");
+      const ingestCount = document.querySelector("#ingest-count");
+      const ingestStatus = document.querySelector("#ingest-status");
       const submit = document.querySelector("#submit");
       const submitTop = document.querySelector("#submit-top");
-      const reset = document.querySelector("#reset");
       const resetTop = document.querySelector("#reset-top");
       const statusText = document.querySelector("#status");
       const runState = document.querySelector("#run-state");
@@ -1147,6 +1442,7 @@
       let sourceRenderToken = 0;
       let activeRenderTask = null;
       const pdfCache = new Map();
+      let selectedFiles = [];
 
       function escapeHtml(value) {
         return String(value ?? "")
@@ -1168,6 +1464,9 @@
       function setRunState(state, message) {
         runState.textContent = state;
         statusText.textContent = message;
+        if (ingestStatus && !document.body.classList.contains("review-open")) {
+          ingestStatus.textContent = state === "Idle" ? "" : message;
+        }
         runDot.className = "run-dot";
         if (state === "Running") runDot.classList.add("busy");
         if (state === "Ready") runDot.classList.add("done");
@@ -1182,28 +1481,109 @@
       }
 
       function updateFiles() {
-        const files = Array.from(fileInput.files ?? []);
+        const files = selectedFiles;
         if (files.length === 0) {
-          docList.innerHTML = '<div class="empty">尚未选择文件。</div>';
+          emptyState.hidden = false;
+          selectedState.hidden = true;
+          fileTree.replaceChildren();
+          ingestCount.textContent = "0 个文件";
+          submit.disabled = true;
+          if (docList) docList.innerHTML = '<div class="empty">尚未选择文件。</div>';
           caseName.textContent = "Untitled document set";
           metricDocs.textContent = "0";
           mapDocs.textContent = "0";
           return;
         }
 
-        caseName.textContent = files.length === 1 ? files[0].name : `${files.length} documents selected`;
+        emptyState.hidden = true;
+        selectedState.hidden = false;
+        const pdfFiles = files.filter((entry) => isPdf(entry.file));
+        const unsupportedCount = files.length - pdfFiles.length;
+        const folderCount = new Set(files.map(({ folderRoot }) => folderRoot).filter(Boolean)).size;
+        const selectionSummary = [
+          folderCount ? `${folderCount} 个文件夹` : "",
+          `${files.length} 个文件`,
+          unsupportedCount ? `${pdfFiles.length} 个 PDF 可读取` : "",
+        ].filter(Boolean).join(" · ");
+        ingestCount.textContent = selectionSummary;
+        submit.textContent = pdfFiles.length ? `开始读取 · ${pdfFiles.length} 个 PDF` : "当前没有可读取的 PDF";
+        submit.disabled = pdfFiles.length === 0;
+        caseName.textContent = files.length === 1 ? files[0].file.name : `${files.length} documents selected`;
         metricDocs.textContent = String(files.length);
         mapDocs.textContent = String(files.length);
-        docList.innerHTML = files
-          .map(
-            (file, index) => `
+        const tree = buildFileTree(files);
+        fileTree.innerHTML = renderFileTree(tree);
+        if (docList) {
+          docList.innerHTML = files
+            .map(({ file, path }, index) => `
               <div class="doc-item">
-                <strong>${escapeHtml(index + 1)}. ${escapeHtml(file.name)}</strong>
+                <strong>${escapeHtml(index + 1)}. ${escapeHtml(path)}</strong>
                 <span>${(file.size / 1024 / 1024).toFixed(2)} MB</span>
               </div>
-            `,
-          )
-          .join("");
+            `)
+            .join("");
+        }
+      }
+
+      function isPdf(file) {
+        return file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+      }
+
+      function addSelectedFiles(fileList, fromFolder = false) {
+        const incoming = Array.from(fileList ?? []).map((file) => ({
+          file,
+          path: file.webkitRelativePath || file.name,
+          folderRoot: fromFolder ? (file.webkitRelativePath || file.name).split(/[\\/]/)[0] : null,
+        }));
+        const known = new Set(selectedFiles.map(({ file, path }) => `${path}\u0000${file.size}\u0000${file.lastModified}`));
+        for (const entry of incoming) {
+          const key = `${entry.path}\u0000${entry.file.size}\u0000${entry.file.lastModified}`;
+          if (!known.has(key)) {
+            selectedFiles.push(entry);
+            known.add(key);
+          }
+        }
+        updateFiles();
+        setRunState("Idle", "");
+      }
+
+      function buildFileTree(entries) {
+        const root = { folders: new Map(), files: [] };
+        for (const entry of entries) {
+          const parts = entry.path.split(/[\\/]/).filter(Boolean);
+          let node = root;
+          for (const part of parts.slice(0, -1)) {
+            if (!node.folders.has(part)) node.folders.set(part, { folders: new Map(), files: [] });
+            node = node.folders.get(part);
+          }
+          node.files.push({ ...entry, name: parts.at(-1) || entry.file.name });
+        }
+        return root;
+      }
+
+      function renderFileTree(node) {
+        const folders = Array.from(node.folders.entries()).sort(([a], [b]) => a.localeCompare(b, "zh-CN"));
+        const files = [...node.files].sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
+        const fileRows = files.map(({ file, name }) => {
+          const supported = isPdf(file);
+          const extension = name.includes(".") ? name.split(".").at(-1) : "FILE";
+          return `<div class="tree-file ${supported ? "" : "unsupported"}">
+            <span class="tree-file-name"><span class="tree-extension">${escapeHtml(extension)}</span><span>${escapeHtml(name)}</span></span>
+            ${supported ? "" : '<span class="tree-file-status">暂不支持</span>'}
+          </div>`;
+        }).join("");
+        const folderRows = folders.map(([name, child]) => {
+          const countFiles = countTreeFiles(child);
+          return `<details class="tree-folder" open>
+            <summary>${escapeHtml(name)}<span class="tree-file-status">${countFiles} 个文件</span></summary>
+            <div class="tree-children">${renderFileTree(child)}</div>
+          </details>`;
+        }).join("");
+        return `${folderRows}${fileRows}`;
+      }
+
+      function countTreeFiles(node) {
+        return node.files.length + Array.from(node.folders.values()).reduce((total, child) => total + countTreeFiles(child), 0);
       }
 
       function renderReviewedDocuments(documents) {
@@ -1450,23 +1830,19 @@
       }
 
       async function runReview() {
-        const files = Array.from(fileInput.files ?? []);
+        const files = selectedFiles.filter(({ file }) => isPdf(file)).map(({ file, path }) => ({ file, path }));
         if (files.length === 0) {
-          setRunState("Failed", "请先选择至少一个 PDF 文件。");
-          return;
-        }
-
-        const invalid = files.find((file) => !file.name.toLowerCase().endsWith(".pdf") && file.type !== "application/pdf");
-        if (invalid) {
-          setRunState("Failed", `不支持的文件：${invalid.name}。请上传 PDF。`);
+          setRunState("Failed", "所选内容中没有可读取的 PDF。");
           return;
         }
 
         const formData = new FormData();
-        files.forEach((file) => formData.append("documents", file));
+        files.forEach(({ file, path }) => formData.append("documents", file, path));
         submit.disabled = true;
         submitTop.disabled = true;
         selectedConflictId = null;
+        document.body.classList.add("review-open");
+        document.querySelector(".shell").hidden = false;
         setRunState("Running", "正在上传并解析文档。");
         setPipeline(0);
 
@@ -1511,6 +1887,7 @@
 
       function resetAll() {
         HTMLFormElement.prototype.reset.call(form);
+        selectedFiles = [];
         result = null;
         selectedConflictId = null;
         filter = "all";
@@ -1522,6 +1899,9 @@
         renderReport("");
         setPipeline(-1);
         setRunState("Idle", "等待上传。");
+        document.body.classList.remove("review-open");
+        document.querySelector(".shell").hidden = true;
+        updateFiles();
       }
 
       form.addEventListener("submit", (event) => {
@@ -1529,8 +1909,18 @@
         runReview();
       });
       submitTop.addEventListener("click", runReview);
-      reset.addEventListener("click", resetAll);
       resetTop.addEventListener("click", resetAll);
+      document.querySelector("#choose-files").addEventListener("click", () => fileInput.click());
+      document.querySelector("#add-files").addEventListener("click", () => fileInput.click());
+      document.querySelector("#choose-folder").addEventListener("click", () => folderInput.click());
+      document.querySelector("#add-folder").addEventListener("click", () => folderInput.click());
+      document.querySelector("#clear-selection").addEventListener("click", () => {
+        selectedFiles = [];
+        fileInput.value = "";
+        folderInput.value = "";
+        updateFiles();
+        setRunState("Idle", "");
+      });
       document.body.addEventListener("click", (event) => {
         const link = event.target.closest?.("[data-source-id]");
         if (!link) return;
@@ -1552,8 +1942,12 @@
         activeRenderTask = null;
       });
       fileInput.addEventListener("change", () => {
-        updateFiles();
-        setRunState("Idle", "文件已选择，准备开始审查。");
+        addSelectedFiles(fileInput.files);
+        fileInput.value = "";
+      });
+      folderInput.addEventListener("change", () => {
+        addSelectedFiles(folderInput.files, true);
+        folderInput.value = "";
       });
 
       ["dragenter", "dragover"].forEach((eventName) => {
@@ -1572,9 +1966,7 @@
 
       dropzone.addEventListener("drop", (event) => {
         if (event.dataTransfer?.files?.length) {
-          fileInput.files = event.dataTransfer.files;
-          updateFiles();
-          setRunState("Idle", "文件已选择，准备开始审查。");
+          addSelectedFiles(event.dataTransfer.files);
         }
       });
 
