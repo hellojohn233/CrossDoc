@@ -49,7 +49,7 @@ Keep the output concise and do not run claim comparison or consistency review as
 
 ## Follow-Up Questions
 
-Keep the Pi agent session and parsed document IDs available for follow-up. Provide a scoped `search_document` tool that searches normalized page blocks using simple lexical matching and returns a small set of relevant excerpts with block IDs, pages, and source locations. The agent answers from these excerpts and cites the source page. If retrieval finds no support, it says the selected material does not establish the answer and can ask the user to narrow the question. Do not add embeddings/vector storage to this first slice.
+Keep the Pi agent session and parsed document IDs available for follow-up. Provide a scoped `search_document` tool that searches normalized page blocks using simple lexical matching and returns a small set of relevant excerpts with block IDs, pages, and source locations. The retrieval utility validates runtime inputs, caps the query at 500 characters, caps the document scope at 32 documents, and returns no more than eight excerpts of 420 characters each. The agent answers from these excerpts and cites the source page. If retrieval finds no support, it says the selected material does not establish the answer and can ask the user to narrow the question. Do not add embeddings/vector storage to this first slice.
 
 The first UI needs a concise initial overview, a question input after reading, streaming/progress state, and citations that open the archived PDF page. A source page link is `/api/library/<id>/source#page=<n>`.
 

@@ -7,13 +7,12 @@ depends-on: [pdf-001, pdf-002]
 
 # Objective
 
-Add a concise `document-overview` skill and the instructions/tools needed to answer follow-up questions from parsed PDFs. Overview and answers must use the same normalized blocks regardless of whether a page was natively extracted or OCRed.
+Add the concise `document-overview` skill content and a bounded lexical retrieval utility for parsed PDFs. This task owns the reusable skill and pure retrieval contract only; Pi tool registration, skill loading, page-text saving, and request state are owned by `agent-001`. Native and vision-read content use the same normalized blocks.
 
 # Context
 
 - `docs/modules/pdf-reading.md`
 - `docs/architecture.md`
-- `src/agent.ts`
 - `src/core/claims.ts`
 - `src/markdown/document.ts`
 
@@ -23,14 +22,13 @@ Add a concise `document-overview` skill and the instructions/tools needed to ans
 - `.agents/skills/pdf-reading/SKILL.md` if a format skill remains useful
 - `src/skills/**`
 - `src/tools/**`
-- `src/agent.ts`
 - `docs/modules/pdf-reading.md`
 - `docs/architecture.md`
 
 # Verification
 
-- Initial reading loads the overview skill and returns a concise, cited summary.
-- A follow-up question retrieves a small set of relevant blocks with stable IDs and page locations.
-- The agent answers with source-page citations and declines unsupported claims when retrieval has no evidence.
-- Overview/Q&A does not invoke consistency comparison unless requested.
+- The checked-in overview skill defines a concise cited summary and evidence-only follow-up response.
+- Retrieval accepts only validated parsed-document inputs, bounds query and result sizes, and returns a small set of relevant blocks with stable IDs and page locations.
+- Chinese and English competing candidates are ranked with deterministic ordering; no evidence returns an explicit `no-match` result.
+- This task does not register the skill or retrieval utility with Pi; that real integration is verified by `agent-001`.
 - Run typecheck and focused skill/retrieval tests.
