@@ -7,7 +7,7 @@ depends-on: [pdf-001, pdf-002, skill-001]
 
 # Objective
 
-Make the existing `pi-agent-core` agent a task-directed tool loop for the PDF reader. Remove the prompt that requires every task to call parse, extract, compare, verify, and report in order. Supply request-scoped inspect, overview-skill, PDF-reading, and search tools; retain review tools as optional capabilities. Resolve a model explicitly and return an actionable setup error when none is configured.
+Make the existing `pi-agent-core` agent a task-directed tool loop for the PDF reader. Remove the prompt that requires every task to call parse, extract, compare, verify, and report in order. Supply request-scoped inspect, overview-skill, PDF-reading, scan-page rendering, page-text saving, and search tools; retain review tools as optional capabilities. Register Pi AI built-in providers and resolve the explicit authenticated, image-capable model named by `CROSSDOC_VISION_MODEL`; fail before accepting work with an actionable error if it is absent or unsuitable.
 
 # Context
 
@@ -26,6 +26,7 @@ Make the existing `pi-agent-core` agent a task-directed tool loop for the PDF re
 - `src/tools/**`
 - `src/review.ts` only if required to remove orchestration from the agent entry point
 - `src/core/**` only if required by scoped handles or citations
+- `.env.example` and README setup notes for model configuration
 - `docs/architecture.md`
 - `docs/INDEX.md`
 
@@ -34,5 +35,5 @@ Make the existing `pi-agent-core` agent a task-directed tool loop for the PDF re
 - With an actual Pi Agent loop and scripted model stream, a read request can inspect, parse native/OCR pages, load the overview skill, and search without calling comparison tools.
 - A task asking for consistency review can call review tools; no global system-prompt order forces that path for other tasks.
 - Tools reject document IDs outside the current request scope.
-- Model/provider absence yields a clear setup error before a web job is accepted.
+- Missing model configuration, missing provider credentials, unknown model ID, or missing image input yields a clear setup error before a web job is accepted.
 - Run typecheck and focused agent/tool integration tests.

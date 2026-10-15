@@ -4,7 +4,7 @@ CrossDoc uses Pi's small agent runtime as an engine and adds only the document c
 
 ## Runtime Boundary
 
-The project uses `@earendil-works/pi-agent-core`, not the complete Pi Coding Agent CLI. Do not assume CLI facilities such as built-in filesystem tools or automatic skill discovery exist in the embedded runtime. CrossDoc supplies its own narrowly scoped tools and loads only the skill instructions needed for the current documents.
+The project uses `@earendil-works/pi-agent-core`, not the complete Pi Coding Agent CLI. Do not assume CLI facilities such as built-in filesystem tools or automatic skill discovery exist in the embedded runtime. CrossDoc supplies its own narrowly scoped tools and loads only the skill instructions needed for the current documents. It also registers Pi AI built-in providers and requires an explicit `CROSSDOC_VISION_MODEL=provider/model-id` whose authenticated chat model supports image input; embedded code must not assume Pi CLI settings are inherited.
 
 Skills are instructions for choosing and using document capabilities. Loaders are executable format adapters that do the parsing. A skill may guide the agent to use a loader, but it cannot replace the loader's source-location contract.
 

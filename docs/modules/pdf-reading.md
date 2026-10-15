@@ -24,6 +24,8 @@ The chosen first implementation uses the configured Pi vision model for scan pag
 
 The first version guarantees page-level citation for vision-read text. It retains page bounds and extraction method, but does not fabricate line-level OCR boxes. Render at a fixed 1.5 scale and reject pages whose rendered side would exceed 4,500 pixels. Process one page image per tool call to bound image tokens. Unsupported vision models and failed page reads become explicit page warnings. Local OCR can be added later behind the same scan-page boundary if stronger geometry or offline operation becomes necessary.
 
+Use Pi AI's registered built-in providers and resolve one explicit model from `CROSSDOC_VISION_MODEL` in `provider/model-id` form. The selected chat model must be authenticated and advertise both text and image input. Use this same model for scan reading, overview, and follow-up answers in the first slice. If the variable is missing, the provider is unauthenticated, the model does not exist, or the model lacks image input, fail before accepting a reading job with a specific setup message. Do not instantiate an empty `createModels()` collection and assume the Pi CLI's model settings are available inside this embedded runtime.
+
 ## Normalized Markdown and Source Navigation
 
 - Keep the existing page headings and source footnotes.

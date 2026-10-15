@@ -12,10 +12,10 @@ The later agent-directed architecture keeps Pi Agent Core as the engine and adds
 - Empty-text pages currently warn that OCR is not enabled; there is no scan rendering/vision path.
 - `src/markdown/document.ts` emits per-page Markdown and source footnotes.
 - `src/core/claims.ts` defines PDF locations, but does not yet record extraction method per page/block.
-- `src/agent.ts` defines a Pi agent, but the system prompt mandates a fixed parse/claims/compare/verify/report order.
+- `src/agent.ts` defines a Pi agent, but the system prompt mandates a fixed parse/claims/compare/verify/report order and the code creates an empty provider collection.
 - `src/server.ts` uses `reviewDocuments()` directly; there is no reading overview or follow-up question path.
-- Local library storage is in progress and stores source PDF plus parsed Markdown under `data/library/`.
-- Local inspection found `unpdf`, `pdfjs-dist`, and `@napi-rs/canvas`; no local OCR engine is installed. The user selected Pi vision for scan pages, with page-level provenance in the first version.
+- Local library storage saves source PDF plus parsed Markdown under `data/library/`.
+- Local inspection found `unpdf`, `pdfjs-dist`, and `@napi-rs/canvas`; no local OCR engine is installed. The user selected Pi vision for scan pages with page-level provenance; Pi AI must resolve an authenticated image-capable model from `CROSSDOC_VISION_MODEL` because CLI settings are not available in this embedded app.
 
 ## Module Decomposition
 
