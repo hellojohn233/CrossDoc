@@ -75,7 +75,7 @@ Then open:
 http://localhost:5177
 ```
 
-The Web UI is a local visual entry point: upload PDFs, run the same review pipeline, inspect findings and the Markdown report, and click citations to open the source PDF page. Uploaded files are kept in `.crossdoc/uploads/`; review JSON and Markdown are kept in `.crossdoc/reviews/`.
+The Web UI is a local visual entry point: upload PDFs, run the same review pipeline, inspect findings and the Markdown report, and click citations to open the source PDF page. Uploads are staged in `.crossdoc/uploads/`; review JSON and Markdown are kept in `.crossdoc/reviews/`. Successfully reviewed documents are also archived locally in `data/library/<document ID>/` with `source.pdf`, `document.md`, and `metadata.json`. The local data directory is ignored by Git. The start page only shows a library entry point; document listings live on the separate library page.
 
 ## Pi Version Discipline
 
@@ -107,6 +107,7 @@ CrossDoc/
 │   │   ├── document.ts
 │   │   └── review-report.ts
 │   ├── storage/
+│   │   ├── library-store.ts
 │   │   └── review-store.ts
 │   └── tools/
 │       ├── compare.ts

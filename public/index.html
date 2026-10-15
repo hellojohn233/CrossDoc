@@ -875,6 +875,140 @@
         width: min(100%, 1216px);
       }
 
+      .ingest-library-row {
+        width: min(100%, 980px);
+        margin: 0 auto 14px;
+      }
+
+      .ingest-library-link {
+        display: inline-flex;
+        min-height: 42px;
+        align-items: center;
+        gap: 10px;
+        padding: 8px 12px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: rgba(255, 253, 248, 0.76);
+        color: var(--ink);
+        font-weight: 760;
+      }
+
+      .ingest-library-link:hover {
+        border-color: var(--line-dark);
+      }
+
+      .library-icon {
+        display: grid;
+        width: 22px;
+        height: 22px;
+        place-items: center;
+        border: 1px solid var(--line-dark);
+        border-radius: 4px;
+        color: var(--blue);
+        font-size: 13px;
+        line-height: 1;
+      }
+
+      .library-screen {
+        width: min(100% - 48px, 980px);
+        min-height: calc(100vh - 88px);
+        margin: 0 auto;
+        padding: 54px 0 72px;
+      }
+
+      .library-screen[hidden] {
+        display: none;
+      }
+
+      .library-header {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 24px;
+        padding-bottom: 26px;
+        border-bottom: 2px solid var(--ink);
+      }
+
+      .library-header h2 {
+        margin: 0;
+        font-size: clamp(30px, 4vw, 42px);
+        letter-spacing: -0.04em;
+      }
+
+      .library-header p {
+        margin: 8px 0 0;
+        color: var(--muted);
+        font-size: 14px;
+      }
+
+      .library-list {
+        border-bottom: 1px solid var(--line-dark);
+        background: rgba(255, 253, 248, 0.66);
+      }
+
+      .library-empty {
+        display: grid;
+        min-height: 220px;
+        place-items: center;
+        padding: 32px;
+        color: var(--muted);
+        text-align: center;
+      }
+
+      .library-item {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 20px;
+        align-items: center;
+        padding: 22px 18px;
+        border-bottom: 1px solid var(--line);
+      }
+
+      .library-item:last-child {
+        border-bottom: 0;
+      }
+
+      .library-item-title {
+        overflow: hidden;
+        margin: 0;
+        font-size: 16px;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .library-item-meta {
+        margin: 7px 0 0;
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .library-item-actions {
+        display: flex;
+        gap: 8px;
+      }
+
+      .library-item-actions a {
+        display: inline-flex;
+        min-height: 38px;
+        align-items: center;
+        padding: 7px 11px;
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        color: var(--ink);
+        font-size: 13px;
+        font-weight: 760;
+        text-decoration: none;
+      }
+
+      .library-item-actions a:hover {
+        border-color: var(--line-dark);
+        background: var(--panel);
+      }
+
+      .library-error {
+        color: var(--red);
+      }
+
       .ingest-empty {
         display: grid;
         width: min(100%, 980px);
@@ -1090,6 +1224,14 @@
         display: none;
       }
 
+      body.library-open .ingest-screen {
+        display: none;
+      }
+
+      body.library-open .library-screen {
+        display: block;
+      }
+
       body.review-open .shell {
         display: grid;
       }
@@ -1098,6 +1240,28 @@
         .ingest-screen {
           min-height: calc(100vh - 76px);
           padding: 24px 16px;
+        }
+
+        .library-screen {
+          width: min(100% - 32px, 980px);
+          padding-top: 32px;
+        }
+
+        .library-header {
+          align-items: flex-start;
+          flex-direction: column;
+          gap: 16px;
+        }
+
+        .library-item {
+          grid-template-columns: 1fr;
+          gap: 14px;
+          padding: 18px 12px;
+        }
+
+        .library-item-actions a {
+          flex: 1;
+          justify-content: center;
         }
 
         .ingest-empty {
@@ -1178,6 +1342,13 @@
       <form class="ingest-form" id="review-form">
         <input class="file-input" id="documents" name="documents" type="file" accept="application/pdf,.pdf" multiple />
         <input class="file-input" id="folders" name="folders" type="file" accept="application/pdf,.pdf" multiple webkitdirectory directory />
+        <div class="ingest-library-row">
+          <button class="ingest-library-link" id="open-library" type="button">
+            <span class="library-icon" aria-hidden="true">▤</span>
+            <span>资料库</span>
+            <span aria-hidden="true">›</span>
+          </button>
+        </div>
         <section class="ingest-empty" id="dropzone" aria-label="添加待读取文件">
           <div class="ingest-empty-content">
             <h2>开始读取文档</h2>
@@ -1208,6 +1379,19 @@
           </footer>
         </section>
       </form>
+    </main>
+
+    <main class="library-screen" id="library-screen" hidden>
+      <header class="library-header">
+        <div>
+          <h2>资料库</h2>
+          <p>源文件与转换后的 Markdown</p>
+        </div>
+        <button id="back-to-ingest" type="button">返回开始读取</button>
+      </header>
+      <section class="library-list" id="library-list" aria-live="polite">
+        <div class="library-empty">正在读取资料库…</div>
+      </section>
     </main>
 
     <main class="shell" hidden>
@@ -1407,6 +1591,8 @@
       const submit = document.querySelector("#submit");
       const submitTop = document.querySelector("#submit-top");
       const resetTop = document.querySelector("#reset-top");
+      const libraryScreen = document.querySelector("#library-screen");
+      const libraryList = document.querySelector("#library-list");
       const statusText = document.querySelector("#status");
       const runState = document.querySelector("#run-state");
       const runDot = document.querySelector("#run-dot");
@@ -1478,6 +1664,45 @@
           step.classList.toggle("done", index < activeIndex);
           step.classList.toggle("active", index === activeIndex);
         });
+      }
+
+      function formatLibraryDate(value) {
+        const date = new Date(value);
+        return Number.isNaN(date.getTime()) ? "" : date.toLocaleDateString("zh-CN");
+      }
+
+      async function openLibrary() {
+        document.body.classList.add("library-open");
+        libraryScreen.hidden = false;
+        libraryList.innerHTML = '<div class="library-empty">正在读取资料库…</div>';
+        try {
+          const response = await fetch("/api/library");
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(data.error || "资料库读取失败。");
+          const documents = Array.isArray(data.documents) ? data.documents : [];
+          if (documents.length === 0) {
+            libraryList.innerHTML = '<div class="library-empty">资料库还是空的</div>';
+            return;
+          }
+          libraryList.innerHTML = documents.map((document) => {
+            const details = [document.format?.toUpperCase(), `${document.pages} 页`, formatLibraryDate(document.uploadedAt)]
+              .filter(Boolean).join(" · ");
+            return `
+              <article class="library-item">
+                <div>
+                  <h3 class="library-item-title" title="${escapeHtml(document.title)}">${escapeHtml(document.title)}</h3>
+                  <p class="library-item-meta">${escapeHtml(details)}</p>
+                </div>
+                <div class="library-item-actions">
+                  <a href="${escapeHtml(document.sourceUrl)}" target="_blank" rel="noreferrer">打开源文件 ↗</a>
+                  <a href="${escapeHtml(document.markdownUrl)}" target="_blank" rel="noreferrer">查看 Markdown ↗</a>
+                </div>
+              </article>
+            `;
+          }).join("");
+        } catch (error) {
+          libraryList.innerHTML = `<div class="library-empty library-error">${escapeHtml(error instanceof Error ? error.message : "资料库读取失败。")}</div>`;
+        }
       }
 
       function updateFiles() {
@@ -1900,6 +2125,8 @@
         setPipeline(-1);
         setRunState("Idle", "等待上传。");
         document.body.classList.remove("review-open");
+        document.body.classList.remove("library-open");
+        libraryScreen.hidden = true;
         document.querySelector(".shell").hidden = true;
         updateFiles();
       }
@@ -1910,6 +2137,11 @@
       });
       submitTop.addEventListener("click", runReview);
       resetTop.addEventListener("click", resetAll);
+      document.querySelector("#open-library").addEventListener("click", openLibrary);
+      document.querySelector("#back-to-ingest").addEventListener("click", () => {
+        document.body.classList.remove("library-open");
+        libraryScreen.hidden = true;
+      });
       document.querySelector("#choose-files").addEventListener("click", () => fileInput.click());
       document.querySelector("#add-files").addEventListener("click", () => fileInput.click());
       document.querySelector("#choose-folder").addEventListener("click", () => folderInput.click());

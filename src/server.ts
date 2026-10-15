@@ -6,6 +6,7 @@ import express from "express";
 import multer from "multer";
 
 import { reviewDocuments } from "./review.js";
+import { listLibraryDocuments, saveLibraryDocument } from "./storage/library-store.js";
 import { writeReviewArtifacts } from "./storage/review-store.js";
 
 const app = express();
@@ -38,6 +39,53 @@ const upload = multer({
 
 app.use(express.static(publicDir));
 app.use("/vendor/pdfjs", express.static(pdfjsDir, { maxAge: "1y", immutable: true }));
+
+app.get("/api/library", async (_request, response) => {
+  try {
+    const documents = await listLibraryDocuments();
+    response.json({
+      documents: documents.map((document) => ({
+        ...document,
+        sourceUrl: `/api/library/${document.id}/source`,
+        markdownUrl: `/api/library/${document.id}/markdown`,
+      })),
+    });
+  } catch (error) {
+    response.status(500).json({ error: error instanceof Error ? error.message : "Unable to read the library." });
+  }
+});
+
+app.get("/api/library/:id/source", async (request, response) => {
+  const { id } = request.params;
+  if (!id || !documentIdPattern.test(id)) {
+    response.status(404).json({ error: "Document not found." });
+    return;
+  }
+
+  const filePath = resolve("data/library", id, "source.pdf");
+  try {
+    await access(filePath);
+    response.type("application/pdf").sendFile(filePath, { headers: { "Cache-Control": "no-store" } });
+  } catch {
+    response.status(404).json({ error: "Document not found." });
+  }
+});
+
+app.get("/api/library/:id/markdown", async (request, response) => {
+  const { id } = request.params;
+  if (!id || !documentIdPattern.test(id)) {
+    response.status(404).json({ error: "Document not found." });
+    return;
+  }
+
+  const filePath = resolve("data/library", id, "document.md");
+  try {
+    await access(filePath);
+    response.type("text/markdown; charset=utf-8").sendFile(filePath, { headers: { "Cache-Control": "no-store" } });
+  } catch {
+    response.status(404).json({ error: "Document not found." });
+  }
+});
 
 app.get("/api/documents/:id/file", async (request, response) => {
   const { id } = request.params;
@@ -72,6 +120,12 @@ app.post("/api/review", upload.array("documents"), async (request, response) => 
     });
     await writeReviewArtifacts(result, resolve(".crossdoc/reviews", reviewId));
 
+    await Promise.all(result.documents.map((document) => {
+      const sourceFile = files.find((file) => file.filename === `${document.id}.pdf`);
+      if (!sourceFile) throw new Error(`Uploaded source file missing for document ${document.id}.`);
+      return saveLibraryDocument(document, sourceFile.path, sourceFile.originalname);
+    }));
+
     response.json({
       reviewId,
       documents: result.documents.map((document) => ({
@@ -81,7 +135,7 @@ app.post("/api/review", upload.array("documents"), async (request, response) => 
         format: document.format,
         markdown: document.markdown,
         warnings: document.warnings,
-        sourceUrl: `/api/documents/${document.id}/file`,
+        sourceUrl: `/api/library/${document.id}/source`,
       })),
       claimCount: result.claims.length,
       conflictCount: result.conflicts.length,

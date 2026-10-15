@@ -75,7 +75,7 @@ npm run dev:web
 http://localhost:5177
 ```
 
-Web UI 只是一层本地可视化入口：上传 PDF、触发同一套审查管线、查看 findings 和 Markdown 报告，并点击引用打开对应原 PDF 页。上传文件保存在 `.crossdoc/uploads/`，审查 JSON 和 Markdown 保存在 `.crossdoc/reviews/`。
+Web UI 只是一层本地可视化入口：上传 PDF、触发同一套审查管线、查看 findings 和 Markdown 报告，并点击引用打开对应原 PDF 页。上传文件暂存于 `.crossdoc/uploads/`，审查 JSON 和 Markdown 保存在 `.crossdoc/reviews/`。审查成功的资料会同时归档到本地 `data/library/<资料 ID>/`，其中包含 `source.pdf`、`document.md` 和 `metadata.json`；该目录已加入 `.gitignore`，不会进入 Git 提交。开始读取页只提供资料库入口，文件列表在资料库页面中查看。
 
 ## Pi 版本纪律
 
@@ -107,6 +107,7 @@ CrossDoc/
 │   │   ├── document.ts
 │   │   └── review-report.ts
 │   ├── storage/
+│   │   ├── library-store.ts
 │   │   └── review-store.ts
 │   └── tools/
 │       ├── compare.ts
