@@ -1,13 +1,15 @@
 ---
 id: web-001
 scope: web-agent-entry
-status: pending
+status: in-progress
 depends-on: [agent-001, agent-002]
 ---
 
 # Objective
 
 Connect the Web UI to PDF reading. After the user selects PDFs and starts reading, the server scopes document handles, runs the Pi Agent, streams useful progress, archives source/Markdown artifacts, and presents the concise initial overview with source links. Keep a follow-up question input active against the parsed documents. Replace the fixed review-only Web request as the primary path.
+
+Follow [the Web reading surface contract](../../modules/web-reading.md) for page states, API/SSE events, in-memory Pi session scope, cancellation, citation-token rendering, and responsive layout. Keep the initial selection page concise and preserve the existing visual style and Library entry.
 
 # Context
 

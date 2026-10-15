@@ -26,7 +26,7 @@ The scan-reading engine is Pi vision, as selected by the user. Task paths may ov
 | `skill-001` | Overview and Q&A | Add a concise document-overview skill and source-grounded follow-up retrieval behavior | `pdf-001`, `pdf-002` | done |
 | `agent-001` | Pi orchestration | Make Pi task-directed; expose scoped inspect, skill, parse, and search tools; keep review optional | `pdf-001`, `pdf-002`, `skill-001` | done |
 | `agent-002` | Concurrent reading | Parse selected PDFs concurrently under a cap of three, retain order, and report partial failures | `agent-001` | done |
-| `web-001` | Web integration | Start reading after selection, show overview and cited follow-up Q&A, and archive source/Markdown | `agent-001`, `agent-002` | pending |
+| `web-001` | Web integration | Start reading after selection, show overview and cited follow-up Q&A, and archive source/Markdown | `agent-001`, `agent-002` | in-progress |
 | `e2e-001` | PDF acceptance | Verify native, scanned, and mixed PDFs through actual UI, Pi loop, loaders, library, overview, and citations | `pdf-001`, `pdf-002`, `skill-001`, `agent-001`, `agent-002`, `web-001` | pending |
 | `review-001` | Optional review | Expose existing comparison/report tools only when requested | `agent-001`, `web-001` | pending |
 
