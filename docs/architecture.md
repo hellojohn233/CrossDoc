@@ -65,7 +65,7 @@ Markdown is a durable reading artifact, not the only representation. Structured 
 
 ## Parallelism
 
-Pi Agent Core can execute independent tool calls from one assistant response in parallel. CrossDoc marks safe, read-only document operations as parallel. If a request contains many files, CrossDoc applies a concurrency limit at the application boundary. Results are returned in input order even when workers finish out of order, and one file's parse failure does not erase successful documents.
+Pi Agent Core can execute independent tool calls from one assistant response in parallel. CrossDoc marks `parse_document` parallel and applies a semaphore cap of three across parse plus persistence work. Pi Core serializes an entire tool-call batch when any call in it has `executionMode: "sequential"`, so the agent sends independent parse calls together before scan-page rendering or saving. Pi returns tool-result messages in the assistant's call order even if the operations finish out of order. Each file reports its own parse or persistence error; successful documents remain parsed and archived.
 
 Format inspection precedes format-specific skill selection. Once the formats and matching instructions are known, parsing calls for independent documents can run concurrently. Dependent operations remain sequential when they require earlier results.
 

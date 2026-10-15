@@ -48,6 +48,7 @@ const reportParameters = Type.Object({
   conflicts: Type.Array(Type.Any()),
 });
 const MAX_READ_TURN_CONTENT_CHARACTERS = 80_000;
+const MAX_CONCURRENT_DOCUMENT_READS = 3;
 
 export interface ScopedDocument {
   id: string;
@@ -166,6 +167,23 @@ function skillPath(skill: "pdf-reading" | "document-overview"): string {
   return resolve(".agents/skills", skill, "SKILL.md");
 }
 
+function createSemaphore(limit: number): <T>(operation: () => Promise<T>) => Promise<T> {
+  let active = 0;
+  const waiting: Array<() => void> = [];
+
+  return async <T>(operation: () => Promise<T>): Promise<T> => {
+    if (active >= limit) await new Promise<void>((resume) => waiting.push(resume));
+    else active += 1;
+    try {
+      return await operation();
+    } finally {
+      const next = waiting.shift();
+      if (next) next();
+      else active -= 1;
+    }
+  };
+}
+
 export function createCrossDocTools(options: CrossDocAgentOptions): AgentTool<any>[] {
   const ids = new Set<string>();
   for (const source of options.documents) {
@@ -178,6 +196,7 @@ export function createCrossDocTools(options: CrossDocAgentOptions): AgentTool<an
   const sources = new Map(options.documents.map((source) => [source.id, { ...source, path: resolve(source.path) }]));
   const parsed = new Map<string, ParsedDocument>();
   const parseBudget = Math.floor(MAX_READ_TURN_CONTENT_CHARACTERS / Math.max(1, sources.size));
+  const withParseSlot = createSemaphore(MAX_CONCURRENT_DOCUMENT_READS);
 
   function getSource(documentId: string): ScopedDocument {
     const source = sources.get(documentId);
@@ -237,30 +256,46 @@ export function createCrossDocTools(options: CrossDocAgentOptions): AgentTool<an
     label: "Parse document",
     description: "Parse a document already selected for this request, preserving source locations and page classifications.",
     parameters: documentIdParameters,
-    executionMode: "sequential",
+    executionMode: "parallel",
     async execute(_callId, { documentId }) {
       const source = getSource(documentId);
-      const document = await (options.parseDocument ?? parseDoc)(source.path, { id: source.id, title: source.title });
-      parsed.set(documentId, document);
-      await persist(documentId);
-      const normalized = boundedPageMarkdown(document, parseBudget);
-      const result = {
-        documentId,
-        title: document.title,
-        pages: document.pages.length,
-        scanPages: document.pages.filter((page) => page.classification === "scan-candidate").map((page) => page.page),
-        warnings: document.warnings,
-        normalizedContent: normalized.markdown,
-        contentTruncated: normalized.truncated,
-      };
-      return {
-        content: [{
-          type: "text",
-          text: `${JSON.stringify({ ...result, normalizedContent: undefined })}\n\nSource-aware page text${result.contentTruncated ? ` (truncated to ${parseBudget} characters for this document; full artifact is archived)` : ""}:\n${result.normalizedContent}`,
-        }],
-        structuredContent: asJson(result),
-        details: { ...result, normalizedContent: undefined },
-      };
+      return withParseSlot(async () => {
+        let stage: "parse" | "persist" = "parse";
+        try {
+          const document = await (options.parseDocument ?? parseDoc)(source.path, { id: source.id, title: source.title });
+          parsed.set(documentId, document);
+          stage = "persist";
+          await persist(documentId);
+          const normalized = boundedPageMarkdown(document, parseBudget);
+          const result = {
+            documentId,
+            title: document.title,
+            status: "parsed",
+            pages: document.pages.length,
+            scanPages: document.pages.filter((page) => page.classification === "scan-candidate").map((page) => page.page),
+            warnings: document.warnings,
+            normalizedContent: normalized.markdown,
+            contentTruncated: normalized.truncated,
+          };
+          return {
+            content: [{
+              type: "text",
+              text: `${JSON.stringify({ ...result, normalizedContent: undefined })}\n\nSource-aware page text${result.contentTruncated ? ` (truncated to ${parseBudget} characters for this document; full artifact is archived)` : ""}:\n${result.normalizedContent}`,
+            }],
+            structuredContent: asJson(result),
+            details: { ...result, normalizedContent: undefined },
+          };
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          const result = { documentId, title: source.title, status: "error", stage, error: message };
+          return {
+            content: [{ type: "text", text: `Unable to ${stage} ${source.title} (${documentId}): ${message}` }],
+            structuredContent: asJson(result),
+            details: result,
+            isError: true,
+          };
+        }
+      });
     },
   } satisfies AgentTool<typeof documentIdParameters>;
 
@@ -428,6 +463,7 @@ export async function createCrossDocAgent(options: CrossDocAgentOptions): Promis
         "You are CrossDoc, a document-reading agent that grounds statements in selected source files.",
         "Choose tools to fit the user's task. Never use a filesystem path from model arguments; use the opaque document IDs supplied for this request.",
         "For a request to read or summarize selected PDFs: inspect each document, load pdf-reading, parse it, render and read every scan-candidate page one at a time, and save the recognized text. Then load document-overview and give a brief cited overview. Do not call review tools for ordinary reading or overview.",
+        "When multiple PDFs are selected, issue their independent parse_document calls together in selected-file order. CrossDoc limits active parse-plus-save work to three documents, preserves the call order in results, and reports one file's error without discarding successful reads.",
         "For follow-up questions, use search_document with the user's question and selected parsed document IDs. Answer only from returned evidence and cite each source page. If no evidence matches, say so.",
         "Call extract_claims, compare_claims, verify_conflicts, and report_conflicts only when the user asks for a consistency review or comparison.",
         "If a scan page is unreadable, do not invent its content; report its page number and keep the warning visible.",

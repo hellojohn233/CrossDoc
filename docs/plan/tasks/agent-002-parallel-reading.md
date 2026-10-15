@@ -1,7 +1,7 @@
 ---
 id: agent-002
 scope: document-reading
-status: pending
+status: done
 depends-on: [agent-001]
 ---
 
