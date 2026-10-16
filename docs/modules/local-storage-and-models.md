@@ -38,10 +38,10 @@ The settings UI can request the endpoint's model list after Base URL, protocol, 
 
 ## API and UI contract
 
-- `GET /api/settings` returns user preferences and both model profiles, with an `apiKeyConfigured` flag; it does not echo the saved key.
+- `GET /api/settings` returns user preferences and both model profiles, with `apiKeyConfigured` for a saved key and non-sensitive `authAvailable` for saved or Pi ambient provider auth; it never echoes a credential.
 - `POST /api/settings/models/discover` accepts a role, protocol, Base URL, and API Key; it returns normalized model IDs/names without saving the profile.
 - `PUT /api/settings/models/:role` validates and stores protocol, Base URL, model ID, and plaintext key. An empty key on update preserves the current key; an explicit clear action removes it.
-- On app entry, the UI loads settings before showing document selection. If both model profiles are complete, it skips setup and opens selection; otherwise it presents the two-profile setup gate. No model keys are rendered into page content after save.
+- On app entry, the UI loads settings before showing document selection. A legacy catalog profile is complete when its provider and model ID exist and either a key is saved or Pi reports ambient auth; a custom profile needs its protocol, Base URL, model ID, and saved key. If both profiles are complete, setup is skipped; otherwise selection remains gated. No model keys are rendered into page content after save.
 - The setup form has no provider selector. Each role shows Base URL, protocol type, model selection with a `加载模型` action, and API Key. A model ID may also be entered manually.
 - Reading and library endpoints use the stored profile and SQLite metadata. Existing PDF citation/source URLs remain stable.
 

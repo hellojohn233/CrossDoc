@@ -481,7 +481,7 @@ async function main() {
     const clientSource = await readFile(join(process.cwd(), "public/index.html"), "utf8");
     assert.match(clientSource, /readDocuments\.filter\(\(item\) => item\.state === "ready"\)/, "citation links must be limited to ready, archived documents");
     assert.match(clientSource, /!Number\.isSafeInteger\(source\.pages\) \|\| pageNumber > source\.pages/, "citation links must reject unknown page counts and numbers outside the archived PDF");
-    assert.match(clientSource, /function profileIsComplete\(profile\)[\s\S]*?return Boolean\(profile\.protocol && profile\.baseUrl\)/, "custom profile completion requires protocol, endpoint, model ID, and saved API key");
+    assert.match(clientSource, /function profileIsComplete\(profile\)[\s\S]*?profile\.provider && \(profile\.apiKeyConfigured \|\| profile\.authAvailable\)[\s\S]*?profile\.protocol && profile\.baseUrl && profile\.apiKeyConfigured/, "legacy catalog profiles accept a saved or ambient credential, while custom profiles require a saved key");
     assert.match(clientSource, /if \(\["main", "vision"\]\.every\(\(role\) => profileIsComplete\(models\[role\]\)\)\)/, "complete saved profiles skip setup on app entry");
     assert.match(clientSource, /else showModelSetup\(models\)/, "any incomplete saved profile opens the setup gate before selection");
     assert.match(clientSource, /placeholder="输入或加载模型 ID"/, "model ID remains editable for manual entry if discovery fails");

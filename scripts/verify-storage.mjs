@@ -21,6 +21,8 @@ async function main() {
     );
     INSERT INTO model_configs(role, provider, model_id, base_url, api_key, options_json, updated_at)
       VALUES ('main', 'openai', 'gpt-4', 'https://api.openai.com/v1', 'legacy-secret', '{}', '2026-01-01T00:00:00.000Z');
+    INSERT INTO model_configs(role, provider, model_id, base_url, api_key, options_json, updated_at)
+      VALUES ('vision', 'openai', 'gpt-4o', 'https://api.openai.com/v1', NULL, '{}', '2026-01-01T00:00:00.000Z');
     PRAGMA user_version = 1;
   `);
   v1.close();
@@ -30,7 +32,33 @@ async function main() {
     role: "main", provider: "openai", protocol: "catalog", modelId: "gpt-4",
     baseUrl: "https://api.openai.com/v1", apiKey: "legacy-secret", options: {},
   }, "v1 built-in model profile and credentials survive migration with legacy catalog protocol");
+  assert.equal(migrated.getModelProfile("vision").apiKey, undefined, "v1 ambient-credential profile remains without a stored key");
   migrated.close();
+
+  const previousOpenAiKey = process.env.OPENAI_API_KEY;
+  process.env.OPENAI_API_KEY = "scripted-ambient-key";
+  const ambientApp = createWebApp({
+    dataDirectory: v1DataDirectory,
+    libraryDirectory: join(v1DataDirectory, "library"),
+    publicDirectory: join(process.cwd(), "public"),
+  });
+  const ambientServer = listenWebApp(ambientApp, 0);
+  try {
+    await new Promise((resolve) => ambientServer.once("listening", resolve));
+    const address = ambientServer.address();
+    const ambientSettings = await fetch(`http://127.0.0.1:${address.port}/api/settings`).then((response) => response.json());
+    assert.equal(ambientSettings.models.vision.apiKeyConfigured, false);
+    assert.equal(ambientSettings.models.vision.authAvailable, true, "settings reports non-secret Pi ambient auth availability for a migrated catalog profile");
+    assert.equal(JSON.stringify(ambientSettings).includes("scripted-ambient-key"), false, "ambient credential is never echoed");
+    ambientApp.locals.database.saveModelProfile({ role: "vision", provider: "missing-test-provider", protocol: "catalog", modelId: "vision-test" });
+    const unavailableSettings = await fetch(`http://127.0.0.1:${address.port}/api/settings`).then((response) => response.json());
+    assert.equal(unavailableSettings.models.vision.authAvailable, false, "catalog profiles without a stored or ambient credential remain incomplete");
+  } finally {
+    await new Promise((resolve) => ambientServer.close(resolve));
+    ambientApp.locals.database.close();
+    if (previousOpenAiKey === undefined) delete process.env.OPENAI_API_KEY;
+    else process.env.OPENAI_API_KEY = previousOpenAiKey;
+  }
 
   const dataDirectory = join(root, "data");
   const libraryDirectory = join(dataDirectory, "library");
@@ -185,7 +213,7 @@ async function main() {
     reopened.close();
     await rm(root, { recursive: true, force: true });
   }
-  console.log("Local SQLite storage and model settings checks passed (versioned schema, idempotent metadata import, JSON archive, key privacy/preservation/clear, model role validation).");
+  console.log("Local SQLite storage and model settings checks passed (v1 profile migration with stored/ambient auth, idempotent metadata import, JSON archive, key privacy/preservation/clear, bounded model discovery, model role validation).");
 }
 
 await main();

@@ -246,9 +246,18 @@ export function createWebApp(options: WebAppOptions = {}) {
   app.use(express.static(publicDirectory));
   app.use("/vendor/pdfjs", express.static(pdfjsDirectory, { maxAge: "1y", immutable: true }));
 
-  const publicModelProfile = (role: ModelRole) => {
+  const publicModelProfile = async (role: ModelRole) => {
     const profile = database.getModelProfile(role);
     if (!profile) return null;
+    const apiKeyConfigured = Boolean(profile.apiKey);
+    let ambientAuthAvailable = false;
+    if ((profile.protocol ?? "catalog") === "catalog") {
+      try {
+        ambientAuthAvailable = Boolean(await modelCatalog.checkAuth(profile.provider));
+      } catch {
+        ambientAuthAvailable = false;
+      }
+    }
     return {
       role,
       ...(profile.protocol === "catalog" || !profile.protocol ? { provider: profile.provider } : {}),
@@ -256,12 +265,14 @@ export function createWebApp(options: WebAppOptions = {}) {
       modelId: profile.modelId,
       baseUrl: profile.baseUrl ?? "",
       options: profile.options ?? {},
-      apiKeyConfigured: Boolean(profile.apiKey),
+      apiKeyConfigured,
+      authAvailable: apiKeyConfigured || ambientAuthAvailable,
     };
   };
 
-  app.get("/api/settings", (_request, response) => {
-    response.json({ models: { main: publicModelProfile("main"), vision: publicModelProfile("vision") }, preferences: {} });
+  app.get("/api/settings", async (_request, response) => {
+    const [main, vision] = await Promise.all([publicModelProfile("main"), publicModelProfile("vision")]);
+    response.json({ models: { main, vision }, preferences: {} });
   });
 
   app.post("/api/settings/models/discover", async (request, response) => {
@@ -304,7 +315,7 @@ export function createWebApp(options: WebAppOptions = {}) {
     }
   });
 
-  app.put("/api/settings/models/:role", (request, response) => {
+  app.put("/api/settings/models/:role", async (request, response) => {
     const role = request.params.role;
     if (role !== "main" && role !== "vision") return response.status(404).json({ error: "Unknown model role." });
     const body = request.body as Record<string, unknown>;
@@ -348,7 +359,7 @@ export function createWebApp(options: WebAppOptions = {}) {
         ...(typeof body.apiKey === "string" && body.apiKey.trim() ? { apiKey: body.apiKey.trim() } : {}),
         ...(options === undefined ? {} : { options: options as Record<string, unknown> }),
       }, body.clearApiKey === true);
-      response.json({ model: publicModelProfile(role) });
+      response.json({ model: await publicModelProfile(role) });
     } catch (error) {
       response.status(400).json({ error: error instanceof Error ? error.message : "Unable to save model settings." });
     }

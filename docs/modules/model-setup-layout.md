@@ -11,7 +11,7 @@ Status: Implementation contract
 
 ## Overall Structure
 
-The setup page is the first-run gate. Each model role stores a custom Base URL, a Pi protocol, a selected model ID, and an API key in SQLite. The protocol choices are:
+The setup page is the first-run gate. Each newly configured model role stores a custom Base URL, a Pi protocol, a selected model ID, and an API key in SQLite. Existing v1 catalog profiles remain usable: they pass setup when their provider/model are present and either a key is stored or Pi has an ambient credential for that provider. The protocol choices are:
 
 | UI option | Pi API identifier | Model-list endpoint |
 |---|---|---|
@@ -19,7 +19,7 @@ The setup page is the first-run gate. Each model role stores a custom Base URL, 
 | Anthropic Messages | `anthropic-messages` | `GET {baseUrl}/models`, `x-api-key` and `anthropic-version` headers |
 | Google Gemini API | `google-generative-ai` | `GET {baseUrl}/models`, API key authentication |
 
-For standard bases, OpenAI and Anthropic Base URLs include `/v1`; Gemini uses `/v1beta`. Custom compatible endpoints may use their own base path. Server-side model discovery has a 10-second request timeout and reads at most 1 MiB. It never saves the discovery key. If a model-list request fails or returns no usable IDs, the model field remains editable for manual entry.
+For standard bases, OpenAI and Anthropic Base URLs include `/v1`; Gemini uses `/v1beta`. Custom compatible endpoints may use their own base path. Server-side model discovery has a 10-second request timeout and reads at most 1 MiB. It never saves the discovery key. If a model-list request fails or returns no usable IDs, the model field remains editable for manual entry. For a custom vision profile, select a model ID that supports image input; a generic model-list response may not expose that capability.
 
 ## Page-Level Layout
 

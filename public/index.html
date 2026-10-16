@@ -1997,9 +1997,11 @@
       }
 
       function profileIsComplete(profile) {
-        if (!profile?.modelId || !profile.apiKeyConfigured) return false;
-        if ((profile.protocol ?? "catalog") === "catalog") return Boolean(profile.provider);
-        return Boolean(profile.protocol && profile.baseUrl);
+        if (!profile?.modelId) return false;
+        if ((profile.protocol ?? "catalog") === "catalog") {
+          return Boolean(profile.provider && (profile.apiKeyConfigured || profile.authAvailable));
+        }
+        return Boolean(profile.protocol && profile.baseUrl && profile.apiKeyConfigured);
       }
 
       function hasRequiredModels() {
@@ -2085,7 +2087,9 @@
             modelSetupProfiles[role] = models[role] ?? null;
             setProfileForm(settingsDialog.querySelector(`[data-role="${role}"]`), modelSetupProfiles[role]);
             const status = settingsDialog.querySelector(`[data-role="${role}"] .settings-key-state`);
-            status.textContent = modelSetupProfiles[role]?.apiKeyConfigured ? "API Key 已保存" : "尚未配置 API Key";
+            status.textContent = modelSetupProfiles[role]?.apiKeyConfigured
+              ? "API Key 已保存"
+              : modelSetupProfiles[role]?.authAvailable ? "Pi 环境凭据可用" : "尚未配置 API Key";
           }
         } catch (error) {
           settingsStatus.textContent = error instanceof Error ? error.message : "设置读取失败。";
