@@ -10,7 +10,7 @@ import multer from "multer";
 import { createBuiltinModels, createCrossDocAgent, CrossDocVisionModelConfigError, type CrossDocAgentOptions, type ScopedDocument } from "./agent.js";
 import { reviewDocuments } from "./review.js";
 import { getLibraryDocument, listLibraryDocuments, saveLibraryDocument } from "./storage/library-store.js";
-import { LocalDatabase, type ModelProfile, type ModelRole } from "./storage/database.js";
+import { LocalDatabase, type ModelProfile, type ModelProtocol, type ModelRole } from "./storage/database.js";
 import { writeReviewArtifacts } from "./storage/review-store.js";
 
 const port = Number(process.env.PORT ?? 5177);
@@ -28,6 +28,9 @@ const MAX_TOTAL_EVENT_BYTES = 4 * 1024 * 1024;
 const MAX_QUESTIONS_PER_SESSION = 30;
 const MAX_RETAINED_ANSWERS = 10;
 const MAX_AGENT_TEXT_CHARS = 12_000;
+const MODEL_DISCOVERY_TIMEOUT_MS = 10_000;
+const MODEL_DISCOVERY_MAX_BYTES = 1_048_576;
+const customModelProtocols = new Set<ModelProtocol>(["openai-completions", "anthropic-messages", "google-generative-ai"]);
 
 export function isUploadSelectionWithinLimit(files: readonly { size: number }[], maximumBytes = MAX_TOTAL_UPLOAD_SIZE): boolean {
   return files.reduce((total, file) => total + file.size, 0) <= maximumBytes;
@@ -90,7 +93,90 @@ export interface WebAppOptions {
   pdfjsDirectory?: string;
   /** Test seam for exercising aggregate upload rejection without allocating 100 MiB. */
   maxTotalUploadBytes?: number;
+  /** Test seams for bounded server-side custom model discovery. */
+  modelDiscoveryFetch?: typeof fetch;
+  modelDiscoveryTimeoutMs?: number;
+  modelDiscoveryMaxBytes?: number;
   agentFactory?: (options: CrossDocAgentOptions) => Promise<Agent>;
+}
+
+interface DiscoveredModel {
+  id: string;
+  name: string;
+}
+
+function normalizeModelId(protocol: ModelProtocol, value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const id = value.trim();
+  if (!id || id.length > 300 || /[\u0000-\u001f]/.test(id)) return undefined;
+  return protocol === "google-generative-ai" ? id.replace(/^models\//, "") : id;
+}
+
+export function normalizeDiscoveredModels(protocol: ModelProtocol, payload: unknown): DiscoveredModel[] {
+  if (!customModelProtocols.has(protocol) || !payload || typeof payload !== "object" || Array.isArray(payload)) return [];
+  const object = payload as Record<string, unknown>;
+  const values = protocol === "google-generative-ai" ? object.models : object.data;
+  if (!Array.isArray(values)) return [];
+  const seen = new Set<string>();
+  const result: DiscoveredModel[] = [];
+  for (const value of values.slice(0, 500)) {
+    if (!value || typeof value !== "object" || Array.isArray(value)) continue;
+    const model = value as Record<string, unknown>;
+    const id = normalizeModelId(protocol, model.id ?? model.name);
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    const labelValue = model.displayName ?? model.display_name ?? model.name ?? id;
+    const name = typeof labelValue === "string" && labelValue.trim() ? labelValue.trim().slice(0, 300) : id;
+    result.push({ id, name });
+  }
+  return result;
+}
+
+async function readBoundedJson(response: globalThis.Response, maxBytes: number): Promise<unknown> {
+  const declaredBytes = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declaredBytes) && declaredBytes > maxBytes) {
+    await response.body?.cancel().catch(() => undefined);
+    throw new Error(`Model discovery response exceeds the ${maxBytes}-byte limit.`);
+  }
+  if (!response.body) throw new Error("Model discovery returned an empty response.");
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        await reader.cancel().catch(() => undefined);
+        throw new Error(`Model discovery response exceeds the ${maxBytes}-byte limit.`);
+      }
+      chunks.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  try {
+    return JSON.parse(new TextDecoder().decode(bytes)) as unknown;
+  } catch {
+    throw new Error("Model discovery returned invalid JSON.");
+  }
+}
+
+function validateCustomBaseUrl(value: string): string | undefined {
+  try {
+    const url = new URL(value);
+    if ((url.protocol !== "http:" && url.protocol !== "https:") || url.username || url.password || url.search || url.hash) return undefined;
+    return url.toString().replace(/\/+$/, "");
+  } catch {
+    return undefined;
+  }
 }
 
 function cleanDisplayName(value: string): string {
@@ -129,6 +215,9 @@ export function createWebApp(options: WebAppOptions = {}) {
   const reviewDirectory = resolve(options.reviewDirectory ?? ".crossdoc/reviews");
   const pdfjsDirectory = resolve(options.pdfjsDirectory ?? "node_modules/pdfjs-dist/build");
   const maxTotalUploadBytes = options.maxTotalUploadBytes ?? MAX_TOTAL_UPLOAD_SIZE;
+  const discoveryFetch = options.modelDiscoveryFetch ?? fetch;
+  const discoveryTimeoutMs = options.modelDiscoveryTimeoutMs ?? MODEL_DISCOVERY_TIMEOUT_MS;
+  const discoveryMaxBytes = options.modelDiscoveryMaxBytes ?? MODEL_DISCOVERY_MAX_BYTES;
   const agentFactory = options.agentFactory ?? createCrossDocAgent;
   const sessions = new Map<string, ReadSession>();
   let pendingSessionSlots = 0;
@@ -162,7 +251,8 @@ export function createWebApp(options: WebAppOptions = {}) {
     if (!profile) return null;
     return {
       role,
-      provider: profile.provider,
+      ...(profile.protocol === "catalog" || !profile.protocol ? { provider: profile.provider } : {}),
+      protocol: profile.protocol ?? "catalog",
       modelId: profile.modelId,
       baseUrl: profile.baseUrl ?? "",
       options: profile.options ?? {},
@@ -174,17 +264,69 @@ export function createWebApp(options: WebAppOptions = {}) {
     response.json({ models: { main: publicModelProfile("main"), vision: publicModelProfile("vision") }, preferences: {} });
   });
 
+  app.post("/api/settings/models/discover", async (request, response) => {
+    const body = request.body as Record<string, unknown>;
+    const role = body.role;
+    const protocol = body.protocol;
+    const baseUrl = typeof body.baseUrl === "string" ? validateCustomBaseUrl(body.baseUrl.trim()) : undefined;
+    const apiKey = typeof body.apiKey === "string" ? body.apiKey.trim() : "";
+    if (role !== "main" && role !== "vision") return response.status(400).json({ error: "Choose a model role before loading models." });
+    if (typeof protocol !== "string" || !customModelProtocols.has(protocol as ModelProtocol)) {
+      return response.status(400).json({ error: "Choose one of the supported custom model protocols." });
+    }
+    if (!baseUrl) return response.status(400).json({ error: "Enter a valid HTTP or HTTPS Base URL without credentials, query, or fragment." });
+    if (!apiKey || apiKey.length > 8_000) return response.status(400).json({ error: "Enter an API key under 8,000 characters to load models." });
+    const headers: Record<string, string> = { Accept: "application/json" };
+    if (protocol === "openai-completions") headers.Authorization = `Bearer ${apiKey}`;
+    else if (protocol === "anthropic-messages") {
+      headers["x-api-key"] = apiKey;
+      headers["anthropic-version"] = "2023-06-01";
+    } else headers["x-goog-api-key"] = apiKey;
+    try {
+      const url = `${baseUrl}/models`;
+      const responseFromProvider = await discoveryFetch(url, {
+        method: "GET",
+        headers,
+        signal: AbortSignal.timeout(discoveryTimeoutMs),
+      });
+      if (!responseFromProvider.ok) {
+        await responseFromProvider.body?.cancel().catch(() => undefined);
+        return response.status(502).json({ error: `Model endpoint returned HTTP ${responseFromProvider.status}. Check the Base URL, API key, and protocol.` });
+      }
+      const payload = await readBoundedJson(responseFromProvider, discoveryMaxBytes);
+      response.json({ models: normalizeDiscoveredModels(protocol as ModelProtocol, payload) });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const timedOut = /timeout|timed out|abort/i.test(message);
+      response.status(502).json({ error: timedOut
+        ? `Model discovery timed out after ${discoveryTimeoutMs} ms. Check the Base URL and try again.`
+        : message });
+    }
+  });
+
   app.put("/api/settings/models/:role", (request, response) => {
     const role = request.params.role;
     if (role !== "main" && role !== "vision") return response.status(404).json({ error: "Unknown model role." });
     const body = request.body as Record<string, unknown>;
-    const provider = typeof body.provider === "string" ? body.provider.trim() : "";
+    const protocolValue = body.protocol;
+    const protocol: ModelProtocol = protocolValue === undefined ? "catalog" : protocolValue as ModelProtocol;
     const modelId = typeof body.modelId === "string" ? body.modelId.trim() : "";
-    if (!provider || !modelId) return response.status(400).json({ error: "Provider and model ID are required." });
-    const model = modelCatalog.getModel(provider, modelId);
-    if (!model) return response.status(400).json({ error: `Model ${provider}/${modelId} is not in Pi AI's model catalog.` });
-    if (role === "vision" && !model.input.includes("image")) {
-      return response.status(400).json({ error: `Model ${provider}/${modelId} does not accept images. Choose an image-capable vision model.` });
+    if (protocol !== "catalog" && !customModelProtocols.has(protocol)) return response.status(400).json({ error: "Choose one of the supported model protocols." });
+    const custom = protocol !== "catalog";
+    const provider = custom ? "crossdoc-custom" : typeof body.provider === "string" ? body.provider.trim() : "";
+    if (!modelId) return response.status(400).json({ error: "Model ID is required." });
+    if (custom) {
+      const baseUrl = typeof body.baseUrl === "string" ? validateCustomBaseUrl(body.baseUrl.trim()) : undefined;
+      if (!baseUrl) return response.status(400).json({ error: "Enter a valid HTTP or HTTPS Base URL without credentials, query, or fragment." });
+      if (typeof body.apiKey === "string" && body.apiKey.length > 8_000) return response.status(400).json({ error: "API key must be under 8,000 characters." });
+      body.baseUrl = baseUrl;
+    } else {
+      if (!provider) return response.status(400).json({ error: "Provider and model ID are required." });
+      const model = modelCatalog.getModel(provider, modelId);
+      if (!model) return response.status(400).json({ error: `Model ${provider}/${modelId} is not in Pi AI's model catalog.` });
+      if (role === "vision" && !model.input.includes("image")) {
+        return response.status(400).json({ error: `Model ${provider}/${modelId} does not accept images. Choose an image-capable vision model.` });
+      }
     }
     if (body.baseUrl !== undefined && (typeof body.baseUrl !== "string" || body.baseUrl.length > 2_000)) {
       return response.status(400).json({ error: "Base URL must be text under 2,000 characters." });
@@ -200,6 +342,7 @@ export function createWebApp(options: WebAppOptions = {}) {
       database.saveModelProfile({
         role,
         provider,
+        protocol,
         modelId,
         ...(typeof body.baseUrl === "string" && body.baseUrl.trim() ? { baseUrl: body.baseUrl.trim() } : {}),
         ...(typeof body.apiKey === "string" && body.apiKey.trim() ? { apiKey: body.apiKey.trim() } : {}),

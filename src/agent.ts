@@ -2,7 +2,10 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import { Agent, type AgentTool, type StreamFn } from "@earendil-works/pi-agent-core";
-import type { Api, AssistantMessage, Context, JsonValue, Model, SimpleStreamOptions } from "@earendil-works/pi-ai";
+import { createProvider, type Api, type AssistantMessage, type Context, type JsonValue, type Model, type MutableModels, type SimpleStreamOptions } from "@earendil-works/pi-ai";
+import { anthropicMessagesApi } from "@earendil-works/pi-ai/api/anthropic-messages.lazy";
+import { googleGenerativeAIApi } from "@earendil-works/pi-ai/api/google-generative-ai.lazy";
+import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 import type { Models } from "@earendil-works/pi-ai/models";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import { Type } from "typebox";
@@ -18,7 +21,7 @@ import { parseDoc } from "./tools/parse.js";
 import { reportConflicts } from "./tools/report.js";
 import { searchDocument } from "./tools/search-document.js";
 import { verifyConflicts } from "./tools/verify.js";
-import type { ModelProfile, ModelRole } from "./storage/database.js";
+import type { ModelProfile, ModelProtocol, ModelRole } from "./storage/database.js";
 
 const inspectParameters = Type.Object({ documentId: Type.String({ minLength: 1 }) });
 const skillParameters = Type.Object({
@@ -66,7 +69,7 @@ export interface CrossDocAgentOptions {
   onDocumentUpdated?: (document: ParsedDocument, source: ScopedDocument) => Promise<void> | void;
   onDocumentRejected?: (documentId: string, source: ScopedDocument, reason: string) => Promise<void> | void;
   /** Injected model collection and stream function are intended for deterministic integration tests. */
-  models?: Models;
+  models?: MutableModels;
   streamFn?: StreamFn;
   mainProfile?: ModelProfile;
   visionProfile?: ModelProfile;
@@ -92,8 +95,67 @@ export class CrossDocRequestScopeError extends Error {
   }
 }
 
-export function createBuiltinModels(): Models {
+export function createBuiltinModels(): MutableModels {
   return builtinModels();
+}
+
+const customProtocols = new Set<ModelProtocol>(["openai-completions", "anthropic-messages", "google-generative-ai"]);
+
+function customProviderId(role: ModelRole): string {
+  return `crossdoc-custom-${role}`;
+}
+
+function validCustomBaseUrl(value: string): string | undefined {
+  try {
+    const url = new URL(value);
+    if ((url.protocol !== "http:" && url.protocol !== "https:") || url.username || url.password || url.search || url.hash) return undefined;
+    return url.toString().replace(/\/+$/, "");
+  } catch {
+    return undefined;
+  }
+}
+
+function registerCustomProfile(models: MutableModels, profile: ModelProfile, role: ModelRole): Model<Api> {
+  const protocol = profile.protocol;
+  if (!protocol || !customProtocols.has(protocol)) throw new CrossDocVisionModelConfigError(`Choose a supported custom model protocol for the ${role} model.`);
+  const baseUrl = validCustomBaseUrl(profile.baseUrl ?? "");
+  if (!baseUrl) throw new CrossDocVisionModelConfigError(`Enter a valid HTTP or HTTPS Base URL for the ${role} model.`);
+  const apiKey = profile.apiKey?.trim();
+  if (!apiKey) throw new CrossDocVisionModelConfigError(`Add an API key for the ${role} model in Settings.`);
+  const providerId = customProviderId(role);
+  const model: Model<Api> = {
+    id: profile.modelId.trim(),
+    name: profile.modelId.trim(),
+    api: protocol,
+    provider: providerId,
+    baseUrl,
+    reasoning: false,
+    input: role === "vision" ? ["text", "image"] : ["text"],
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    contextWindow: 128_000,
+    maxTokens: 8_192,
+  };
+  const api = protocol === "openai-completions"
+    ? openAICompletionsApi()
+    : protocol === "anthropic-messages"
+      ? anthropicMessagesApi()
+      : googleGenerativeAIApi();
+  models.setProvider(createProvider({
+    id: providerId,
+    name: `CrossDoc ${role} endpoint`,
+    baseUrl,
+    auth: { apiKey: {
+      name: `CrossDoc ${role} API key`,
+      async resolve() {
+        return apiKey ? { auth: { apiKey }, source: "CrossDoc Settings" } : undefined;
+      },
+    } },
+    models: [model],
+    api,
+  }));
+  const registered = models.getModel(providerId, model.id);
+  if (!registered) throw new CrossDocVisionModelConfigError(`Could not register the custom ${role} model with Pi.`);
+  return registered;
 }
 
 export async function resolveModelProfile(
@@ -101,7 +163,23 @@ export async function resolveModelProfile(
   profile: ModelProfile | undefined,
   role: ModelRole,
 ) {
-  if (!profile?.provider?.trim() || !profile.modelId?.trim()) {
+  if (!profile?.modelId?.trim()) {
+    throw new CrossDocVisionModelConfigError(`Configure the ${role === "main" ? "main" : "vision"} model in Settings before reading documents.`);
+  }
+  const protocol = profile.protocol ?? "catalog";
+  if (protocol !== "catalog") {
+    if (!customProtocols.has(protocol)) throw new CrossDocVisionModelConfigError(`Unsupported model protocol: ${String(protocol)}.`);
+    if (!("setProvider" in models) || typeof models.setProvider !== "function") {
+      throw new CrossDocVisionModelConfigError("The Pi model collection cannot register custom providers.");
+    }
+    const mutableModels = models as MutableModels;
+    const model = registerCustomProfile(mutableModels, profile, role);
+    const providerId = customProviderId(role);
+    const auth = await mutableModels.checkAuth(providerId);
+    if (!auth) throw new CrossDocVisionModelConfigError(`No API key is configured for the ${role} model.`);
+    return { model, profile: { ...profile, provider: providerId, protocol, baseUrl: model.baseUrl } };
+  }
+  if (!profile.provider?.trim()) {
     throw new CrossDocVisionModelConfigError(`Configure the ${role === "main" ? "main" : "vision"} model in Settings before reading documents.`);
   }
   const providerId = profile.provider.trim();

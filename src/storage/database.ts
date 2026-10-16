@@ -5,10 +5,12 @@ import { mkdirSync } from "node:fs";
 import { dirname, relative, resolve, sep } from "node:path";
 
 export type ModelRole = "main" | "vision";
+export type ModelProtocol = "catalog" | "openai-completions" | "anthropic-messages" | "google-generative-ai";
 
 export interface ModelProfile {
   role: ModelRole;
   provider: string;
+  protocol?: ModelProtocol;
   modelId: string;
   baseUrl?: string;
   apiKey?: string;
@@ -38,7 +40,7 @@ export interface LegacyLibraryMetadata {
   uploadedAt: string;
 }
 
-const schemaVersion = 1;
+const schemaVersion = 2;
 
 function relativePath(dataDirectory: string, absolutePath: string): string {
   const path = relative(dataDirectory, absolutePath).split(sep).join("/");
@@ -103,6 +105,14 @@ export class LocalDatabase {
           updated_at TEXT NOT NULL
         );
         PRAGMA user_version = 1;
+      `);
+    }
+    const afterV1 = Number(this.db.pragma("user_version", { simple: true }));
+    if (afterV1 < 2) {
+      this.db.exec(`
+        ALTER TABLE model_configs ADD COLUMN protocol TEXT NOT NULL DEFAULT 'catalog'
+          CHECK (protocol IN ('catalog', 'openai-completions', 'anthropic-messages', 'google-generative-ai'));
+        PRAGMA user_version = 2;
       `);
     }
   }
@@ -184,13 +194,14 @@ export class LocalDatabase {
   }
 
   getModelProfile(role: ModelRole): ModelProfile | undefined {
-    const row = this.db.prepare(`SELECT role, provider, model_id AS modelId, base_url AS baseUrl, api_key AS apiKey,
+    const row = this.db.prepare(`SELECT role, provider, protocol, model_id AS modelId, base_url AS baseUrl, api_key AS apiKey,
       options_json AS optionsJson FROM model_configs WHERE role = ?`).get(role) as (ModelProfile & { optionsJson: string }) | undefined;
     if (!row) return undefined;
     const { optionsJson, ...profile } = row;
     return {
       role: profile.role,
       provider: profile.provider,
+      protocol: profile.protocol ?? "catalog",
       modelId: profile.modelId,
       ...(profile.baseUrl ? { baseUrl: profile.baseUrl } : {}),
       ...(profile.apiKey ? { apiKey: profile.apiKey } : {}),
@@ -202,19 +213,20 @@ export class LocalDatabase {
     const previous = this.getModelProfile(profile.role);
     const apiKey = clearApiKey ? undefined : profile.apiKey?.trim() || previous?.apiKey;
     const options = profile.options ?? previous?.options ?? {};
-    this.db.prepare(`INSERT INTO model_configs(role, provider, model_id, base_url, api_key, options_json, updated_at)
-      VALUES (@role, @provider, @modelId, @baseUrl, @apiKey, @optionsJson, @updatedAt)
+    this.db.prepare(`INSERT INTO model_configs(role, provider, protocol, model_id, base_url, api_key, options_json, updated_at)
+      VALUES (@role, @provider, @protocol, @modelId, @baseUrl, @apiKey, @optionsJson, @updatedAt)
       ON CONFLICT(role) DO UPDATE SET provider=excluded.provider, model_id=excluded.model_id, base_url=excluded.base_url,
-        api_key=excluded.api_key, options_json=excluded.options_json, updated_at=excluded.updated_at`).run({
+        protocol=excluded.protocol, api_key=excluded.api_key, options_json=excluded.options_json, updated_at=excluded.updated_at`).run({
       role: profile.role,
       provider: profile.provider.trim(),
+      protocol: profile.protocol ?? "catalog",
       modelId: profile.modelId.trim(),
       baseUrl: profile.baseUrl?.trim() || null,
       apiKey: apiKey ?? null,
       optionsJson: JSON.stringify(options),
       updatedAt: new Date().toISOString(),
     });
-    return { ...profile, ...(profile.baseUrl?.trim() ? { baseUrl: profile.baseUrl.trim() } : {}), ...(apiKey ? { apiKey } : {}), options };
+    return { ...profile, protocol: profile.protocol ?? "catalog", ...(profile.baseUrl?.trim() ? { baseUrl: profile.baseUrl.trim() } : {}), ...(apiKey ? { apiKey } : {}), options };
   }
 
   close() { this.db.close(); }

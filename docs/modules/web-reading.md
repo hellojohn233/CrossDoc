@@ -12,7 +12,7 @@ Status: Implementation contract
 
 ## Overall Structure
 
-The page has three states: selection, reading, and Library. Starting a read replaces the selection view with the reading view. The Library remains reachable from the header. Returning to selection is explicit; it does not discard files already archived.
+The page has four states: first-run model setup, selection, reading, and Library. If either the main or vision model is incomplete, the app opens model setup before selection. Once both profiles are complete in SQLite, later visits skip setup and open selection directly. Starting a read replaces the selection view with the reading view. The Library remains reachable from the header. Returning to selection is explicit; it does not discard files already archived.
 
 ## Page-Level Layout
 

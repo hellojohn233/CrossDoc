@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { createAssistantMessageEventStream } from "@earendil-works/pi-ai/utils/event-stream";
-import { createCrossDocAgent, CrossDocVisionModelConfigError } from "../src/agent.ts";
+import { createBuiltinModels, createCrossDocAgent, CrossDocVisionModelConfigError, resolveModelProfile } from "../src/agent.ts";
 import { createWebApp, isUploadSelectionWithinLimit, listenWebApp } from "../src/server.ts";
 import { parseDoc } from "../src/tools/parse.ts";
 
@@ -68,6 +68,68 @@ function textOf(message) {
   return (message?.content ?? []).filter((item) => item.type === "text").map((item) => item.text).join("\n");
 }
 
+async function verifyCustomPiProtocols() {
+  const collection = createBuiltinModels();
+  const cases = [
+    {
+      protocol: "openai-completions", response: [
+        'data: {"choices":[{"delta":{"role":"assistant"},"finish_reason":null}]}',
+        'data: {"choices":[{"delta":{"content":"OpenAI reply"},"finish_reason":null}]}',
+        'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}', "data: [DONE]", "",
+      ].join("\n\n"),
+      check: (url, headers, body, image) => { assert.match(url, /\/chat\/completions$/); assert.equal(headers.get("authorization"), "Bearer scripted-key"); if (image) assert.match(JSON.stringify(body), /AQID/); },
+    },
+    {
+      protocol: "anthropic-messages", response: [
+        'event: message_start\ndata: {"type":"message_start","message":{"id":"msg_test","type":"message","role":"assistant","content":[],"model":"model-test","stop_reason":null,"usage":{"input_tokens":2,"output_tokens":1}}}',
+        'event: content_block_start\ndata: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}',
+        'event: content_block_delta\ndata: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Anthropic reply"}}',
+        'event: content_block_stop\ndata: {"type":"content_block_stop","index":0}',
+        'event: message_delta\ndata: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":2}}',
+        'event: message_stop\ndata: {"type":"message_stop"}', "",
+      ].join("\n\n"),
+      check: (url, headers, body, image) => { assert.match(url, /\/messages(?:\?|$)/); assert.equal(headers.get("x-api-key"), "scripted-key"); if (image) assert.match(JSON.stringify(body), /AQID/); },
+    },
+    {
+      protocol: "google-generative-ai", response: [
+        'data: {"candidates":[{"content":{"role":"model","parts":[{"text":"Gemini reply"}]},"finishReason":"STOP"}],"usageMetadata":{"promptTokenCount":2,"candidatesTokenCount":2}}', "",
+      ].join("\n\n"),
+      check: (url, headers, body, image) => { assert.match(url, /streamGenerateContent/); assert.equal(headers.get("x-goog-api-key"), "scripted-key"); if (image) assert.match(JSON.stringify(body), /AQID/); },
+    },
+  ];
+  for (const item of cases) {
+    for (const role of ["main", "vision"]) {
+      const resolved = await resolveModelProfile(collection, {
+        role, protocol: item.protocol, provider: "crossdoc-custom", modelId: "model-test",
+        baseUrl: `https://mock.invalid/${item.protocol}`, apiKey: "scripted-key",
+      }, role);
+      let requestCount = 0;
+      let capturedRequest;
+      const fetch = async (input, init) => {
+        requestCount += 1;
+        const body = JSON.parse(init.body);
+        capturedRequest = { url: String(input), headers: new Headers(init.headers), body };
+        return new Response(item.response, { headers: { "content-type": "text/event-stream" } });
+      };
+      const originalFetch = globalThis.fetch;
+      if (item.protocol === "google-generative-ai") globalThis.fetch = fetch;
+      let message;
+      try {
+        message = await collection.completeSimple(resolved.model, {
+          messages: [{ role: "user", content: role === "vision"
+            ? [{ type: "text", text: "Read this page" }, { type: "image", data: "AQID", mimeType: "image/png" }]
+            : "Say hello", timestamp: Date.now() }],
+        }, { apiKey: "scripted-key", ...(item.protocol === "google-generative-ai" ? {} : { fetch }) });
+      } finally {
+        globalThis.fetch = originalFetch;
+      }
+      assert.equal(requestCount, 1, `${item.protocol} ${role} model routes through Pi once`);
+      item.check(capturedRequest.url, capturedRequest.headers, capturedRequest.body, role === "vision");
+      assert.match(textOf(message), /reply$/i, `${item.protocol} returns the scripted assistant text: ${JSON.stringify(message)}`);
+    }
+  }
+}
+
 async function readEvents(url, afterId = 0, until = "done") {
   const controller = new AbortController();
   const response = await fetch(url, { headers: { "Last-Event-ID": String(afterId) }, signal: controller.signal });
@@ -100,6 +162,7 @@ async function postPdfs(url, files) {
 }
 
 async function main() {
+  await verifyCustomPiProtocols();
   const root = await mkdtemp(join(tmpdir(), "crossdoc-web-read-"));
   const uploadDirectory = join(root, "uploads");
   const libraryDirectory = join(root, "library");
@@ -418,6 +481,10 @@ async function main() {
     const clientSource = await readFile(join(process.cwd(), "public/index.html"), "utf8");
     assert.match(clientSource, /readDocuments\.filter\(\(item\) => item\.state === "ready"\)/, "citation links must be limited to ready, archived documents");
     assert.match(clientSource, /!Number\.isSafeInteger\(source\.pages\) \|\| pageNumber > source\.pages/, "citation links must reject unknown page counts and numbers outside the archived PDF");
+    assert.match(clientSource, /function profileIsComplete\(profile\)[\s\S]*?return Boolean\(profile\.protocol && profile\.baseUrl\)/, "custom profile completion requires protocol, endpoint, model ID, and saved API key");
+    assert.match(clientSource, /if \(\["main", "vision"\]\.every\(\(role\) => profileIsComplete\(models\[role\]\)\)\)/, "complete saved profiles skip setup on app entry");
+    assert.match(clientSource, /else showModelSetup\(models\)/, "any incomplete saved profile opens the setup gate before selection");
+    assert.match(clientSource, /placeholder="输入或加载模型 ID"/, "model ID remains editable for manual entry if discovery fails");
 
     const cancelledResponse = await postPdf(`${baseUrl}/api/read`, "cancel.pdf", pdfBytes("Cancel source"));
     assert.equal(cancelledResponse.status, 202);

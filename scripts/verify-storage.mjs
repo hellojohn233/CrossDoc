@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import Database from "better-sqlite3";
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -9,6 +10,28 @@ import { createWebApp, listenWebApp } from "../src/server.ts";
 
 async function main() {
   const root = await mkdtemp(join(tmpdir(), "crossdoc-storage-"));
+  const v1DataDirectory = join(root, "v1-data");
+  await mkdir(v1DataDirectory, { recursive: true });
+  const v1 = new Database(join(v1DataDirectory, "crossdoc.sqlite"));
+  v1.exec(`
+    CREATE TABLE model_configs (
+      role TEXT PRIMARY KEY CHECK (role IN ('main', 'vision')),
+      provider TEXT NOT NULL, model_id TEXT NOT NULL, base_url TEXT, api_key TEXT,
+      options_json TEXT NOT NULL DEFAULT '{}', updated_at TEXT NOT NULL
+    );
+    INSERT INTO model_configs(role, provider, model_id, base_url, api_key, options_json, updated_at)
+      VALUES ('main', 'openai', 'gpt-4', 'https://api.openai.com/v1', 'legacy-secret', '{}', '2026-01-01T00:00:00.000Z');
+    PRAGMA user_version = 1;
+  `);
+  v1.close();
+  const migrated = new LocalDatabase(v1DataDirectory);
+  assert.equal(Number(migrated.db.pragma("user_version", { simple: true })), 2);
+  assert.deepEqual(migrated.getModelProfile("main"), {
+    role: "main", provider: "openai", protocol: "catalog", modelId: "gpt-4",
+    baseUrl: "https://api.openai.com/v1", apiKey: "legacy-secret", options: {},
+  }, "v1 built-in model profile and credentials survive migration with legacy catalog protocol");
+  migrated.close();
+
   const dataDirectory = join(root, "data");
   const libraryDirectory = join(dataDirectory, "library");
   const legacyId = "legacy-pdf-id";
@@ -42,7 +65,21 @@ async function main() {
   assert.equal(reopened.getDocument(parsed.id)?.fileSize, Buffer.byteLength("%PDF-new-document"));
   assert.equal(reopened.getDocument(parsed.id)?.sha256.length, 64);
 
-  const app = createWebApp({ dataDirectory, libraryDirectory, publicDirectory: join(process.cwd(), "public") });
+  const discoveryCalls = [];
+  const app = createWebApp({
+    dataDirectory, libraryDirectory, publicDirectory: join(process.cwd(), "public"),
+    modelDiscoveryTimeoutMs: 20, modelDiscoveryMaxBytes: 256,
+    modelDiscoveryFetch: async (url, init) => {
+      discoveryCalls.push({ url: String(url), headers: new Headers(init?.headers) });
+      if (String(url).includes("slow.invalid")) {
+        return new Promise((_resolve, reject) => init.signal.addEventListener("abort", () => reject(new DOMException("The operation was aborted", "AbortError")), { once: true }));
+      }
+      if (String(url).includes("large.invalid")) return new Response(JSON.stringify({ data: [{ id: "x".repeat(300) }] }));
+      if (String(url).includes("openai.invalid")) return Response.json({ data: [{ id: "gpt-alpha", name: "GPT Alpha" }, { id: "gpt-alpha" }] });
+      if (String(url).includes("anthropic.invalid")) return Response.json({ data: [{ id: "claude-sonnet", display_name: "Claude Sonnet" }] });
+      return Response.json({ models: [{ name: "models/gemini-flash", displayName: "Gemini Flash" }] });
+    },
+  });
   const server = listenWebApp(app, 0);
   try {
     await new Promise((resolve) => server.once("listening", resolve));
@@ -51,6 +88,56 @@ async function main() {
     const baseUrl = `http://127.0.0.1:${address.port}`;
     const initial = await fetch(`${baseUrl}/api/settings`).then((response) => response.json());
     assert.equal(initial.models.main, null);
+
+    const discover = (protocol, baseUrl, apiKey = "discovery-only-key") => fetch(`${baseUrlForApi}/api/settings/models/discover`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role: "main", protocol, baseUrl, apiKey }),
+    });
+    const baseUrlForApi = baseUrl;
+    const openAiModels = await discover("openai-completions", "https://openai.invalid/v1").then((response) => response.json());
+    assert.deepEqual(openAiModels.models, [{ id: "gpt-alpha", name: "GPT Alpha" }]);
+    const anthropicModels = await discover("anthropic-messages", "https://anthropic.invalid/v1").then((response) => response.json());
+    assert.deepEqual(anthropicModels.models, [{ id: "claude-sonnet", name: "Claude Sonnet" }]);
+    const geminiModels = await discover("google-generative-ai", "https://gemini.invalid/v1beta").then((response) => response.json());
+    assert.deepEqual(geminiModels.models, [{ id: "gemini-flash", name: "Gemini Flash" }]);
+    assert.equal(discoveryCalls[0].headers.get("authorization"), "Bearer discovery-only-key");
+    assert.equal(discoveryCalls[1].headers.get("x-api-key"), "discovery-only-key");
+    assert.equal(discoveryCalls[1].headers.get("anthropic-version"), "2023-06-01");
+    assert.equal(discoveryCalls[2].headers.get("x-goog-api-key"), "discovery-only-key");
+    assert.equal(reopened.getModelProfile("main"), undefined, "model discovery does not persist its API key or profile");
+    const timedOutDiscovery = await discover("openai-completions", "https://slow.invalid/v1");
+    assert.equal(timedOutDiscovery.status, 502);
+    assert.match((await timedOutDiscovery.json()).error, /timed out/i);
+    const oversizedDiscovery = await discover("openai-completions", "https://large.invalid/v1");
+    assert.equal(oversizedDiscovery.status, 502);
+    assert.match((await oversizedDiscovery.json()).error, /limit|large|bytes/i);
+
+    for (const [role, protocol, modelId] of [
+      ["main", "anthropic-messages", "manual-main-id"],
+      ["vision", "google-generative-ai", "manual-vision-id"],
+    ]) {
+      const saved = await fetch(`${baseUrl}/api/settings/models/${role}`, {
+        method: "PUT", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ protocol, baseUrl: "https://custom.invalid/v1", modelId, apiKey: `${role}-custom-secret` }),
+      });
+      assert.equal(saved.status, 200, "custom model ID can be entered without discovery");
+      assert.equal(reopened.getModelProfile(role).protocol, protocol);
+      assert.equal(reopened.getModelProfile(role).baseUrl, "https://custom.invalid/v1");
+      assert.equal(reopened.getModelProfile(role).modelId, modelId);
+      assert.equal(reopened.getModelProfile(role).apiKey, `${role}-custom-secret`);
+    }
+    const preservedCustom = await fetch(`${baseUrl}/api/settings/models/main`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ protocol: "anthropic-messages", baseUrl: "https://custom.invalid/v1", modelId: "manual-main-id", apiKey: "" }),
+    });
+    assert.equal(preservedCustom.status, 200);
+    assert.equal(reopened.getModelProfile("main").apiKey, "main-custom-secret", "empty custom-key update preserves the saved key");
+    const clearCustom = await fetch(`${baseUrl}/api/settings/models/main`, {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ protocol: "anthropic-messages", baseUrl: "https://custom.invalid/v1", modelId: "manual-main-id", clearApiKey: true }),
+    });
+    assert.equal(clearCustom.status, 200);
+    assert.equal(reopened.getModelProfile("main").apiKey, undefined, "explicit custom-key clear removes the saved key");
 
     const mainSave = await fetch(`${baseUrl}/api/settings/models/main`, {
       method: "PUT", headers: { "Content-Type": "application/json" },

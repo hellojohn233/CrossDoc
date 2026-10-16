@@ -768,12 +768,49 @@
       .settings-model h3 { margin: 0; font-size: 14px; }
       .settings-model label { display: grid; gap: 4px; color: var(--muted); font-size: 11px; }
       .settings-model input { width: 100%; min-height: 34px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 4px; background: #fff; color: var(--ink); }
+      .settings-model input[type="checkbox"] { width: auto; min-height: auto; padding: 0; }
       .settings-status { min-height: 18px; margin: 0; color: var(--muted); font-size: 12px; }
       .settings-status.error { color: var(--red); }
       .settings-footer { display: flex; justify-content: flex-end; gap: 8px; }
+      .model-protocol-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: end; }
+      .model-load-status { min-height: 16px; color: var(--muted); font-size: 11px; }
+      .model-load-status.error { color: var(--red); }
+
+      .startup-state { display: grid; min-height: calc(100vh - 88px); place-items: center; padding: 32px 20px; }
+      .startup-card { width: min(100%, 420px); padding: 22px; border: 1px solid var(--line-dark); background: var(--panel); box-shadow: var(--shadow); }
+      .startup-card p { margin: 0; color: var(--muted); line-height: 1.5; }
+      .startup-card button { margin-top: 16px; }
+      .model-setup-screen { width: min(100% - 48px, 980px); min-height: calc(100vh - 88px); margin: 0 auto; padding: clamp(34px, 7vh, 72px) 0 56px; }
+      .model-setup-screen[hidden], .startup-state[hidden] { display: none; }
+      .model-setup-heading { margin-bottom: 26px; }
+      .model-setup-heading h2 { margin: 0; font-size: clamp(30px, 4vw, 42px); letter-spacing: -0.04em; }
+      .model-setup-heading p { margin: 9px 0 0; color: var(--muted); font-size: 14px; }
+      .model-setup-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+      .model-setup-card { display: grid; align-content: start; gap: 12px; padding: 18px; border: 1px solid var(--line-dark); background: var(--panel); box-shadow: var(--shadow); }
+      .model-setup-card h3 { margin: 0; font-size: 16px; }
+      .model-setup-card label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
+      .model-setup-card input, .model-setup-card select { width: 100%; min-height: 40px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 4px; background: #fff; color: var(--ink); }
+      .model-setup-card input[type="checkbox"] { width: auto; min-height: auto; padding: 0; }
+      .model-setup-role-status { min-height: 18px; color: var(--muted); font-size: 12px; }
+      .model-setup-role-status[data-ready="true"] { color: var(--teal); }
+      .model-setup-role-status[data-ready="false"] { color: var(--amber); }
+      .model-setup-footer { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 18px; }
+      .model-setup-status { min-height: 20px; margin: 12px 0 0; color: var(--muted); font-size: 13px; }
+      .model-setup-status.error { color: var(--red); }
+      body.booting .shell, body.booting .ingest-screen, body.booting .reading-screen,
+      body.booting .library-screen, body.booting .model-setup-screen { display: none; }
+      body.booting:not(.review-open) .top-actions { display: none; }
+      body.selection-open:not(.review-open) .topbar { grid-template-columns: 1fr auto; }
+      body.selection-open:not(.review-open) .top-actions { display: flex; }
+      body.selection-open:not(.review-open) #open-library-top { display: none; }
+      body.model-setup-open:not(.review-open) .topbar { grid-template-columns: 1fr; }
+      body.model-setup-open:not(.review-open) .top-actions { display: none; }
 
       @media (max-width: 620px) {
         .settings-grid { grid-template-columns: 1fr; }
+        .model-setup-grid { grid-template-columns: 1fr; }
+        .model-setup-screen { width: min(100% - 32px, 980px); padding-top: 32px; }
+        .model-setup-footer { align-items: stretch; flex-direction: column; }
       }
 
       .source-dialog::backdrop {
@@ -1406,7 +1443,7 @@
       }
     </style>
   </head>
-  <body>
+  <body class="booting">
     <header class="topbar">
       <div class="brand">
         <div class="brand-mark">CD</div>
@@ -1440,7 +1477,58 @@
       </div>
     </header>
 
-    <main class="ingest-screen" id="ingest-screen">
+    <main class="startup-state" id="startup-state" aria-live="polite">
+      <div class="startup-card">
+        <p id="startup-message">正在读取模型设置…</p>
+        <button class="primary" id="retry-startup" type="button" hidden>重试</button>
+      </div>
+    </main>
+
+    <main class="model-setup-screen" id="model-setup-screen" hidden>
+      <div class="model-setup-heading">
+        <h2>配置模型</h2>
+        <p>完成主模型和扫描页视觉模型设置后即可开始读取。</p>
+      </div>
+      <div class="model-setup-grid">
+        <section class="model-setup-card" data-role="main">
+          <h3>主模型</h3>
+          <label>Base URL<input name="baseUrl" autocomplete="url" placeholder="https://api.example.com/v1" /></label>
+          <label>模型协议<select name="protocol"><option value="openai-completions">OpenAI 兼容</option><option value="anthropic-messages">Anthropic Messages</option><option value="google-generative-ai">Google Gemini API</option></select></label>
+          <div class="model-protocol-row">
+            <label>Model ID<input name="modelId" list="setup-main-models" autocomplete="off" placeholder="输入或加载模型 ID" /></label>
+            <button class="load-models" type="button">加载模型</button>
+          </div>
+          <datalist id="setup-main-models"></datalist>
+          <span class="model-load-status" aria-live="polite"></span>
+          <label>API Key<input name="apiKey" type="password" autocomplete="new-password" placeholder="留空保留已保存的 Key" /></label>
+          <label class="clear-key-option"><span><input name="clearApiKey" type="checkbox" /> 清除已保存的 Key</span></label>
+          <span class="model-setup-role-status" aria-live="polite">尚未配置</span>
+          <button class="primary save-profile" type="button">保存主模型</button>
+        </section>
+        <section class="model-setup-card" data-role="vision">
+          <h3>扫描页视觉模型</h3>
+          <label>Base URL<input name="baseUrl" autocomplete="url" placeholder="https://generativelanguage.googleapis.com/v1beta" /></label>
+          <label>模型协议<select name="protocol"><option value="openai-completions">OpenAI 兼容</option><option value="anthropic-messages">Anthropic Messages</option><option value="google-generative-ai">Google Gemini API</option></select></label>
+          <div class="model-protocol-row">
+            <label>Model ID<input name="modelId" list="setup-vision-models" autocomplete="off" placeholder="输入或加载模型 ID" /></label>
+            <button class="load-models" type="button">加载模型</button>
+          </div>
+          <datalist id="setup-vision-models"></datalist>
+          <span class="model-load-status" aria-live="polite"></span>
+          <label>API Key<input name="apiKey" type="password" autocomplete="new-password" placeholder="留空保留已保存的 Key" /></label>
+          <label class="clear-key-option"><span><input name="clearApiKey" type="checkbox" /> 清除已保存的 Key</span></label>
+          <span class="model-setup-role-status" aria-live="polite">尚未配置</span>
+          <button class="primary save-profile" type="button">保存视觉模型</button>
+        </section>
+      </div>
+      <p class="model-setup-status" id="model-setup-status" aria-live="polite"></p>
+      <div class="model-setup-footer">
+        <span>API Key 保存在本机资料库中</span>
+        <button class="primary" id="continue-to-selection" type="button" disabled>进入文档读取</button>
+      </div>
+    </main>
+
+    <main class="ingest-screen" id="ingest-screen" hidden>
       <form class="ingest-form" id="review-form">
         <input class="file-input" id="documents" name="documents" type="file" accept="application/pdf,.pdf" multiple />
         <input class="file-input" id="folders" name="folders" type="file" accept="application/pdf,.pdf" multiple webkitdirectory directory />
@@ -1718,9 +1806,11 @@
         <div class="settings-grid">
           <section class="settings-model" data-role="main">
             <h3>主模型</h3>
-            <label>Provider<input name="provider" autocomplete="off" placeholder="openai" required /></label>
-            <label>Model ID<input name="modelId" autocomplete="off" placeholder="gpt-5-mini" required /></label>
-            <label>API 地址（可选）<input name="baseUrl" autocomplete="url" placeholder="https://…" /></label>
+            <label>Base URL<input name="baseUrl" autocomplete="url" placeholder="https://api.example.com/v1" /></label>
+            <label>模型协议<select name="protocol"><option value="openai-completions">OpenAI 兼容</option><option value="anthropic-messages">Anthropic Messages</option><option value="google-generative-ai">Google Gemini API</option></select></label>
+            <div class="model-protocol-row"><label>Model ID<input name="modelId" list="settings-main-models" autocomplete="off" placeholder="输入或加载模型 ID" /></label><button class="load-models" type="button">加载模型</button></div>
+            <datalist id="settings-main-models"></datalist>
+            <span class="model-load-status" aria-live="polite"></span>
             <label>API Key<input name="apiKey" type="password" autocomplete="new-password" placeholder="留空则保留已保存的 Key" /></label>
             <label><span><input name="clearApiKey" type="checkbox" /> 清除已保存的 Key</span></label>
             <span class="settings-key-state" aria-live="polite"></span>
@@ -1728,9 +1818,11 @@
           </section>
           <section class="settings-model" data-role="vision">
             <h3>扫描页视觉模型</h3>
-            <label>Provider<input name="provider" autocomplete="off" placeholder="google" required /></label>
-            <label>Model ID<input name="modelId" autocomplete="off" placeholder="gemini-2.5-flash" required /></label>
-            <label>API 地址（可选）<input name="baseUrl" autocomplete="url" placeholder="https://…" /></label>
+            <label>Base URL<input name="baseUrl" autocomplete="url" placeholder="https://generativelanguage.googleapis.com/v1beta" /></label>
+            <label>模型协议<select name="protocol"><option value="openai-completions">OpenAI 兼容</option><option value="anthropic-messages">Anthropic Messages</option><option value="google-generative-ai">Google Gemini API</option></select></label>
+            <div class="model-protocol-row"><label>Model ID<input name="modelId" list="settings-vision-models" autocomplete="off" placeholder="输入或加载模型 ID" /></label><button class="load-models" type="button">加载模型</button></div>
+            <datalist id="settings-vision-models"></datalist>
+            <span class="model-load-status" aria-live="polite"></span>
             <label>API Key<input name="apiKey" type="password" autocomplete="new-password" placeholder="留空则保留已保存的 Key" /></label>
             <label><span><input name="clearApiKey" type="checkbox" /> 清除已保存的 Key</span></label>
             <span class="settings-key-state" aria-live="polite"></span>
@@ -1744,6 +1836,13 @@
 
     <script>
       const form = document.querySelector("#review-form");
+      const startupState = document.querySelector("#startup-state");
+      const startupMessage = document.querySelector("#startup-message");
+      const retryStartup = document.querySelector("#retry-startup");
+      const modelSetupScreen = document.querySelector("#model-setup-screen");
+      const modelSetupStatus = document.querySelector("#model-setup-status");
+      const continueToSelection = document.querySelector("#continue-to-selection");
+      const modelSetupProfiles = { main: null, vision: null };
       const fileInput = document.querySelector("#documents");
       const folderInput = document.querySelector("#folders");
       const dropzone = document.querySelector("#dropzone");
@@ -1855,6 +1954,9 @@
 
       async function openLibrary() {
         document.body.classList.add("library-open");
+        document.body.classList.remove("selection-open", "model-setup-open");
+        document.querySelector("#ingest-screen").hidden = true;
+        modelSetupScreen.hidden = true;
         libraryScreen.hidden = false;
         libraryList.innerHTML = '<div class="library-empty">正在读取资料库…</div>';
         try {
@@ -1887,21 +1989,103 @@
         }
       }
 
+      async function fetchModelSettings() {
+        const response = await fetch("/api/settings");
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || "设置读取失败。");
+        return data.models ?? {};
+      }
+
+      function profileIsComplete(profile) {
+        if (!profile?.modelId || !profile.apiKeyConfigured) return false;
+        if ((profile.protocol ?? "catalog") === "catalog") return Boolean(profile.provider);
+        return Boolean(profile.protocol && profile.baseUrl);
+      }
+
+      function hasRequiredModels() {
+        return ["main", "vision"].every((role) => profileIsComplete(modelSetupProfiles[role]));
+      }
+
+      function setProfileForm(section, profile) {
+        const protocol = profile?.protocol && profile.protocol !== "catalog" ? profile.protocol : "openai-completions";
+        for (const key of ["baseUrl", "modelId"]) section.querySelector(`[name="${key}"]`).value = profile?.[key] || "";
+        section.querySelector('[name="protocol"]').value = protocol;
+        section.querySelector('[name="apiKey"]').value = "";
+        section.querySelector('[name="clearApiKey"]').checked = false;
+        section.querySelector(".model-load-status").textContent = "";
+        const list = section.querySelector("datalist");
+        if (list) list.replaceChildren();
+      }
+
+      function fillSetupForms(models) {
+        for (const role of ["main", "vision"]) {
+          modelSetupProfiles[role] = models[role] ?? null;
+          setProfileForm(modelSetupScreen.querySelector(`[data-role="${role}"]`), modelSetupProfiles[role]);
+        }
+        updateSetupContinue();
+      }
+
+      function updateSetupContinue() {
+        continueToSelection.disabled = !hasRequiredModels();
+        for (const role of ["main", "vision"]) {
+          const section = modelSetupScreen.querySelector(`[data-role="${role}"]`);
+          const status = section.querySelector(".model-setup-role-status");
+          const ready = profileIsComplete(modelSetupProfiles[role]);
+          status.dataset.ready = String(ready);
+          status.textContent = ready ? "已配置" : "尚未配置完整";
+        }
+      }
+
+      function enterSelection() {
+        if (!hasRequiredModels()) return;
+        startupState.hidden = true;
+        modelSetupScreen.hidden = true;
+        document.querySelector("#ingest-screen").hidden = false;
+        document.body.classList.remove("booting", "model-setup-open", "library-open", "reading-open", "review-open");
+        document.body.classList.add("selection-open");
+      }
+
+      function showModelSetup(models) {
+        fillSetupForms(models);
+        startupState.hidden = true;
+        document.querySelector("#ingest-screen").hidden = true;
+        modelSetupScreen.hidden = false;
+        document.body.classList.remove("booting", "selection-open", "library-open", "reading-open", "review-open");
+        document.body.classList.add("model-setup-open");
+      }
+
+      async function initializeFirstRun() {
+        document.body.classList.add("booting");
+        document.body.classList.remove("selection-open", "model-setup-open", "library-open", "reading-open", "review-open");
+        startupState.hidden = false;
+        startupMessage.textContent = "正在读取模型设置…";
+        retryStartup.hidden = true;
+        modelSetupScreen.hidden = true;
+        document.querySelector("#ingest-screen").hidden = true;
+        try {
+          const models = await fetchModelSettings();
+          if (["main", "vision"].every((role) => profileIsComplete(models[role]))) {
+            fillSetupForms(models);
+            enterSelection();
+          } else showModelSetup(models);
+        } catch (error) {
+          document.body.classList.remove("booting");
+          startupMessage.textContent = error instanceof Error ? error.message : "设置读取失败。";
+          retryStartup.hidden = false;
+        }
+      }
+
       async function openSettings() {
         settingsStatus.textContent = "";
         settingsStatus.classList.remove("error");
         settingsDialog.showModal();
         try {
-          const response = await fetch("/api/settings");
-          const data = await response.json().catch(() => ({}));
-          if (!response.ok) throw new Error(data.error || "设置读取失败。");
+          const models = await fetchModelSettings();
           for (const role of ["main", "vision"]) {
-            const section = settingsDialog.querySelector(`[data-role="${role}"]`);
-            const profile = data.models?.[role];
-            for (const key of ["provider", "modelId", "baseUrl"]) section.querySelector(`[name="${key}"]`).value = profile?.[key] || "";
-            section.querySelector('[name="apiKey"]').value = "";
-            section.querySelector('[name="clearApiKey"]').checked = false;
-            section.querySelector(".settings-key-state").textContent = profile?.apiKeyConfigured ? "API Key 已保存" : "尚未配置 API Key";
+            modelSetupProfiles[role] = models[role] ?? null;
+            setProfileForm(settingsDialog.querySelector(`[data-role="${role}"]`), modelSetupProfiles[role]);
+            const status = settingsDialog.querySelector(`[data-role="${role}"] .settings-key-state`);
+            status.textContent = modelSetupProfiles[role]?.apiKeyConfigured ? "API Key 已保存" : "尚未配置 API Key";
           }
         } catch (error) {
           settingsStatus.textContent = error instanceof Error ? error.message : "设置读取失败。";
@@ -1909,31 +2093,87 @@
         }
       }
 
-      async function saveModelSettings(section) {
+      async function loadModelsForSection(section) {
         const role = section.dataset.role;
         const field = (name) => section.querySelector(`[name="${name}"]`);
+        const button = section.querySelector(".load-models");
+        const status = section.querySelector(".model-load-status");
+        const list = section.querySelector("datalist");
+        status.classList.remove("error");
+        status.textContent = "";
+        if (!field("baseUrl").value.trim() || !field("apiKey").value.trim()) {
+          status.textContent = "请填写 Base URL 和 API Key；也可直接输入 Model ID。";
+          status.classList.add("error");
+          return;
+        }
+        button.disabled = true;
+        status.textContent = "正在加载…";
+        try {
+          const response = await fetch("/api/settings/models/discover", {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ role, protocol: field("protocol").value, baseUrl: field("baseUrl").value.trim(), apiKey: field("apiKey").value }),
+          });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(data.error || "模型列表加载失败。");
+          list.replaceChildren(...(data.models ?? []).map((model) => {
+            const option = document.createElement("option");
+            option.value = model.id;
+            option.label = model.name;
+            return option;
+          }));
+          status.textContent = data.models?.length ? `已加载 ${data.models.length} 个模型；可选择或手动输入。` : "未返回模型，可手动输入 Model ID。";
+        } catch (error) {
+          status.textContent = `${error instanceof Error ? error.message : "模型列表加载失败。"} 可手动输入 Model ID。`;
+          status.classList.add("error");
+        } finally {
+          button.disabled = false;
+        }
+      }
+
+      async function saveModelSettings(section, setup = false) {
+        const role = section.dataset.role;
+        const field = (name) => section.querySelector(`[name="${name}"]`);
+        const profile = modelSetupProfiles[role];
         const payload = {
-          provider: field("provider").value.trim(),
-          modelId: field("modelId").value.trim(),
+          protocol: field("protocol").value,
           baseUrl: field("baseUrl").value.trim(),
+          modelId: field("modelId").value.trim(),
           apiKey: field("apiKey").value,
           clearApiKey: field("clearApiKey").checked,
         };
-        settingsStatus.textContent = "正在保存…";
-        settingsStatus.classList.remove("error");
+        const status = setup ? modelSetupStatus : settingsStatus;
+        status.textContent = "正在保存…";
+        status.classList.remove("error");
+        const button = section.querySelector(setup ? ".save-profile" : ".save-model");
+        button.disabled = true;
         try {
+          if (!payload.modelId) throw new Error("请输入或选择 Model ID。");
+          if (!payload.baseUrl) throw new Error("请输入 Base URL。");
+          if (!payload.apiKey.trim() && !profile?.apiKeyConfigured && !payload.clearApiKey) throw new Error("请填写 API Key。");
           const response = await fetch(`/api/settings/models/${role}`, {
             method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
           });
           const data = await response.json().catch(() => ({}));
           if (!response.ok) throw new Error(data.error || "模型设置保存失败。");
+          modelSetupProfiles[role] = data.model;
           field("apiKey").value = "";
           field("clearApiKey").checked = false;
-          section.querySelector(".settings-key-state").textContent = data.model?.apiKeyConfigured ? "API Key 已保存" : "尚未配置 API Key";
-          settingsStatus.textContent = `${role === "main" ? "主模型" : "视觉模型"}已保存。`;
+          updateSetupContinue();
+          const savedStatus = data.model?.apiKeyConfigured ? `${role === "main" ? "主模型" : "视觉模型"}已保存。` : "设置已保存，但缺少 API Key。";
+          if (setup) status.textContent = savedStatus;
+          else {
+            section.querySelector(".settings-key-state").textContent = data.model?.apiKeyConfigured ? "API Key 已保存" : "尚未配置 API Key";
+            status.textContent = savedStatus;
+            if (!hasRequiredModels()) {
+              settingsDialog.close();
+              showModelSetup({ main: modelSetupProfiles.main, vision: modelSetupProfiles.vision });
+            }
+          }
         } catch (error) {
-          settingsStatus.textContent = error instanceof Error ? error.message : "模型设置保存失败。";
-          settingsStatus.classList.add("error");
+          status.textContent = error instanceof Error ? error.message : "模型设置保存失败。";
+          status.classList.add("error");
+        } finally {
+          button.disabled = false;
         }
       }
 
@@ -2539,6 +2779,11 @@
       document.querySelector("#open-settings").addEventListener("click", openSettings);
       document.querySelector("#close-settings").addEventListener("click", () => settingsDialog.close());
       settingsDialog.querySelectorAll(".save-model").forEach((button) => button.addEventListener("click", () => saveModelSettings(button.closest(".settings-model"))));
+      settingsDialog.querySelectorAll(".load-models").forEach((button) => button.addEventListener("click", () => loadModelsForSection(button.closest(".settings-model"))));
+      modelSetupScreen.querySelectorAll(".load-models").forEach((button) => button.addEventListener("click", () => loadModelsForSection(button.closest(".model-setup-card"))));
+      modelSetupScreen.querySelectorAll(".save-profile").forEach((button) => button.addEventListener("click", () => saveModelSettings(button.closest(".model-setup-card"), true)));
+      continueToSelection.addEventListener("click", enterSelection);
+      retryStartup.addEventListener("click", () => void initializeFirstRun());
       reviewReading.addEventListener("click", runReview);
       backToReading.addEventListener("click", () => {
         document.body.classList.remove("review-open");
@@ -2551,7 +2796,9 @@
       document.querySelector("#open-library").addEventListener("click", openLibrary);
       document.querySelector("#back-to-ingest").addEventListener("click", () => {
         document.body.classList.remove("library-open");
+        document.body.classList.add("selection-open");
         libraryScreen.hidden = true;
+        document.querySelector("#ingest-screen").hidden = false;
       });
       document.querySelector("#choose-files").addEventListener("click", () => fileInput.click());
       document.querySelector("#add-files").addEventListener("click", () => fileInput.click());
@@ -2656,6 +2903,7 @@
       });
 
       resetAll();
+      void initializeFirstRun();
     </script>
   </body>
 </html>
