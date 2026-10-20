@@ -14,6 +14,7 @@ pdf-001 classify pages and normalize native text
                       -> web-001 overview/Q&A UI and library integration
                           -> storage-001 local SQLite index and independent main/vision model profiles
                               -> setup-001 custom model setup and first-run gate
+                                  -> ui-001 header navigation and unified visual system
                                   -> e2e-001 PDF acceptance
                                   -> review-001 optional consistency-review skill
 ```
@@ -33,6 +34,7 @@ The scan-reading engine is Pi vision, as selected by the user. Task paths may ov
 | `web-001` | Web integration | Start reading after selection, show overview and cited follow-up Q&A, and archive source/Markdown | `agent-001`, `agent-002` | done |
 | `storage-001` | Local storage and models | Add SQLite library/config storage and separate main chat from scan vision model | `agent-001`, `web-001` | done |
 | `setup-001` | Model setup | Configure custom Base URL, protocol, model discovery, SQLite persistence, and first-run gate | `storage-001`, `web-001` | done |
+| `ui-001` | Web UI | Replace the header case strip with upload/library/configuration tabs, drop the model-setup startup gate, and unify the visual system | `web-001`, `setup-001` | done |
 | `e2e-001` | PDF acceptance | Verify native, scanned, and mixed PDFs through actual UI, Pi loop, loaders, SQLite-backed library, overview, and citations | `pdf-001`, `pdf-002`, `skill-001`, `agent-001`, `agent-002`, `web-001`, `storage-001` | pending |
 | `review-001` | Optional review | Expose existing comparison/report tools only when requested | `agent-001`, `web-001` | pending |
 
@@ -44,5 +46,5 @@ Select a native PDF, a scan, or a mixed PDF. CrossDoc classifies each page, extr
 
 - [PDF reading design](../modules/pdf-reading.md)
 - [Agent-first reading analysis](./analysis/agent-first-reading.md)
-- Tasks: [`pdf-001`](./tasks/pdf-001-page-classification.md), [`ingest-001`](./tasks/ingest-001-line-blocks.md), [`pdf-002`](./tasks/pdf-002-scan-ocr.md), [`skill-001`](./tasks/skill-001-overview-qa.md), [`agent-001`](./tasks/agent-001-dynamic-loop.md), [`agent-002`](./tasks/agent-002-parallel-reading.md), [`web-001`](./tasks/web-001-agent-entry.md), [`storage-001`](./tasks/storage-001-local-db-and-model-roles.md), [`setup-001`](./tasks/setup-001-custom-model-setup.md), [`e2e-001`](./tasks/e2e-001-reading-flow.md), [`review-001`](./tasks/review-001-optional-review.md)
+- Tasks: [`pdf-001`](./tasks/pdf-001-page-classification.md), [`ingest-001`](./tasks/ingest-001-line-blocks.md), [`pdf-002`](./tasks/pdf-002-scan-ocr.md), [`skill-001`](./tasks/skill-001-overview-qa.md), [`agent-001`](./tasks/agent-001-dynamic-loop.md), [`agent-002`](./tasks/agent-002-parallel-reading.md), [`web-001`](./tasks/web-001-agent-entry.md), [`storage-001`](./tasks/storage-001-local-db-and-model-roles.md), [`setup-001`](./tasks/setup-001-custom-model-setup.md), [`ui-001`](./tasks/ui-001-navigation-and-visual-hierarchy.md), [`e2e-001`](./tasks/e2e-001-reading-flow.md), [`review-001`](./tasks/review-001-optional-review.md)
 - [Backlog](./backlog.md)

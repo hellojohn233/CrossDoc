@@ -482,8 +482,10 @@ async function main() {
     assert.match(clientSource, /readDocuments\.filter\(\(item\) => item\.state === "ready"\)/, "citation links must be limited to ready, archived documents");
     assert.match(clientSource, /!Number\.isSafeInteger\(source\.pages\) \|\| pageNumber > source\.pages/, "citation links must reject unknown page counts and numbers outside the archived PDF");
     assert.match(clientSource, /function profileIsComplete\(profile\)[\s\S]*?profile\.provider && \(profile\.apiKeyConfigured \|\| profile\.authAvailable\)[\s\S]*?profile\.protocol && profile\.baseUrl && profile\.apiKeyConfigured/, "legacy catalog profiles accept a saved or ambient credential, while custom profiles require a saved key");
-    assert.match(clientSource, /if \(\["main", "vision"\]\.every\(\(role\) => profileIsComplete\(models\[role\]\)\)\)/, "complete saved profiles skip setup on app entry");
-    assert.match(clientSource, /else showModelSetup\(models\)/, "any incomplete saved profile opens the setup gate before selection");
+    assert.match(clientSource, /fillSetupForms\(models\);\s*setView\("selection"\);/, "app entry always opens the upload view; model configuration is not a startup gate");
+    assert.doesNotMatch(clientSource, /if \(\["main", "vision"\]\.every\(\(role\) => profileIsComplete\(models\[role\]\)\)\)/, "saved profile completeness must not gate app entry");
+    assert.doesNotMatch(clientSource, /model-warning|id="model-warning"/, "the selection view stays free of an extra model-configuration notice; the header tab is the only entry point");
+    assert.match(clientSource, /data-view="selection"[\s\S]*?data-view="library"[\s\S]*?data-view="models"/, "the header exposes upload / library / model configuration as switchable views");
     assert.match(clientSource, /placeholder="输入或加载模型 ID"/, "model ID remains editable for manual entry if discovery fails");
 
     const cancelledResponse = await postPdf(`${baseUrl}/api/read`, "cancel.pdf", pdfBytes("Cancel source"));

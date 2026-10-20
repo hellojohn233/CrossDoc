@@ -5,21 +5,21 @@ Status: Implementation contract
 ## Design Principles
 
 - Preserve CrossDoc's warm paper, grid, dark header, and blue action style.
-- Keep the start state quiet: one large file area, selected file tree, and a Library entry. Do not show document contents from the Library on the start page.
+- Keep the start state quiet: one large file area, selected file tree, and header navigation. Do not show document contents from the Library on the start page.
 - Reading is the primary path. Consistency review remains a separate optional action.
 - Keep each selected PDF visible in the reading state with its own progress and outcome.
 - Every answer citation is a real page link to the archived source PDF.
 
 ## Overall Structure
 
-The page has four states: first-run model setup, selection, reading, and Library. If either the main or vision model is incomplete, the app opens model setup before selection. Once both profiles are complete in SQLite, later visits skip setup and open selection directly. Starting a read replaces the selection view with the reading view. The Library remains reachable from the header. Returning to selection is explicit; it does not discard files already archived.
+The page has four states: selection, reading, the Library, and the review console. Model configuration is a fifth, peer view reachable from the header; it never gates entry, so the app always opens on selection. If the main model is incomplete, selection shows a non-blocking notice that links to the configuration view. Starting a read replaces the selection view with the reading view. The Library and the configuration view stay reachable from the header at any time. Returning to selection is explicit; it does not discard files already archived.
 
 ## Page-Level Layout
 
 ```text
 Selection
 ┌───────────────────────────────────────────────────────┐
-│ CrossDoc                                      ▤ 资料库 │
+│ CrossDoc   [上传][资料库][模型配置]                     │
 ├───────────────────────────────────────────────────────┤
 │                                                       │
 │                 拖放文件或文件夹                       │
@@ -30,7 +30,7 @@ Selection
 
 Reading
 ┌───────────────────────────────────────────────────────┐
-│ CrossDoc    当前阅读                         ▤ 资料库 │
+│ CrossDoc   [上传][资料库][模型配置]   当前阅读  [返回] │
 ├────────────────────────┬──────────────────────────────┤
 │ 已选文件                │ 概述                         │
 │ ● 合同.pdf  已完成       │ Agent 的简短概述及页码引用    │
@@ -42,7 +42,10 @@ Reading
 
 Library
 ┌───────────────────────────────────────────────────────┐
-│ 资料库                                  返回开始读取   │
+│ CrossDoc   [上传][资料库][模型配置]                     │
+├───────────────────────────────────────────────────────┤
+│ 资料库                                                 │
+│ 源文件与转换后的 Markdown                              │
 ├───────────────────────────────────────────────────────┤
 │ 已归档源文件和 Markdown 的列表                         │
 └───────────────────────────────────────────────────────┘
@@ -95,7 +98,8 @@ The agent marks sources using `[[cite:<document-id>:<page-number>]]`. The client
 | Citation link | Overview or answer | Opens the archived PDF at the cited page in a new tab. |
 | `取消读取` | Active read | Cancels the active Pi Agent run and preserves already archived documents. |
 | `返回选择文件` | Reading | Leaves the session view and returns to file selection; the Library remains unchanged. |
-| `资料库` | Header | Opens the existing Library list. |
+| `上传` / `资料库` / `模型配置` | Header tabs | Switches between the selection, Library, and model configuration views; the active tab carries `aria-current="page"`. |
+| `返回阅读` | Review console | Returns to the reading view of the active session and re-attaches the event stream. |
 
 ## State Variants
 
@@ -120,7 +124,7 @@ At desktop widths, keep the source list at approximately 300px and let the readi
 App
 ├── Header
 │   ├── Brand
-│   └── LibraryEntry
+│   └── TopNav (上传 / 资料库 / 模型配置)
 ├── SelectionView
 │   ├── FilePicker
 │   ├── FolderPicker
@@ -133,12 +137,15 @@ App
 │       ├── Overview
 │       ├── AnswerTurns
 │       └── QuestionComposer
-└── LibraryView
+├── LibraryView
+├── ModelSetupView
+└── ReviewConsole
 ```
 
 ## Page Entry Points
 
 - Selection and Reading share `/` and switch state client-side.
-- Library opens through the existing header entry and `/api/library`.
+- Library opens through the `资料库` header tab and `/api/library`.
+- Model configuration opens through the `模型配置` header tab.
 - Source citations use `/api/library/:id/source#page=:page`.
 - Agent session operations use `/api/read` and `/api/read/:sessionId/*`.
