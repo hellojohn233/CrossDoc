@@ -49,7 +49,13 @@ npm install
 npm run dev -- review "./examples/docs/*.pdf"
 ```
 
-命令行会在 `crossdoc-output/` 保存 `review.json`、`review.md`，并在 `documents/` 下保存每份文档的结构化 JSON 和带来源脚注的 Markdown。
+命令行会在 `crossdoc-output/` 保存 `review.json`、`review.md`,并在 `documents/` 下保存每份文档的结构化 JSON 和带来源脚注的 Markdown。
+
+`examples/docs/` 里是三份可重建的示例合同(两份修订版 + 一份含相同样板条款的合同),用来演示文档转换和一致性审查。重新生成:
+
+```bash
+npm run examples:generate
+```
 
 构建：
 
@@ -103,6 +109,7 @@ CrossDoc/
 │   │   └── types.ts
 │   ├── loaders/
 │   │   ├── index.ts
+│   │   ├── pdf-line-blocks.ts
 │   │   ├── pdf.ts
 │   │   └── types.ts
 │   ├── markdown/
@@ -125,14 +132,15 @@ CrossDoc/
 
 当前的数据流程：
 
-- `loaders/` 按文件格式读取内容并转换成 `core/` 定义的统一结构；目前接入 PDF。
-- PDF 内容块记录页码、文字和坐标，抽取的 claim 会指回这些来源块。
-- `markdown/` 分别生成单文档转换 Markdown 和最终审查报告。
+- `loaders/` 按文件格式读取内容并转换成 `core/` 定义的统一结构;目前接入 PDF。
+- PDF 内容块以**行**为单位,记录页码、文字和坐标,抽取的 claim 会指回这些来源块。
+- 扫描页的视觉转写同样按行拆块,但保留页级定位,不伪造行坐标。
+- `markdown/` 分别生成单文档转换 Markdown 和最终审查报告;来源脚注按来源位置去重,原生行各自一条,扫描页一页一条。
 - `storage/` 在展示报告前保存 JSON 和 Markdown。
-- PDF 扫描页由配置的 Pi 视觉模型读取；Word 和 Excel 解析器还未接入。
-- Claim 抽取是确定性的，并且刻意保守。
+- PDF 扫描页由配置的 Pi 视觉模型读取;Word 和 Excel 解析器还未接入。
+- Claim 抽取是确定性的,并且刻意保守。
 - 比较与验证目前是基于规则的占位实现。
-- Pi 接入仍隔离在 `src/agent.ts`，格式解析和报告生成不依赖 Pi。
+- Pi 接入仍隔离在 `src/agent.ts`,格式解析和报告生成不依赖 Pi。
 
 Web 阅读入口、request-scoped Pi Agent、自动概述和引用来源页的后续提问已接通。后续可以在同一 source-location 契约下增加 DOCX、XLSX 与图片加载器。
 

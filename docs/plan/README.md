@@ -6,15 +6,16 @@ This plan first completes one user-visible PDF reading slice: text-native and sc
 
 ```text
 pdf-001 classify pages and normalize native text
-  -> pdf-002 render scans and read with Pi vision
-      -> skill-001 overview and grounded Q&A
-          -> agent-001 task-directed Pi loop and scoped tools
-              -> agent-002 bounded concurrent PDF reading
-                  -> web-001 overview/Q&A UI and library integration
-                      -> storage-001 local SQLite index and independent main/vision model profiles
-                          -> setup-001 custom model setup and first-run gate
-                              -> e2e-001 PDF acceptance
-                              -> review-001 optional consistency-review skill
+  -> ingest-001 line-level blocks and source-aware Markdown
+      -> pdf-002 render scans and read with Pi vision
+          -> skill-001 overview and grounded Q&A
+              -> agent-001 task-directed Pi loop and scoped tools
+                  -> agent-002 bounded concurrent PDF reading
+                      -> web-001 overview/Q&A UI and library integration
+                          -> storage-001 local SQLite index and independent main/vision model profiles
+                              -> setup-001 custom model setup and first-run gate
+                                  -> e2e-001 PDF acceptance
+                                  -> review-001 optional consistency-review skill
 ```
 
 The scan-reading engine is Pi vision, as selected by the user. Task paths may overlap; work serially unless an isolated worktree is deliberately used. Current task status is listed below.
@@ -24,6 +25,7 @@ The scan-reading engine is Pi vision, as selected by the user. Task paths may ov
 | ID | Scope | Objective | Depends on | Status |
 |---|---|---|---|---|
 | `pdf-001` | PDF ingestion | Classify pages as text-native, scan, or blank/unknown; preserve native text blocks and PDF locations | — | done |
+| `ingest-001` | Block granularity | Group native text items and vision transcripts into line-level blocks; key Markdown source notes by source position | `pdf-001` | done |
 | `pdf-002` | Scan reading | Render scanned pages, read them with Pi vision, save page-level text blocks, and emit page warnings | `pdf-001` | done |
 | `skill-001` | Overview and Q&A | Add a concise document-overview skill and source-grounded follow-up retrieval behavior | `pdf-001`, `pdf-002` | done |
 | `agent-001` | Pi orchestration | Make Pi task-directed; expose scoped inspect, skill, parse, and search tools; keep review optional | `pdf-001`, `pdf-002`, `skill-001` | done |
@@ -42,5 +44,5 @@ Select a native PDF, a scan, or a mixed PDF. CrossDoc classifies each page, extr
 
 - [PDF reading design](../modules/pdf-reading.md)
 - [Agent-first reading analysis](./analysis/agent-first-reading.md)
-- Tasks: [`pdf-001`](./tasks/pdf-001-page-classification.md), [`pdf-002`](./tasks/pdf-002-scan-ocr.md), [`skill-001`](./tasks/skill-001-overview-qa.md), [`agent-001`](./tasks/agent-001-dynamic-loop.md), [`agent-002`](./tasks/agent-002-parallel-reading.md), [`web-001`](./tasks/web-001-agent-entry.md), [`storage-001`](./tasks/storage-001-local-db-and-model-roles.md), [`setup-001`](./tasks/setup-001-custom-model-setup.md), [`e2e-001`](./tasks/e2e-001-reading-flow.md), [`review-001`](./tasks/review-001-optional-review.md)
+- Tasks: [`pdf-001`](./tasks/pdf-001-page-classification.md), [`ingest-001`](./tasks/ingest-001-line-blocks.md), [`pdf-002`](./tasks/pdf-002-scan-ocr.md), [`skill-001`](./tasks/skill-001-overview-qa.md), [`agent-001`](./tasks/agent-001-dynamic-loop.md), [`agent-002`](./tasks/agent-002-parallel-reading.md), [`web-001`](./tasks/web-001-agent-entry.md), [`storage-001`](./tasks/storage-001-local-db-and-model-roles.md), [`setup-001`](./tasks/setup-001-custom-model-setup.md), [`e2e-001`](./tasks/e2e-001-reading-flow.md), [`review-001`](./tasks/review-001-optional-review.md)
 - [Backlog](./backlog.md)

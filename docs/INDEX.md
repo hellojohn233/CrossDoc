@@ -1,7 +1,7 @@
 # Documentation Index
 
 - [Architecture](./architecture.md): Pi boundary, agent-directed document flow, provenance, SQLite storage, separate model roles, and bounded concurrent parsing.
-- [PDF reading design](./modules/pdf-reading.md): text-native and scanned pages, OCR options, overview, Q&A, and citations.
+- [PDF reading design](./modules/pdf-reading.md): text-native and scanned pages, line-level blocks, source notes per source position, OCR options, overview, Q&A, and citations.
 - [Web reading surface](./modules/web-reading.md): implemented selection, replayable reading progress, overview/Q&A, Library, cancellation, and citation links.
 - [Local storage and model configuration](./modules/local-storage-and-models.md): SQLite library index, structured artifacts, and separate main/vision model roles.
 - [Model setup layout](./modules/model-setup-layout.md): custom endpoint setup, model discovery, and first-run navigation.

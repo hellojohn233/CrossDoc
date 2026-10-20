@@ -168,10 +168,15 @@ async function main() {
   assert.equal(usedTools.some((name) => name === "compare_claims" || name === "verify_conflicts" || name === "report_conflicts"), false);
   assert.equal(savedUpdates.length, 2, "one vision tool invocation must persist the recognized transcript through the archive callback");
   const saved = savedUpdates.at(-1).document;
-  assert.deepEqual(saved.blocks.map((block) => block.id), ["opaque-pdf-id:p1:b1", "opaque-pdf-id:p1:vision"]);
+  assert.deepEqual(saved.blocks.map((block) => block.id), ["opaque-pdf-id:p1:b1", "opaque-pdf-id:p1:vision:L1"]);
   assert.deepEqual(saved.blocks[0].source.bbox, [25, 600, 98, 612], "native block coordinates must be retained");
   assert.equal(saved.blocks[1].source.page, 1);
-  assert.equal(saved.blocks[1].text, visionTranscript, "the scan tool stores the exact vision response without main-model relay or trimming");
+  const savedVisionBlocks = saved.blocks.filter((block) => block.id.includes(":vision:"));
+  assert.equal(
+    savedVisionBlocks.map((block) => block.text).join("\n"),
+    visionTranscript.trimEnd(),
+    "the scan tool stores the exact vision response without main-model relay or trimming",
+  );
   assert.equal(saved.pages[0].extractionMethod, "vision-text");
   assert.match(saved.pages[0].text, /表格编号 A-19[\s\S]*扫描页识别出的合同条款/);
   assert.match(saved.text, /表格编号 A-19[\s\S]*扫描页识别出的合同条款/);
@@ -181,7 +186,7 @@ async function main() {
   assert.match(agent.state.messages.map((item) => JSON.stringify(item)).join("\n"), /Saved page 1 text/);
   const archivedJson = JSON.parse(await readFile(join(libraryDirectory, selectedSource.id, "document.json"), "utf8"));
   const archivedMarkdown = await readFile(join(libraryDirectory, selectedSource.id, "document.md"), "utf8");
-  assert.equal(archivedJson.blocks.find((block) => block.id.endsWith(":vision")).text, visionTranscript);
+  assert.equal(archivedJson.blocks.find((block) => block.id.includes(":vision:"))?.text, visionTranscript.trimEnd());
   assert.match(archivedMarkdown, /扫描页识别出的合同条款/);
   assert.ok(savedUpdates.at(-1).entry.documentJsonPath?.endsWith("document.json"));
 
@@ -193,7 +198,7 @@ async function main() {
   const nativeEvidence = await scopedSearch.execute("search-native", { query: "表格编号", documentIds: [selectedSource.id] });
   const visionEvidence = await scopedSearch.execute("search-vision", { query: "合同条款", documentIds: [selectedSource.id] });
   assert.equal(nativeEvidence.structuredContent.excerpts[0].source.blockId, "opaque-pdf-id:p1:b1");
-  assert.equal(visionEvidence.structuredContent.excerpts[0].source.blockId, "opaque-pdf-id:p1:vision");
+  assert.equal(visionEvidence.structuredContent.excerpts[0].source.blockId, "opaque-pdf-id:p1:vision:L1");
   scanDatabase.close();
   await rm(storageRoot, { recursive: true, force: true });
 

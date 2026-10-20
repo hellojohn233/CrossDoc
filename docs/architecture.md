@@ -65,6 +65,8 @@ Local library and model configuration are specified in [local storage and model 
 
 - A document has a stable ID, format, pages, full text, positioned blocks, Markdown, and warnings. PDF page/block metadata records whether text came from the native text layer or OCR.
 - Each block retains a source location. PDF locations include page number and PDF coordinates; future DOCX, XLSX, and image loaders add format-appropriate locations.
+- A block is a line, not a word. The PDF loader groups the text items that share a baseline into one line-level block whose box is the union of the grouped item boxes, and each block is a contiguous slice of the page text. Vision-read pages use the same granularity over the model's own transcript lines, but keep page-level locations because a model response carries no coordinates.
+- Markdown source notes are keyed by source position, so a text-native line gets its own note and a scanned page is cited once instead of once per line.
 - `parse_document` gives the model source-aware Markdown within an 80,000-character per-read-turn budget divided evenly across selected documents. Request-scoped `ParsedDocument` values remain complete, and lexical search uses their full content. Saving a scan page returns its text and citation in the current tool result.
 - Claims, answers, and findings must cite source block IDs and locations when making document-grounded statements.
 - Local filesystem paths stay in the server/storage boundary and are not included in normalized document data.

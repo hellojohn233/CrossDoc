@@ -17,8 +17,12 @@
     "verify:agent-parallel": "tsx scripts/verify-agent-parallel.mjs",
     "verify:web-read": "tsx scripts/verify-web-read.mjs",
     "verify:pdf-page-render": "tsx scripts/verify-pdf-page-render.mjs",
+    "verify:pdf-vector-classification": "tsx scripts/verify-pdf-vector-classification.mjs",
     "verify:document-search": "tsx scripts/verify-document-search.mjs",
-    "verify:storage": "tsx scripts/verify-storage.mjs"
+    "verify:document-ingest": "tsx scripts/verify-document-ingest.mjs",
+    "verify:scan-page-blocks": "tsx scripts/verify-scan-page-blocks.mjs",
+    "verify:storage": "tsx scripts/verify-storage.mjs",
+    "examples:generate": "tsx scripts/generate-examples.mjs"
   },
   "keywords": [
     "document-review",

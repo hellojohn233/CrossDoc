@@ -51,6 +51,12 @@ npm run dev -- review "./examples/docs/*.pdf"
 
 The CLI writes `review.json` and `review.md` under `crossdoc-output/`, plus structured JSON and source-footnoted Markdown for each document under `documents/`.
 
+`examples/docs/` holds three rebuildable sample contracts (two revisions plus one that repeats the same boilerplate clause) for demonstrating document conversion and consistency review. Regenerate them with:
+
+```bash
+npm run examples:generate
+```
+
 Build:
 
 ```bash
@@ -103,6 +109,7 @@ CrossDoc/
 │   │   └── types.ts
 │   ├── loaders/
 │   │   ├── index.ts
+│   │   ├── pdf-line-blocks.ts
 │   │   ├── pdf.ts
 │   │   └── types.ts
 │   ├── markdown/
@@ -126,8 +133,9 @@ CrossDoc/
 Current data flow:
 
 - `loaders/` reads each format into the shared structure defined in `core/`; PDF is connected first.
-- PDF text blocks keep page coordinates, and extracted claims point back to those source blocks.
-- `markdown/` renders per-document Markdown and the final review report separately.
+- PDF text blocks are **line**-level: they keep page coordinates, and extracted claims point back to those source blocks.
+- A scanned page's vision transcript is split into line blocks as well, but keeps page-level location and never claims a line box.
+- `markdown/` renders per-document Markdown and the final review report separately; source notes are keyed by source position, so a native line gets its own note and a scanned page is cited once.
 - `storage/` writes JSON and Markdown before the UI presents the results.
 - Scanned PDF pages are read by the configured Pi vision model; DOCX/XLSX loaders are not connected yet.
 - Claim extraction is deterministic and intentionally conservative.

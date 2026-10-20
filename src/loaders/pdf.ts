@@ -6,6 +6,7 @@ import { extractTextItems, getDocumentProxy } from "unpdf";
 
 import type { DocumentBlock, ParsedDocument, ParsedPage, PdfSourceLocation } from "../core/claims.js";
 import { renderDocumentMarkdown } from "../markdown/document.js";
+import { buildPageText } from "./pdf-line-blocks.js";
 import type { DocumentLoader, ParseDocumentOptions } from "./types.js";
 
 const MIN_NATIVE_TEXT_CHARACTERS = 8;
@@ -67,6 +68,7 @@ export const pdfLoader: DocumentLoader = {
     const { items } = await extractTextItems(pdf);
     const pages: ParsedPage[] = [];
     const blocks: DocumentBlock[] = [];
+    const documentId = options.id ?? makeDocumentId(path);
 
     for (const [pageIndex, pageItems] of items.entries()) {
       const pageNumber = pageIndex + 1;
@@ -78,61 +80,47 @@ export const pdfLoader: DocumentLoader = {
         view[2] ?? 0,
         view[3] ?? 0,
       ];
-      let pageText = "";
+      const pageText = buildPageText(pageItems);
       const pageBlocks: DocumentBlock[] = [];
       let textArea = 0;
 
-      for (const [itemIndex, item] of pageItems.entries()) {
-        const start = pageText.length;
-        pageText += item.str;
-        const end = pageText.length;
-        const left = Math.min(item.x, item.x + item.width);
-        const bottom = Math.min(item.y, item.y + item.height);
-        const right = Math.max(item.x, item.x + item.width);
-        const top = Math.max(item.y, item.y + item.height);
-        if (item.str.trim().length > 0) {
-          textArea += Math.max(0, right - left) * Math.max(0, top - bottom);
-        }
+      for (const [lineIndex, line] of pageText.lines.entries()) {
         const source: PdfSourceLocation = {
           type: "pdf",
           page: pageNumber,
-          bbox: [left, bottom, right, top],
+          bbox: line.bbox,
           pageBounds,
         };
-
-        if (item.str.length > 0) {
-          const block: DocumentBlock = {
-            id: `${options.id ?? makeDocumentId(path)}:p${pageNumber}:b${itemIndex + 1}`,
-            kind: "text",
-            text: item.str,
-            source,
-            start,
-            end,
-          };
-          pageBlocks.push(block);
-          blocks.push(block);
-        }
-
-        if (item.hasEOL) pageText += "\n";
+        const block: DocumentBlock = {
+          id: `${documentId}:p${pageNumber}:b${lineIndex + 1}`,
+          kind: "text",
+          text: line.text,
+          source,
+          start: line.start,
+          end: line.end,
+        };
+        pageBlocks.push(block);
+        blocks.push(block);
+        textArea += Math.max(0, line.bbox[2] - line.bbox[0]) * Math.max(0, line.bbox[3] - line.bbox[1]);
       }
 
       const pageArea = Math.max(0, pageBounds[2] - pageBounds[0]) * Math.max(0, pageBounds[3] - pageBounds[1]);
       const textAreaRatio = pageArea > 0 ? textArea / pageArea : 0;
-      const meaningfulText = hasMeaningfulText(pageText, textAreaRatio);
+      const meaningfulText = hasMeaningfulText(pageText.text, textAreaRatio);
       let classification: PdfPageClassification;
       if (meaningfulText) {
         classification = "text-native";
       } else {
         const operatorList = await pageProxy.getOperatorList();
         classification = classifyPage(
-          pageText,
+          pageText.text,
           textAreaRatio,
           hasVisiblePageContent(operatorList.fnArray, operatorList.argsArray),
         );
       }
       pages.push({
         page: pageNumber,
-        text: pageText,
+        text: pageText.text,
         blocks: pageBlocks,
         pageBounds,
         classification,
@@ -145,7 +133,7 @@ export const pdfLoader: DocumentLoader = {
       .filter((page) => page.classification === "scan-candidate")
       .map((page) => `Page ${page.page} contains visual content without meaningful selectable text and needs vision reading.`);
     const document: Omit<ParsedDocument, "markdown"> = {
-      id: options.id ?? makeDocumentId(path),
+      id: documentId,
       title: options.title ?? basename(path),
       format: "pdf",
       pages,

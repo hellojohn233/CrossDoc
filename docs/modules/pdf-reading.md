@@ -10,13 +10,17 @@ Classification happens per page, not per file:
 
 | Page class | Signal | Processing | Provenance |
 |---|---|---|---|
-| Text-native | PDF.js finds a meaningful amount of selectable text | Extract text items in reading order | Existing PDF-space text item bounding boxes |
+| Text-native | PDF.js finds a meaningful amount of selectable text | Group text items into line-level blocks | Union of the line's PDF-space text item bounding boxes |
 | Scan | Page has no or too little meaningful selectable text, but has visible page content | Render page to an image and ask Pi vision to read it | Page-level source location |
 | Blank/unknown | No meaningful text and no vision-recognized content | Preserve an empty page and emit a warning only when appropriate | Page number; no fabricated block location |
 
 The first implementation classifies a page as text-native when it has at least 8 non-whitespace characters or the combined non-empty text item bounding-box area is at least 0.1% of the visible page area. If it falls below both thresholds, PDF paint/image operators determine whether it is a scan candidate; a page without those signals is blank/unknown. Record the per-page classification and extraction method on the parsed page so later overview and Q&A steps can disclose vision-read content. A mixed PDF can therefore use both paths without special handling by the user.
 
+**Block granularity.** A page is stored as line-level blocks, never one block per PDF.js text item. PDF.js reports one item per positioned run, which is a single word for many producers; one block per item yields a footnote per word and a Markdown artifact whose words are cut in half (`t[^src-39]\nhirty[^src-40]`). `src/loaders/pdf-line-blocks.ts` groups the items that share a text baseline into one line, so each block is one visual line whose box is the union of the grouped item boxes, and each block is a contiguous slice of the page text. Block identifiers are `<document-id>:p<page>:b<line-index+1>`. The classification area threshold still measures per item, because that signal describes the page rather than the block.
+
 Native text blocks retain PDF-space bounding boxes. A scan-candidate page can still contain sparse selectable text, so the vision transcript is appended as a separate page-level block without replacing its existing text or blocks. Vision blocks use stable IDs and page bounds; do not invent word/line boxes from a model response. Identical save retries reuse the existing vision block and do not append duplicate text.
+
+Vision text has no coordinates, so a vision block is one line of the model's own transcript: the transcript is split on its line breaks and each line becomes a block that points at the page rectangle. A scanned page is therefore cited once, not once per line, and its source note reads `page N` without a bounding box. The page also states how it was read, so the artifact never hides that the text came from a model: `> This page was read by the vision model; citations are page-level.`
 
 ## Scan Reading with Pi Vision
 
@@ -32,6 +36,7 @@ Use Pi AI's registered built-in providers and the independently configured visio
 
 - Keep the existing page headings and source footnotes.
 - Every extracted native or vision-read block receives a stable block ID and source reference. Vision-read blocks have page-level provenance in the first version.
+- Source notes are keyed by source position, not by block. A text-native line owns its line box and gets its own note; vision-read lines share the page rectangle and are cited once per page.
 - Source notes include the archived document title and a page link to `/api/library/<id>/source#page=<page>`.
 - Store original PDF, normalized `document.md`, and metadata together under `data/library/<document-id>/`.
 - Keep vision/text-layer method and page classification in metadata; avoid cluttering normal body text with parser jargon.

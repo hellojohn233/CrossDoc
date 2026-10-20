@@ -297,6 +297,21 @@ function countCharactersWithinLimit(value: string, limit: number): number {
   return count;
 }
 
+/**
+ * Split a vision transcript into the lines that become page-level blocks.
+ *
+ * Vision text has no coordinates, so a line is only the model's own line
+ * break. Blank lines carry no text and are dropped; trailing spaces are
+ * removed so the stored text stays comparable across retries.
+ */
+export function visionTranscriptLines(transcript: string): string[] {
+  return transcript
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((line) => line.replace(/[ \t]+$/, ""))
+    .filter((line) => line.length > 0);
+}
+
 export function createCrossDocTools(options: CrossDocAgentOptions): AgentTool<any>[] {
   const ids = new Set<string>();
   for (const source of options.documents) {
@@ -338,23 +353,38 @@ export function createCrossDocTools(options: CrossDocAgentOptions): AgentTool<an
     const targetPage = document.pages.find((item) => item.page === page);
     if (!targetPage) throw new Error(`Page ${page} does not exist in ${document.title}.`);
     if (targetPage.classification !== "scan-candidate") throw new Error(`Page ${page} is not classified as a scan candidate.`);
-    const normalizedText = text;
-    if (!normalizedText.trim()) throw new Error("Vision returned no page text. Keep the page warning and report it as unreadable.");
-    const visionBlockId = `${document.id}:p${page}:vision`;
-    const savedVisionBlock = targetPage.blocks.find((block) => block.id === visionBlockId);
-    if (targetPage.extractionMethod === "vision-text") {
-      if (savedVisionBlock?.text !== normalizedText) throw new Error(`Page ${page} already has saved vision text that differs from this retry.`);
+    const lines = visionTranscriptLines(text);
+    if (lines.length === 0) throw new Error("Vision returned no page text. Keep the page warning and report it as unreadable.");
+    const transcript = lines.join("\n");
+    const visionBlockPrefix = `${document.id}:p${page}:vision:`;
+    const savedVisionBlocks = targetPage.blocks.filter((block) => block.id.startsWith(visionBlockPrefix));
+    if (targetPage.extractionMethod === "vision-text" && savedVisionBlocks.length === 0) {
+      throw new Error(`Page ${page} is marked as vision-read but has no stored vision text.`);
+    }
+    if (savedVisionBlocks.length > 0) {
+      const savedTranscript = savedVisionBlocks.map((block) => block.text).join("\n");
+      if (savedTranscript !== transcript) {
+        throw new Error(`Page ${page} already has saved vision text that differs from this retry.`);
+      }
+      targetPage.extractionMethod = "vision-text";
+      document.blocks = document.pages.flatMap((item) => item.blocks);
+      document.text = document.pages.map((item) => item.text).join("\n\n");
+      document.markdown = renderDocumentMarkdown(document);
       await persist(documentId);
-      return { documentId, page, blockId: savedVisionBlock.id, characters: [...normalizedText].length, markdownUpdated: true, text: normalizedText };
+      return {
+        documentId,
+        page,
+        blockId: savedVisionBlocks[0]!.id,
+        characters: [...transcript].length,
+        markdownUpdated: true,
+        text: transcript,
+      };
     }
     const pageBounds: [number, number, number, number] =
       targetPage.pageBounds ?? findPdfLocation(document, page)?.pageBounds ?? [0, 0, 0, 0];
-    if (savedVisionBlock && savedVisionBlock.text !== normalizedText) {
-      throw new Error(`Page ${page} already has saved vision text that differs from this retry.`);
-    }
     const existingText = targetPage.text;
     const separator = existingText.length > 0 && !existingText.endsWith("\n") ? "\n" : "";
-    const addedCharacters = countCharactersWithinLimit(`${separator}${normalizedText}`, MAX_DOCUMENT_EXTRACTED_CHARACTERS);
+    const addedCharacters = countCharactersWithinLimit(`${separator}${transcript}`, MAX_DOCUMENT_EXTRACTED_CHARACTERS);
     const documentCharacters = extractedCharactersByDocument.get(documentId) ?? countCharactersWithinLimit(document.text, MAX_DOCUMENT_EXTRACTED_CHARACTERS);
     if (documentCharacters + addedCharacters > MAX_DOCUMENT_EXTRACTED_CHARACTERS) {
       const reason = `Extracted text exceeds the ${MAX_DOCUMENT_EXTRACTED_CHARACTERS.toLocaleString()} character per-document limit; this file was not archived.`;
@@ -373,18 +403,22 @@ export function createCrossDocTools(options: CrossDocAgentOptions): AgentTool<an
       throw new Error(reason);
     }
     const blockStart = existingText.length + separator.length;
-    const block: DocumentBlock = {
-      id: visionBlockId,
-      kind: "text",
-      text: normalizedText,
-      source: { type: "pdf", page, bbox: [...pageBounds], pageBounds } satisfies PdfSourceLocation,
-      start: blockStart,
-      end: blockStart + normalizedText.length,
-    };
-    targetPage.text = savedVisionBlock ? existingText : `${existingText}${separator}${normalizedText}`;
-    targetPage.blocks = savedVisionBlock
-      ? targetPage.blocks.map((item) => item.id === visionBlockId ? block : item)
-      : [...targetPage.blocks, block];
+    let cursor = blockStart;
+    const visionBlocks: DocumentBlock[] = lines.map((line, index) => {
+      if (index > 0) cursor += 1;
+      const block: DocumentBlock = {
+        id: `${visionBlockPrefix}L${index + 1}`,
+        kind: "text",
+        text: line,
+        source: { type: "pdf", page, bbox: [...pageBounds], pageBounds } satisfies PdfSourceLocation,
+        start: cursor,
+        end: cursor + line.length,
+      };
+      cursor += line.length;
+      return block;
+    });
+    targetPage.text = `${existingText}${separator}${transcript}`;
+    targetPage.blocks = [...targetPage.blocks, ...visionBlocks];
     targetPage.extractionMethod = "vision-text";
     document.blocks = document.pages.flatMap((item) => item.blocks);
     document.text = document.pages.map((item) => item.text).join("\n\n");
@@ -393,7 +427,14 @@ export function createCrossDocTools(options: CrossDocAgentOptions): AgentTool<an
     extractedCharactersByDocument.set(documentId, documentCharacters + addedCharacters);
     sessionExtractedCharacters += addedCharacters;
     await persist(documentId);
-    return { documentId, page, blockId: block.id, characters: [...normalizedText].length, markdownUpdated: true, text: normalizedText };
+    return {
+      documentId,
+      page,
+      blockId: visionBlocks[0]!.id,
+      characters: [...transcript].length,
+      markdownUpdated: true,
+      text: transcript,
+    };
   }
 
   const inspect = {
