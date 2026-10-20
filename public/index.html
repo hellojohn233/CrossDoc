@@ -3,6 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/crossdoc-logo.svg" />
     <title>CrossDoc</title>
     <style>
       :root {
@@ -93,16 +94,11 @@
       }
 
       .brand-mark {
-        display: grid;
-        width: 34px;
+        display: block;
+        flex: 0 0 auto;
+        width: 40px;
         height: 34px;
-        place-items: center;
-        border: 1px solid var(--line-dark);
-        border-radius: var(--radius-sm);
-        background: #171411;
-        color: #fff8ea;
-        font-size: 13px;
-        font-weight: 900;
+        object-fit: contain;
       }
 
       .brand h1 {
@@ -1231,7 +1227,7 @@
     <header class="topbar">
       <div class="topbar-inner">
         <div class="brand">
-          <div class="brand-mark">CD</div>
+          <img class="brand-mark" src="/crossdoc-logo.svg" width="40" height="34" alt="" aria-hidden="true" />
           <div>
             <h1>CrossDoc</h1>
             <p>证据一致性审查</p>

@@ -1,10 +1,16 @@
 # CrossDoc
 
+<p align="center">
+  <img src="./public/crossdoc-logo.svg" alt="CrossDoc" width="72" height="62" />
+</p>
+
 [中文](./README.md) | English
 
 CrossDoc — an evidence-grounded document consistency review agent, built on Pi.
 
 CrossDoc is not a Pi demo. Pi is the minimal agent runtime; CrossDoc is the domain system around multi-document consistency review: parse, extract, compare, verify, and report contradictions with evidence.
+
+> What the mark means: the two deep-ink blocks are two documents, the blue bar running across them is the line that **agrees** once the documents are aligned, and the broken amber bar is the line that **conflicts**. The vector source lives in [`public/crossdoc-logo.svg`](./public/crossdoc-logo.svg).
 
 ## Core Idea
 
@@ -69,11 +75,9 @@ After build, the CLI entry is:
 node dist/cli.js review "./examples/docs/*.pdf"
 ```
 
-Configure credentials for the selected Pi AI provider first (the example model uses `GOOGLE_API_KEY`) and set an image input model. Pi Agent creation fails before reading starts if the model setting is absent, the model is missing from Pi AI's built-in catalog, provider credentials are missing, or the model does not support images. See `.env.example` for the configuration shape. Start the Web UI:
+Model profiles are configured in the web UI, not through environment variables. Open the `模型配置` / model configuration tab in the header and set the main model and the scan-page vision model separately; the settings are stored in the local `data/crossdoc.sqlite` together with the API key. Configuration never blocks browsing — you can still enter the app and browse the library — but starting a read needs the main model. The vision model must support image input; the main model may be text-only. This is a single-user local app: the web server binds to `127.0.0.1` only, and the API key is stored as plaintext in that SQLite file. Start the Web UI:
 
 ```bash
-export CROSSDOC_VISION_MODEL=google/gemini-2.5-flash
-export GOOGLE_API_KEY=your-key
 npm run dev:web
 ```
 
@@ -83,7 +87,11 @@ Then open:
 http://localhost:5177
 ```
 
-The Web UI is a local visual entry point: upload PDFs, run the same review pipeline, inspect findings and the Markdown report, and click citations to open the source PDF page. Uploads are staged in `.crossdoc/uploads/`; review JSON and Markdown are kept in `.crossdoc/reviews/`. Successfully reviewed documents are also archived locally in `data/library/<document ID>/` with `source.pdf`, `document.md`, and `metadata.json`. The local data directory is ignored by Git. The start page only shows a library entry point; document listings live on the separate library page.
+The Web UI is the reading surface: upload PDFs, let the Pi Agent parse them by file format, read scanned pages with the vision model, then produce a short overview and answer follow-up questions in the same session. Reading progress is sent as replayable SSE events, and citations open the archived PDF at the cited page. The deterministic consistency review stays available on its own `/api/review` route.
+
+The header is the only navigation entry point, with three tabs: `上传` / `资料库` / `模型配置`. The active tab carries `aria-current="page"`.
+
+Uploads are staged in `.crossdoc/uploads/`; review JSON and Markdown are kept in `.crossdoc/reviews/`. Successfully reviewed documents are also archived locally in `data/library/<document ID>/` with `source.pdf`, `document.md`, and `metadata.json`. The local data directory is ignored by Git. The library tab lists archived documents; the upload tab never previews them.
 
 ## Pi Version Discipline
 
@@ -101,6 +109,9 @@ Compatible baseline:
 ```text
 CrossDoc/
 ├── package.json
+├── public/
+│   ├── crossdoc-logo.svg
+│   └── index.html
 ├── src/
 │   ├── agent.ts
 │   ├── cli.ts
@@ -142,7 +153,7 @@ Current data flow:
 - Comparison and verification are rule-based placeholders.
 - Pi wiring remains isolated in `src/agent.ts`; parsing and report generation do not depend on Pi.
 
-Next step: connect the request-scoped Pi Agent to the Web reading surface, show its automatic overview, and support follow-up questions with source-page citations.
+The request-scoped Pi Agent, the automatic overview, and follow-up questions with source-page citations are connected. Next steps are the DOCX/XLSX loaders and a request-scoped review skill.
 
 ## Acknowledgements
 

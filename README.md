@@ -1,10 +1,16 @@
 # CrossDoc
 
+<p align="center">
+  <img src="./public/crossdoc-logo.svg" alt="CrossDoc" width="72" height="62" />
+</p>
+
 [中文](./README.md) | [English](./README.en.md)
 
 CrossDoc — 一个基于证据的文档一致性审查 Agent，构建在 Pi 之上。
 
 CrossDoc 不是一个 Pi demo。Pi 是最小化的 Agent 运行时；CrossDoc 是围绕多文档一致性审查构建的领域系统：解析、抽取、比较、验证，并用证据报告文档之间的矛盾。
+
+> 标志含义：两个深墨色块代表两份文档，中间贯穿的蓝条代表跨文档对齐后**一致**的那一行，底部断开的琥珀条代表**冲突**的那一行。矢量源在 [`public/crossdoc-logo.svg`](./public/crossdoc-logo.svg)。
 
 ## 核心思想
 
@@ -69,7 +75,7 @@ npm run build
 node dist/cli.js review "./examples/docs/*.pdf"
 ```
 
-首次读取前，在开始页右上角的“设置”中分别配置主模型和扫描页视觉模型。两种模型必须来自 Pi AI 内置目录；视觉模型必须支持图像输入。主模型可以是纯文本模型。API Key、可选的兼容 API 地址和模型选项保存在本机 `data/crossdoc.sqlite`。本项目面向单用户本机使用，Web 服务只绑定到 `127.0.0.1`，API Key 以明文保存在该 SQLite 文件中。
+首次读取前，在顶栏的「模型配置」页分别配置主模型和扫描页视觉模型。配置页不阻塞浏览——不配置也能进站、查看资料库，但开始读取需要主模型可用。两种模型必须来自 Pi AI 内置目录；视觉模型必须支持图像输入。主模型可以是纯文本模型。API Key、可选的兼容 API 地址和模型选项保存在本机 `data/crossdoc.sqlite`。本项目面向单用户本机使用，Web 服务只绑定到 `127.0.0.1`，API Key 以明文保存在该 SQLite 文件中。
 
 ```bash
 npm run dev:web
@@ -83,7 +89,9 @@ http://localhost:5177
 
 Web UI 的主要入口用于阅读：选择 PDF 后由 Pi Agent 按文件格式调用解析工具，扫描页通过视觉模型读取，接着生成简短概述并支持基于同一会话追问。阅读进度通过可重放的 SSE 事件发送，引用可以打开归档 PDF 的对应页。确定性一致性审查仍由独立的 `/api/review` 路由提供。
 
-上传源文件暂存于 `.crossdoc/uploads/`，解析成功后源 PDF、标准化结构化 JSON 和转换 Markdown 归档在本地 `data/library/<资料 ID>/`。SQLite 保存资料索引与两个模型角色的设置，并在启动时幂等导入已有 `metadata.json` 条目。临时上传在读取任务结束后清理。`data/` 已加入 `.gitignore`，不会进入 Git 提交。开始页仅提供资料库入口、设置入口和文件选择，不会预览库内文档。
+顶栏是唯一的导航入口，三个页签分别是「上传」「资料库」「模型配置」；当前页签用 `aria-current="page"` 标记。
+
+上传源文件暂存于 `.crossdoc/uploads/`，解析成功后源 PDF、标准化结构化 JSON 和转换 Markdown 归档在本地 `data/library/<资料 ID>/`。SQLite 保存资料索引与两个模型角色的设置，并在启动时幂等导入已有 `metadata.json` 条目。临时上传在读取任务结束后清理。`data/` 已加入 `.gitignore`，不会进入 Git 提交。资料库页只列出归档文档，不在上传页预览库内文档。
 
 ## Pi 版本纪律
 
@@ -101,6 +109,9 @@ Web UI 的主要入口用于阅读：选择 PDF 后由 Pi Agent 按文件格式�
 ```text
 CrossDoc/
 ├── package.json
+├── public/
+│   ├── crossdoc-logo.svg
+│   └── index.html
 ├── src/
 │   ├── agent.ts
 │   ├── cli.ts
