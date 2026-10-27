@@ -1,0 +1,337 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/svg+xml" href="/crossdoc-logo.svg" />
+    <title>CrossDoc · 冲突清单预览</title>
+    <link rel="stylesheet" href="/styles.css" />
+    <script>
+      // 四套视觉方向，用 ?v=base|a|b|c 切换
+      const variant = new URLSearchParams(location.search).get("v") ?? "base";
+      if (variant !== "base") document.documentElement.dataset.theme = variant;
+    </script>
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand">
+          <img class="brand-mark" src="/crossdoc-logo.svg" width="40" height="34" alt="" aria-hidden="true" />
+          <div>
+            <h1>CrossDoc</h1>
+            <p>证据一致性审查</p>
+          </div>
+        </div>
+        <nav class="top-nav" aria-label="主导航">
+          <button class="nav-tab" type="button" data-view="selection">上传</button>
+          <button class="nav-tab" type="button" data-view="library">资料库</button>
+          <button class="nav-tab" type="button" data-view="models">模型配置</button>
+        </nav>
+        <div class="top-actions">
+          <span class="preview-badge">设计预览 · mock 数据</span>
+        </div>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <div id="ledger-root"></div>
+    </main>
+
+    <div class="preview-toast" id="preview-toast" hidden></div>
+
+    <div class="theme-switch" id="theme-switch">
+      <button type="button" data-variant="base">默认</button>
+      <button type="button" data-variant="a">A 纸质</button>
+      <button type="button" data-variant="b">B 深色</button>
+      <button type="button" data-variant="c">C 极简</button>
+    </div>
+
+    <script type="module">
+      import {
+        buildLedgerModel,
+        mountLedger,
+      } from "/js/conflict-ledger.js";
+
+      /* -------------------------------------------------------------- *
+       * 数据接入层 —— 接真实后端时只改这一行。
+       * 期望的返回体见 public/js/conflict-ledger.js 顶部注释。
+       * -------------------------------------------------------------- */
+
+      // 真实接口：
+      // const fetchReview = async () =>
+      //   (await fetch("/api/review", {
+      //     method: "POST",
+      //     headers: { "content-type": "application/json" },
+      //     body: JSON.stringify({ documentIds }),
+      //   })).json();
+
+      const fetchReview = async () => MOCK_REVIEW;
+
+      const DOC_A = "doc-contract-a";
+      const DOC_B = "doc-contract-b";
+      const DOC_C = "doc-contract-c";
+
+      const claim = (id, documentId, value, quote, page) => ({
+        id,
+        documentId,
+        kind: "fact",
+        subject: documentId,
+        predicate: "fact",
+        value,
+        normalizedValue: value.toLowerCase(),
+        evidence: [
+          {
+            id: `${id}:e1`,
+            documentId,
+            page,
+            quote,
+            sourceBlocks: [],
+          },
+        ],
+        confidence: 0.8,
+      });
+
+      const build = (id, severity, status, summary, rationale, claims) => ({
+        id,
+        status,
+        severity,
+        summary,
+        rationale,
+        score: 0.62,
+        claims,
+        evidence: claims.flatMap((item) => item.evidence),
+      });
+
+      const MOCK_REVIEW = {
+        documents: [
+          { id: DOC_A, title: "采购框架协议.pdf", sourceUrl: "#" },
+          { id: DOC_B, title: "服务协议.pdf", sourceUrl: "#" },
+          { id: DOC_C, title: "补充协议.pdf", sourceUrl: "#" },
+        ],
+        claimCount: 41,
+        conflictCount: 12,
+        reportMarkdown: "# 报告",
+        conflicts: [
+          build(
+            "conflict-1",
+            "high",
+            "verified",
+            "Potential fact inconsistency between doc-a and doc-b",
+            "两侧对合同主体的表述不同，需要人工确认签约主体。",
+            [
+              claim(
+                "c-1-a",
+                DOC_A,
+                "Bright Harbor Ltd.",
+                "This Master Services Agreement is entered into by Bright Harbor Ltd.",
+                1,
+              ),
+              claim(
+                "c-1-b",
+                DOC_B,
+                "Cedar Point Trading",
+                "This Master Services Agreement is entered into by Cedar Point Trading.",
+                1,
+              ),
+            ],
+          ),
+          build(
+            "conflict-2",
+            "high",
+            "verified",
+            "Potential value inconsistency",
+            "两处约定了不同的付款周期。",
+            [
+              claim(
+                "c-2-a",
+                DOC_A,
+                "60 days",
+                "Payment is due within 60 days of invoice.",
+                2,
+              ),
+              claim(
+                "c-2-b",
+                DOC_B,
+                "90 days",
+                "Payment is due within 90 days of invoice.",
+                2,
+              ),
+            ],
+          ),
+          build(
+            "conflict-3",
+            "high",
+            "verified",
+            "Potential polarity inconsistency",
+            "一方禁止单方面变更，另一方允许。",
+            [
+              claim(
+                "c-3-a",
+                DOC_A,
+                "不得",
+                "甲方不得单方面变更服务范围。",
+                3,
+              ),
+              claim(
+                "c-3-b",
+                DOC_B,
+                "可以",
+                "甲方可以单方面变更服务范围。",
+                3,
+              ),
+            ],
+          ),
+          build(
+            "conflict-4",
+            "medium",
+            "verified",
+            "Potential value inconsistency",
+            "保密年限不一致。",
+            [
+              claim("c-4-a", DOC_A, "3 年", "本协议保密期限为 3 年。", 4),
+              claim("c-4-b", DOC_C, "5 年", "本协议保密期限为 5 年。", 2),
+            ],
+          ),
+          build(
+            "conflict-5",
+            "medium",
+            "verified",
+            "Potential fact inconsistency",
+            "争议解决地不同。",
+            [
+              claim(
+                "c-5-a",
+                DOC_A,
+                "上海",
+                "本合同争议由上海市浦东新区人民法院管辖。",
+                5,
+              ),
+              claim(
+                "c-5-b",
+                DOC_B,
+                "北京",
+                "本合同争议由北京市朝阳区人民法院管辖。",
+                4,
+              ),
+            ],
+          ),
+          build(
+            "conflict-6",
+            "low",
+            "dismissed",
+            "Potential fact inconsistency",
+            "两侧逐字一致，判定为重复抽取而非真实冲突。",
+            [
+              claim("c-6-a", DOC_A, "Master Services Agreement", "Master Services Agreement", 1),
+              claim("c-6-b", DOC_B, "Master Services Agreement", "Master Services Agreement", 1),
+            ],
+          ),
+          build(
+            "conflict-7",
+            "low",
+            "dismissed",
+            "Potential value inconsistency",
+            "同一日期的两种书写格式。",
+            [
+              claim("c-7-a", DOC_A, "2025年1月1日", "协议生效日期为 2025 年 1 月 1 日。", 1),
+              claim("c-7-b", DOC_B, "2025-01-01", "协议生效日期为 2025-01-01。", 1),
+            ],
+          ),
+          build(
+            "conflict-8",
+            "low",
+            "dismissed",
+            "Potential fact inconsistency",
+            "仅大小写与标点差异。",
+            [
+              claim("c-8-a", DOC_A, "Net 30", "Payment terms: Net 30.", 2),
+              claim("c-8-b", DOC_B, "net 30", "Payment terms: net 30.", 2),
+            ],
+          ),
+          build(
+            "conflict-9",
+            "medium",
+            "verified",
+            "Potential value inconsistency",
+            "交付周期不一致。",
+            [
+              claim("c-9-a", DOC_A, "14 days", "The Supplier shall deliver within 14 days of the Order.", 3),
+              claim("c-9-b", DOC_B, "30 days", "The Supplier shall deliver within 30 days of the Order.", 3),
+            ],
+          ),
+          build(
+            "conflict-10",
+            "medium",
+            "verified",
+            "Potential value inconsistency",
+            "违约金比例不一致。",
+            [
+              claim("c-10-a", DOC_A, "5%", "Late delivery incurs a penalty of 5% of the contract value.", 6),
+              claim("c-10-b", DOC_C, "10%", "Late delivery incurs a penalty of 10% of the contract value.", 3),
+            ],
+          ),
+          build(
+            "conflict-11",
+            "high",
+            "verified",
+            "Potential value inconsistency",
+            "合同期限不一致。",
+            [
+              claim("c-11-a", DOC_A, "24 months", "This Agreement shall remain in force for 24 months.", 7),
+              claim("c-11-b", DOC_B, "36 months", "This Agreement shall remain in force for 36 months.", 5),
+            ],
+          ),
+          build(
+            "conflict-12",
+            "low",
+            "verified",
+            "Potential fact inconsistency",
+            "通知方式表述不同。",
+            [
+              claim("c-12-a", DOC_A, "by email", "All notices shall be given by email.", 8),
+              claim("c-12-b", DOC_C, "by written notice", "All notices shall be given by written notice.", 4),
+            ],
+          ),
+        ],
+      };
+
+      /* -------------------------------------------------------------- *
+       * 渲染
+       * -------------------------------------------------------------- */
+
+      const root = document.getElementById("ledger-root");
+      const toast = document.getElementById("preview-toast");
+
+      let toastTimer = null;
+      const showToast = (message) => {
+        toast.textContent = message;
+        toast.hidden = false;
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => {
+          toast.hidden = true;
+        }, 2600);
+      };
+
+      const model = buildLedgerModel(await fetchReview());
+      const ledger = mountLedger(root, model, {
+        onOpenEvidence: ({ documentId, page }) => {
+          const doc = model.documents.find((entry) => entry.id === documentId);
+          showToast(`将打开《${doc?.title ?? documentId}》第 ${page ?? "?"} 页`);
+        },
+      });
+
+      window.__ledger = ledger;
+
+      const switcher = document.getElementById("theme-switch");
+      switcher.querySelectorAll("[data-variant]").forEach((button) => {
+        const variant = button.dataset.variant;
+        if (variant === (document.documentElement.dataset.theme ?? "base")) button.classList.add("active");
+        button.addEventListener("click", () => {
+          const url = new URL(location.href);
+          url.searchParams.set("v", variant);
+          location.href = url.toString();
+        });
+      });
+    </script>
+  </body>
+</html>

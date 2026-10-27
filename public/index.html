@@ -5,1223 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/crossdoc-logo.svg" />
     <title>CrossDoc</title>
-    <style>
-      :root {
-        --paper: #f2eee5;
-        --paper-2: #e7e0d3;
-        --panel: #fffdf8;
-        --panel-soft: #fbf6eb;
-        --ink: #15191f;
-        --ink-2: #2b333c;
-        --muted: #6b7280;
-        --faint: #9a927f;
-        --line: #d2c8b8;
-        --line-dark: #35312a;
-        --blue: #2557d6;
-        --blue-soft: #e5ecff;
-        --teal: #0f766e;
-        --teal-soft: #dff3ee;
-        --amber: #a15c00;
-        --amber-soft: #ffeec2;
-        --red: #b42318;
-        --red-soft: #f8dfdc;
-        --shadow: 0 18px 48px rgba(35, 28, 19, 0.1);
-        --shadow-sm: 0 2px 8px rgba(35, 28, 19, 0.07);
-        --radius: 8px;
-        --radius-sm: 5px;
-        --page-width: 1180px;
-        --gutter: 24px;
-        color: var(--ink);
-        font-family:
-          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-          sans-serif;
-        background:
-          linear-gradient(rgba(21, 25, 31, 0.045) 1px, transparent 1px),
-          linear-gradient(90deg, rgba(21, 25, 31, 0.045) 1px, transparent 1px),
-          var(--paper);
-        background-size: 30px 30px;
-      }
-
-      * {
-        box-sizing: border-box;
-      }
-
-      /* 可见性只由 hidden 属性决定，body class 不再参与显隐控制。 */
-      [hidden] {
-        display: none !important;
-      }
-
-      body {
-        min-width: 320px;
-        margin: 0;
-      }
-
-      button,
-      input {
-        font: inherit;
-      }
-
-      button {
-        cursor: pointer;
-      }
-
-      .topbar {
-        position: sticky;
-        top: 0;
-        z-index: 5;
-        display: flex;
-        min-height: 64px;
-        align-items: center;
-        padding: 0 var(--gutter);
-        border-bottom: 1px solid var(--line);
-        background: var(--paper);
-        color: var(--ink);
-      }
-
-      .topbar-inner {
-        display: flex;
-        width: min(100%, var(--page-width));
-        align-items: center;
-        gap: 24px;
-        margin-inline: auto;
-      }
-
-      .brand {
-        display: flex;
-        flex: 0 0 auto;
-        align-items: center;
-        gap: 10px;
-      }
-
-      .brand-mark {
-        display: block;
-        flex: 0 0 auto;
-        width: 40px;
-        height: 34px;
-        object-fit: contain;
-      }
-
-      .brand h1 {
-        margin: 0;
-        font-size: 18px;
-        font-weight: 760;
-        line-height: 1;
-      }
-
-      .brand p {
-        margin: 4px 0 0;
-        color: var(--muted);
-        font-size: 12px;
-      }
-
-      .top-nav {
-        display: flex;
-        flex: 0 0 auto;
-        align-items: center;
-        gap: 2px;
-        padding: 3px;
-        border: 1px solid var(--line);
-        border-radius: var(--radius);
-        background: rgba(255, 253, 248, 0.72);
-      }
-
-      .nav-tab {
-        min-height: 34px;
-        padding: 6px 16px;
-        border: 0;
-        border-radius: var(--radius-sm);
-        background: transparent;
-        color: var(--muted);
-        font-size: 14px;
-        font-weight: 760;
-      }
-
-      .nav-tab:hover {
-        background: var(--panel);
-        color: var(--ink);
-        transform: none;
-      }
-
-      .nav-tab[aria-current="page"] {
-        background: var(--ink);
-        color: var(--paper);
-      }
-
-      .nav-tab[aria-current="page"]:hover {
-        background: var(--ink);
-        color: var(--paper);
-      }
-
-      .top-actions {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        margin-left: auto;
-      }
-
-      button {
-        min-height: 40px;
-        padding: 9px 13px;
-        border: 1px solid var(--line-dark);
-        border-radius: var(--radius-sm);
-        background: var(--panel);
-        color: var(--ink);
-        font-weight: 820;
-      }
-
-      button:hover {
-        transform: translateY(-1px);
-      }
-
-      button:disabled {
-        cursor: not-allowed;
-        opacity: 0.55;
-        transform: none;
-      }
-
-      :focus-visible {
-        outline: 2px solid var(--blue);
-        outline-offset: 2px;
-      }
-
-      .primary {
-        border-color: #0a2f91;
-        background: var(--blue);
-        color: #ffffff;
-      }
-
-      .ghost {
-        border-color: var(--line);
-        background: transparent;
-        color: var(--ink);
-      }
-
-      .ghost:hover {
-        border-color: var(--line-dark);
-        background: var(--panel-soft);
-      }
-
-      .shell {
-        display: grid;
-        grid-template-columns: 330px minmax(560px, 1fr) 380px;
-        min-height: calc(100vh - 64px);
-      }
-
-      .rail,
-      .inspector {
-        min-width: 0;
-        padding: 20px;
-      }
-
-      .rail {
-        border-right: 1px solid var(--line);
-        background: rgba(255, 253, 248, 0.56);
-      }
-
-      .workbench {
-        min-width: 0;
-        padding: 20px;
-      }
-
-      .inspector {
-        border-left: 1px solid var(--line);
-        background: rgba(255, 253, 248, 0.68);
-      }
-
-      .panel {
-        border: 1px solid var(--line);
-        border-radius: var(--radius);
-        background: var(--panel);
-        box-shadow: var(--shadow-sm);
-      }
-
-      .panel + .panel {
-        margin-top: 16px;
-      }
-
-      .panel-head {
-        display: flex;
-        flex-wrap: wrap;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: 12px;
-        padding: 14px 16px;
-        border-bottom: 1px solid var(--line);
-        background: var(--panel-soft);
-      }
-
-      .panel-head h2,
-      .panel-head h3 {
-        margin: 0;
-        font-size: 16px;
-        line-height: 1.25;
-        white-space: nowrap;
-      }
-
-      .panel-head p {
-        margin: 5px 0 0;
-        color: var(--muted);
-        font-size: 12px;
-        line-height: 1.45;
-      }
-
-      .panel-body {
-        padding: 16px;
-      }
-
-      .run-card {
-        display: grid;
-        grid-template-columns: auto 1fr;
-        gap: 12px;
-        align-items: center;
-      }
-
-      .run-dot {
-        width: 14px;
-        height: 14px;
-        border: 2px solid var(--ink);
-        background: var(--amber-soft);
-      }
-
-      .run-dot.busy {
-        animation: blink 880ms infinite alternate;
-        background: var(--blue);
-      }
-
-      .run-dot.done {
-        background: var(--teal);
-      }
-
-      .run-dot.error {
-        background: var(--red);
-      }
-
-      @keyframes blink {
-        from {
-          opacity: 0.35;
-        }
-        to {
-          opacity: 1;
-        }
-      }
-
-      .status {
-        margin: 0;
-        color: var(--muted);
-        font-size: 13px;
-        line-height: 1.45;
-      }
-
-      .pipeline {
-        display: grid;
-        gap: 8px;
-        margin: 0;
-        padding: 0;
-        list-style: none;
-      }
-
-      .step {
-        display: grid;
-        grid-template-columns: 28px 1fr;
-        gap: 9px;
-        align-items: center;
-        min-height: 34px;
-        color: var(--muted);
-        font-size: 13px;
-      }
-
-      .step-index {
-        display: grid;
-        width: 28px;
-        height: 28px;
-        place-items: center;
-        border: 1px solid var(--line-dark);
-        background: #fff;
-        font-size: 11px;
-        font-weight: 900;
-      }
-
-      .step.active {
-        color: var(--blue);
-        font-weight: 840;
-      }
-
-      .step.active .step-index {
-        background: var(--blue);
-        color: #fff;
-      }
-
-      .step.done {
-        color: var(--teal);
-      }
-
-      .step.done .step-index {
-        background: var(--teal);
-        color: #fff;
-      }
-
-      .doc-list {
-        display: grid;
-        gap: 9px;
-      }
-
-      .doc-item {
-        padding: 10px;
-        border: 1px solid var(--line);
-        background: #fff;
-      }
-
-      .doc-item strong {
-        display: block;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
-      .doc-item span {
-        color: var(--muted);
-        font-size: 12px;
-      }
-
-      .doc-item button {
-        min-height: 30px;
-        margin-top: 8px;
-        padding: 5px 8px;
-        font-size: 12px;
-      }
-
-      .hero {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) 240px;
-        gap: 18px;
-        align-items: stretch;
-        margin-bottom: 16px;
-        overflow: hidden;
-        border: 1px solid var(--line-dark);
-        border-radius: var(--radius);
-        background: var(--panel);
-        box-shadow: var(--shadow-sm);
-      }
-
-      .hero-copy {
-        padding: 24px;
-      }
-
-      .eyebrow {
-        margin: 0 0 10px;
-        color: var(--amber);
-        font-size: 12px;
-        font-weight: 900;
-        letter-spacing: 0.12em;
-        text-transform: uppercase;
-      }
-
-      .hero h2 {
-        max-width: 760px;
-        margin: 0;
-        font-size: 34px;
-        line-height: 1.08;
-      }
-
-      .hero p {
-        max-width: 740px;
-        margin: 12px 0 0;
-        color: var(--muted);
-        font-size: 15px;
-        line-height: 1.65;
-      }
-
-      .case-card {
-        display: grid;
-        align-content: stretch;
-        border-left: 1px solid var(--line-dark);
-        background: #171411;
-        color: #fff8ea;
-      }
-
-      .case-card div {
-        padding: 16px;
-        border-bottom: 1px solid rgba(255, 248, 234, 0.16);
-      }
-
-      .case-card span {
-        display: block;
-        color: #b8ad9a;
-        font-size: 11px;
-        font-weight: 850;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-      }
-
-      .case-card strong {
-        display: block;
-        margin-top: 8px;
-        font-size: 24px;
-      }
-
-      .map {
-        display: grid;
-        grid-template-columns: repeat(3, minmax(0, 1fr));
-        gap: 12px;
-      }
-
-      .map-node {
-        min-height: 118px;
-        padding: 14px;
-        border: 1px solid var(--line-dark);
-        background: #fff;
-      }
-
-      .map-node strong {
-        display: block;
-        font-size: 32px;
-        line-height: 1;
-      }
-
-      .map-node span {
-        display: block;
-        margin-top: 8px;
-        color: var(--muted);
-        font-size: 13px;
-      }
-
-      .map-node.documents {
-        box-shadow: inset 0 -5px 0 var(--blue);
-      }
-
-      .map-node.claims {
-        box-shadow: inset 0 -5px 0 var(--amber);
-      }
-
-      .map-node.conflicts {
-        box-shadow: inset 0 -5px 0 var(--red);
-      }
-
-      .ledger-toolbar {
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-      }
-
-      .tab {
-        min-height: 32px;
-        padding: 6px 10px;
-        border-color: var(--line);
-        background: #fff;
-        color: var(--muted);
-        font-size: 12px;
-      }
-
-      .tab.active {
-        border-color: var(--ink);
-        background: var(--ink);
-        color: #fff;
-      }
-
-      .findings {
-        display: grid;
-        gap: 10px;
-        min-height: 330px;
-      }
-
-      .finding {
-        display: grid;
-        grid-template-columns: 1fr auto;
-        gap: 14px;
-        width: 100%;
-        min-height: 116px;
-        padding: 14px;
-        border: 1px solid var(--line);
-        border-left: 5px solid var(--amber);
-        border-radius: 0;
-        background: #fff;
-        color: var(--ink);
-        text-align: left;
-      }
-
-      .finding:hover,
-      .finding.selected {
-        border-color: var(--ink);
-        box-shadow: var(--shadow-sm);
-        transform: none;
-      }
-
-      .finding.verified {
-        border-left-color: var(--red);
-      }
-
-      .finding.dismissed {
-        border-left-color: var(--teal);
-      }
-
-      .finding-title {
-        margin-bottom: 10px;
-        font-size: 15px;
-        font-weight: 880;
-        line-height: 1.35;
-      }
-
-      .finding-copy {
-        margin: 8px 0 0;
-        color: var(--muted);
-        font-size: 13px;
-        line-height: 1.55;
-      }
-
-      .badges {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-      }
-
-      .badge {
-        display: inline-flex;
-        align-items: center;
-        min-height: 24px;
-        padding: 3px 8px;
-        border: 1px solid currentColor;
-        background: #fff;
-        font-size: 12px;
-        font-weight: 850;
-      }
-
-      .badge.high {
-        color: var(--red);
-        background: var(--red-soft);
-      }
-
-      .badge.medium {
-        color: var(--amber);
-        background: var(--amber-soft);
-      }
-
-      .badge.low {
-        color: var(--teal);
-        background: var(--teal-soft);
-      }
-
-      .badge.neutral {
-        color: var(--blue);
-        background: var(--blue-soft);
-      }
-
-      .score {
-        display: grid;
-        width: 58px;
-        height: 58px;
-        place-items: center;
-        border: 1px solid var(--line-dark);
-        background: var(--panel-soft);
-        font-weight: 900;
-      }
-
-      .empty {
-        display: grid;
-        min-height: 230px;
-        place-items: center;
-        padding: 24px;
-        border: 1px dashed var(--line);
-        color: var(--muted);
-        text-align: center;
-        line-height: 1.6;
-      }
-
-      .claim-pair {
-        display: grid;
-        gap: 10px;
-      }
-
-      .claim {
-        padding: 12px;
-        border: 1px solid var(--line);
-        background: #fff;
-      }
-
-      .claim span {
-        display: block;
-        margin-bottom: 7px;
-        color: var(--muted);
-        font-size: 11px;
-        font-weight: 850;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-      }
-
-      .claim strong {
-        display: block;
-        font-size: 13px;
-        line-height: 1.5;
-      }
-
-      .evidence-list {
-        display: grid;
-        gap: 10px;
-      }
-
-      .evidence {
-        padding: 12px;
-        border: 1px solid var(--line);
-        background: #fff;
-      }
-
-      .evidence-meta {
-        display: flex;
-        justify-content: space-between;
-        gap: 10px;
-        margin-bottom: 8px;
-        color: var(--blue);
-        font-size: 12px;
-        font-weight: 850;
-      }
-
-      .source-link {
-        display: inline-flex;
-        min-height: 30px;
-        align-items: center;
-        margin-top: 10px;
-        padding: 5px 9px;
-        border: 1px solid var(--blue);
-        background: var(--blue-soft);
-        color: var(--blue);
-        font-size: 12px;
-        font-weight: 850;
-        text-decoration: none;
-      }
-
-      .source-link:hover {
-        background: var(--blue);
-        color: #fff;
-      }
-
-      .quote {
-        margin: 0;
-        color: var(--ink-2);
-        font-size: 13px;
-        line-height: 1.55;
-      }
-
-      .report-actions {
-        display: flex;
-        gap: 8px;
-      }
-
-      .report {
-        max-height: 320px;
-        margin: 0;
-        overflow: auto;
-        padding: 14px;
-        border: 1px solid #111827;
-        background: #101820;
-        color: #ecf3f8;
-        font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
-        font-size: 12px;
-        line-height: 1.55;
-        white-space: pre-wrap;
-      }
-
-      .report-citation {
-        color: #a9c3ff;
-        font-weight: 850;
-        text-decoration: underline;
-        text-underline-offset: 2px;
-      }
-
-      .source-dialog {
-        width: min(1100px, 96vw);
-        height: min(92vh, 920px);
-        max-width: none;
-        max-height: none;
-        padding: 0;
-        border: 1px solid var(--line-dark);
-        border-radius: var(--radius);
-        background: var(--panel);
-        box-shadow: var(--shadow);
-      }
-
-      .startup-state { display: grid; min-height: calc(100vh - 64px); place-items: center; padding: 32px 20px; }
-      .startup-card { width: min(100%, 420px); padding: 22px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); box-shadow: var(--shadow-sm); }
-      .startup-card p { margin: 0; color: var(--muted); line-height: 1.5; }
-      .startup-card button { margin-top: 16px; }
-      .model-setup-screen { width: min(calc(100% - 2 * var(--gutter)), var(--page-width)); margin-inline: auto; padding: 40px 0 64px; }
-      .model-setup-heading { margin-bottom: 26px; padding-bottom: 18px; border-bottom: 2px solid var(--ink); }
-      .model-setup-heading h2 { margin: 0; font-size: clamp(26px, 3.4vw, 34px); letter-spacing: 0; }
-      .model-setup-heading p { margin: 9px 0 0; color: var(--muted); font-size: 14px; }
-      .model-setup-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-      .model-setup-card { display: grid; align-content: start; gap: 12px; padding: 20px; border: 1px solid var(--line-dark); border-radius: var(--radius); background: var(--panel); box-shadow: var(--shadow-sm); }
-      .model-setup-card h3 { margin: 0; font-size: 16px; }
-      .model-setup-card label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
-      .model-setup-card input, .model-setup-card select { width: 100%; min-height: 40px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: #fff; color: var(--ink); }
-      .model-setup-card input[type="checkbox"] { width: auto; min-height: auto; padding: 0; }
-      .model-setup-role-status { min-height: 18px; color: var(--muted); font-size: 12px; }
-      .model-setup-role-status[data-ready="true"] { color: var(--teal); }
-      .model-setup-role-status[data-ready="false"] { color: var(--amber); }
-      .model-protocol-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: end; }
-      .model-load-status { min-height: 16px; color: var(--muted); font-size: 11px; }
-      .model-load-status.error { color: var(--red); }
-      .model-setup-status { min-height: 20px; margin: 12px 0 0; color: var(--muted); font-size: 13px; }
-      .model-setup-status.error { color: var(--red); }
-
-      .model-setup-note {
-        margin: 16px 0 0;
-        color: var(--muted);
-        font-size: 12px;
-      }
-
-      .model-setup-note code {
-        padding: 1px 6px;
-        border: 1px solid var(--line);
-        border-radius: var(--radius-sm);
-        background: var(--panel-soft);
-        font-size: 11px;
-      }
-
-      body.booting .shell, body.booting .ingest-screen, body.booting .reading-screen,
-      body.booting .library-screen, body.booting .model-setup-screen { display: none; }
-
-      .source-dialog::backdrop {
-        background: rgba(15, 18, 22, 0.72);
-      }
-
-      .source-dialog-shell {
-        display: grid;
-        grid-template-rows: auto auto minmax(0, 1fr);
-        height: 100%;
-      }
-
-      .source-dialog-head {
-        display: flex;
-        justify-content: space-between;
-        gap: 16px;
-        align-items: center;
-        padding: 14px 18px;
-        border-bottom: 1px solid var(--line-dark);
-        background: #171411;
-        color: #fff8ea;
-      }
-
-      .source-dialog-head strong {
-        display: block;
-        font-size: 16px;
-      }
-
-      .source-dialog-head span {
-        display: block;
-        margin-top: 4px;
-        color: #c7bda9;
-        font-size: 12px;
-      }
-
-      .source-dialog-head .ghost {
-        border-color: rgba(255, 248, 234, 0.42);
-        color: #fff8ea;
-      }
-
-      .source-dialog-head .ghost:hover {
-        border-color: #fff8ea;
-        background: rgba(255, 248, 234, 0.12);
-      }
-
-      .source-status {
-        min-height: 36px;
-        margin: 0;
-        padding: 9px 18px;
-        border-bottom: 1px solid var(--line);
-        color: var(--muted);
-        font-size: 12px;
-      }
-
-      .source-preview {
-        overflow: auto;
-        padding: 22px;
-        background: #6c6b69;
-        text-align: center;
-      }
-
-      .pdf-page {
-        position: relative;
-        display: inline-block;
-        margin: 0 auto;
-        background: white;
-        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
-        text-align: left;
-      }
-
-      .pdf-page canvas {
-        display: block;
-      }
-
-      .source-overlays {
-        position: absolute;
-        inset: 0;
-        pointer-events: none;
-      }
-
-      .source-highlight {
-        position: absolute;
-        border: 3px solid #e22914;
-        background: rgba(255, 221, 0, 0.26);
-        box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.76);
-      }
-
-      @media (max-width: 1180px) {
-        .shell {
-          grid-template-columns: 300px minmax(0, 1fr);
-        }
-
-        .inspector {
-          grid-column: 1 / -1;
-          border-top: 1px solid var(--line);
-          border-left: 0;
-        }
-      }
-
-      .ingest-screen {
-        display: grid;
-        width: min(calc(100% - 2 * var(--gutter)), var(--page-width));
-        margin-inline: auto;
-        padding: 40px 0 64px;
-      }
-
-      .ingest-form {
-        width: 100%;
-      }
-
-      .library-screen {
-        width: min(calc(100% - 2 * var(--gutter)), var(--page-width));
-        margin-inline: auto;
-        padding: 40px 0 64px;
-      }
-
-
-      .library-header {
-        display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: 24px;
-        padding-bottom: 26px;
-        border-bottom: 2px solid var(--ink);
-      }
-
-      .library-header h2 {
-        margin: 0;
-        font-size: clamp(26px, 3.4vw, 34px);
-        letter-spacing: 0;
-      }
-
-      .library-header p {
-        margin: 8px 0 0;
-        color: var(--muted);
-        font-size: 14px;
-      }
-
-      .library-list {
-        border-bottom: 1px solid var(--line-dark);
-        background: rgba(255, 253, 248, 0.66);
-      }
-
-      .library-empty {
-        display: grid;
-        min-height: 220px;
-        place-items: center;
-        padding: 32px;
-        color: var(--muted);
-        text-align: center;
-      }
-
-      .library-item {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        gap: 20px;
-        align-items: center;
-        padding: 22px 18px;
-        border-bottom: 1px solid var(--line);
-      }
-
-      .library-item:last-child {
-        border-bottom: 0;
-      }
-
-      .library-item-title {
-        overflow: hidden;
-        margin: 0;
-        font-size: 16px;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-      }
-
-      .library-item-meta {
-        margin: 7px 0 0;
-        color: var(--muted);
-        font-size: 12px;
-      }
-
-      .library-item-actions {
-        display: flex;
-        gap: 8px;
-      }
-
-      .library-item-actions a {
-        display: inline-flex;
-        min-height: 38px;
-        align-items: center;
-        padding: 7px 11px;
-        border: 1px solid var(--line);
-        border-radius: 5px;
-        color: var(--ink);
-        font-size: 13px;
-        font-weight: 760;
-        text-decoration: none;
-      }
-
-      .library-item-actions a:hover {
-        border-color: var(--line-dark);
-        background: var(--panel);
-      }
-
-      .library-error {
-        color: var(--red);
-      }
-
-      .reading-screen {
-        display: grid;
-        width: min(calc(100% - 2 * var(--gutter)), var(--page-width));
-        min-height: calc(100vh - 64px);
-        grid-template-rows: auto minmax(0, 1fr);
-        gap: 24px;
-        margin: 0 auto;
-        padding: 36px 0 48px;
-      }
-
-
-      .reading-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 18px;
-        padding-bottom: 18px;
-        border-bottom: 2px solid var(--ink);
-      }
-
-      .reading-header h2 { margin: 0; font-size: 24px; letter-spacing: 0; }
-      .reading-header-actions { display: flex; gap: 8px; }
-      .reading-layout { display: grid; min-height: 0; grid-template-columns: 300px minmax(0, 1fr); border: 1px solid var(--line-dark); background: rgba(255, 253, 248, 0.72); }
-      .reading-files { padding: 20px 16px; border-right: 1px solid var(--line); }
-      .reading-files h3 { margin: 0 0 14px; font-size: 14px; }
-      .reading-file-list { display: grid; align-content: start; gap: 8px; }
-      .reading-file { display: grid; grid-template-columns: 10px minmax(0, 1fr); gap: 10px; padding: 10px 8px; border-bottom: 1px solid var(--line); }
-      .reading-file-dot { width: 8px; height: 8px; margin-top: 5px; border-radius: 50%; background: #b6ab99; }
-      .reading-file[data-state="reading"] .reading-file-dot { background: var(--blue); box-shadow: 0 0 0 4px var(--blue-soft); }
-      .reading-file[data-state="ready"] .reading-file-dot { background: #43835a; }
-      .reading-file[data-state="failed"] .reading-file-dot { background: var(--red); }
-      .reading-file-name { overflow-wrap: anywhere; font-size: 13px; font-weight: 700; }
-      .reading-file-state { margin-top: 4px; color: var(--muted); font-size: 12px; }
-      .reading-file-error { margin: 5px 0 0; color: var(--red); font-size: 12px; overflow-wrap: anywhere; }
-      .reading-cancel { margin-top: 22px; color: var(--muted); }
-      .reading-conversation { display: grid; min-width: 0; grid-template-rows: auto minmax(0, 1fr) auto; }
-      .reading-overview { padding: 22px 28px; border-bottom: 1px solid var(--line); }
-      .reading-overview h3 { margin: 0 0 12px; font-size: 15px; }
-      .reading-prose { color: var(--ink); font-size: 15px; line-height: 1.8; overflow-wrap: anywhere; white-space: pre-wrap; }
-      .reading-prose a { color: var(--blue); font-weight: 700; text-decoration: underline; text-underline-offset: 3px; }
-      .reading-placeholder { color: var(--muted); }
-      .reading-answers { display: grid; align-content: start; gap: 18px; max-height: 46vh; overflow: auto; padding: 20px 28px; }
-      .reading-answer { padding: 14px 16px; border-left: 3px solid var(--blue); background: rgba(238, 243, 248, 0.68); }
-      .reading-question { margin: 0 0 8px; color: var(--muted); font-size: 13px; }
-      .reading-composer { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 10px; padding: 18px 28px; border-top: 1px solid var(--line); }
-      .reading-composer textarea { width: 100%; min-height: 76px; resize: vertical; padding: 12px 14px; border: 1px solid var(--line-dark); border-radius: var(--radius-sm); background: #fffdf8; color: var(--ink); font: inherit; }
-      .reading-composer button { min-height: 44px; }
-      .reading-notice { margin: 0; padding: 0 28px 14px; color: var(--red); font-size: 13px; }
-
-      .ingest-empty {
-        display: grid;
-        width: 100%;
-        min-height: 460px;
-        place-items: center;
-        padding: 42px;
-        border: 2px dashed #9b8f7d;
-        background: rgba(255, 253, 248, 0.76);
-        text-align: center;
-        transition: border-color 140ms ease, background-color 140ms ease;
-      }
-
-      .ingest-empty.dragover {
-        border-color: var(--blue);
-        background: var(--blue-soft);
-      }
-
-      .ingest-empty-content {
-        display: grid;
-        justify-items: center;
-        gap: 18px;
-      }
-
-      .ingest-empty h2 {
-        margin: 0;
-        font-size: clamp(26px, 3.4vw, 34px);
-        letter-spacing: 0;
-      }
-
-      .ingest-prompt {
-        margin: 0;
-        color: var(--muted);
-        font-size: 18px;
-      }
-
-      .ingest-actions,
-      .ingest-heading-actions,
-      .ingest-footer {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-      }
-
-      .ingest-actions button,
-      .ingest-heading-actions button,
-      .ingest-footer button {
-        min-height: 48px;
-        padding-inline: 22px;
-      }
-
-      .ingest-hint {
-        margin: 0;
-        color: var(--muted);
-        font-size: 14px;
-      }
-
-      .file-input {
-        position: absolute;
-        width: 1px;
-        height: 1px;
-        overflow: hidden;
-        clip: rect(0, 0, 0, 0);
-        white-space: nowrap;
-        clip-path: inset(50%);
-      }
-
-      .ingest-selected {
-        overflow: hidden;
-        width: min(100%, 1216px);
-        border: 1px solid var(--line-dark);
-        background: rgba(255, 253, 248, 0.94);
-      }
-
-
-      .ingest-selected-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 24px;
-        padding: 32px 40px 24px;
-      }
-
-      .ingest-selected-head h2 {
-        margin: 0 0 8px;
-        font-size: 24px;
-        letter-spacing: 0;
-      }
-
-      .ingest-count {
-        margin: 0;
-        color: var(--muted);
-      }
-
-      .file-tree {
-        max-height: min(56vh, 520px);
-        overflow: auto;
-        margin: 0 32px;
-        padding: 8px 20px;
-        border: 1px solid var(--line);
-        background: rgba(255, 253, 248, 0.64);
-      }
-
-      .tree-folder,
-      .tree-file {
-        min-height: 52px;
-        border-bottom: 1px solid rgba(210, 200, 184, 0.62);
-      }
-
-      .tree-folder:last-child,
-      .tree-file:last-child {
-        border-bottom: 0;
-      }
-
-      .tree-folder summary,
-      .tree-file {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-        min-height: 52px;
-        color: var(--ink);
-        font-size: 16px;
-      }
-
-      .tree-folder summary {
-        cursor: pointer;
-        font-weight: 760;
-        list-style-position: inside;
-      }
-
-      .tree-folder summary::marker {
-        color: var(--muted);
-      }
-
-      .tree-children {
-        margin-left: 28px;
-        padding-left: 16px;
-        border-left: 1px solid var(--line);
-      }
-
-      .tree-file {
-        justify-content: space-between;
-        padding-left: 8px;
-      }
-
-      .tree-file-name {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-        min-width: 0;
-      }
-
-      .tree-extension {
-        flex: 0 0 auto;
-        min-width: 42px;
-        color: var(--muted);
-        font-size: 11px;
-        font-weight: 820;
-        letter-spacing: 0.04em;
-        text-align: center;
-        text-transform: uppercase;
-      }
-
-      .tree-file.unsupported {
-        color: var(--muted);
-      }
-
-      .tree-file-status {
-        flex: 0 0 auto;
-        color: var(--amber);
-        font-size: 12px;
-      }
-
-      .ingest-footer {
-        justify-content: flex-end;
-        padding: 24px 32px 32px;
-      }
-
-      .ingest-clear {
-        border-color: transparent;
-        background: transparent;
-        color: var(--muted);
-      }
-
-      .ingest-status {
-        min-height: 20px;
-        margin: 0 32px;
-        color: var(--muted);
-        font-size: 13px;
-      }
-
-    </style>
+    <link rel="stylesheet" href="/styles.css" />
   </head>
   <body class="booting">
     <header class="topbar">
@@ -1369,169 +153,35 @@
       </section>
     </main>
 
-    <main class="shell" hidden>
-      <aside class="rail">
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <h3>Run State</h3>
-              <p>转换过程始终显示当前状态，避免白屏或假死。</p>
-            </div>
-          </div>
-          <div class="panel-body run-card">
-            <div class="run-dot" id="run-dot"></div>
-            <p class="status" id="status">等待上传。</p>
-          </div>
-        </section>
+    <main class="review-screen" id="review-screen" hidden>
+      <section class="review-column">
+        <div class="run-strip">
+          <p class="run-state">
+            <span class="run-dot" id="run-dot"></span>
+            <span id="status">等待上传。</span>
+          </p>
+          <ol class="pipeline" id="pipeline">
+            <li class="step" data-step="parse"><span class="step-index">1</span><span>Parse</span></li>
+            <li class="step" data-step="extract"><span class="step-index">2</span><span>Extract</span></li>
+            <li class="step" data-step="compare"><span class="step-index">3</span><span>Compare</span></li>
+            <li class="step" data-step="verify"><span class="step-index">4</span><span>Verify</span></li>
+            <li class="step" data-step="report"><span class="step-index">5</span><span>Report</span></li>
+          </ol>
+        </div>
 
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <h3>Pipeline</h3>
-              <p>最小审查链路：解析、抽取、比较、验证、报告。</p>
-            </div>
-          </div>
-          <div class="panel-body">
-            <ol class="pipeline" id="pipeline">
-              <li class="step" data-step="parse"><span class="step-index">1</span><span>Parse documents</span></li>
-              <li class="step" data-step="extract"><span class="step-index">2</span><span>Extract claims</span></li>
-              <li class="step" data-step="compare"><span class="step-index">3</span><span>Compare claims</span></li>
-              <li class="step" data-step="verify"><span class="step-index">4</span><span>Verify conflicts</span></li>
-              <li class="step" data-step="report"><span class="step-index">5</span><span>Render report</span></li>
-            </ol>
-          </div>
-        </section>
+        <div class="doc-strip" id="doc-strip"></div>
 
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <h3>Files</h3>
-              <p>当前审查集合。</p>
-            </div>
-          </div>
-          <div class="panel-body">
-            <div class="doc-list" id="doc-list">
-              <div class="empty">尚未选择文件。</div>
-            </div>
-          </div>
-        </section>
-      </aside>
+        <div id="ledger-root"></div>
 
-      <section class="workbench">
-        <section class="hero">
-          <div class="hero-copy">
-            <p class="eyebrow">Consistency console</p>
-            <h2>把多份文档压成一张可审查的证据链。</h2>
-            <p>
-              CrossDoc 不把“AI 结论”放在最前面，而是先暴露 claim、冲突和来源。报告是结果，审查台才是核心。
-            </p>
+        <details class="report-fold">
+          <summary>审查报告 · Markdown</summary>
+          <div class="report-actions">
+            <button id="copy-report" type="button">Copy</button>
+            <button id="download-report" type="button">Download</button>
           </div>
-          <div class="case-card">
-            <div>
-              <span>Documents</span>
-              <strong id="metric-docs">0</strong>
-            </div>
-            <div>
-              <span>Claims</span>
-              <strong id="metric-claims">0</strong>
-            </div>
-            <div>
-              <span>Conflicts</span>
-              <strong id="metric-conflicts">0</strong>
-            </div>
-          </div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <h2>Review Map</h2>
-              <p>从文档到 claim，再到可验证冲突。</p>
-            </div>
-          </div>
-          <div class="panel-body">
-            <div class="map">
-              <div class="map-node documents">
-                <strong id="map-docs">0</strong>
-                <span>source documents</span>
-              </div>
-              <div class="map-node claims">
-                <strong id="map-claims">0</strong>
-                <span>extracted claims</span>
-              </div>
-              <div class="map-node conflicts">
-                <strong id="map-conflicts">0</strong>
-                <span>verified or dismissed conflicts</span>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <h2>Conflict Ledger</h2>
-              <p>每一条发现都必须能回到原文证据。</p>
-            </div>
-            <div class="ledger-toolbar" role="tablist" aria-label="筛选发现">
-              <button class="tab active" type="button" data-filter="all">All</button>
-              <button class="tab" type="button" data-filter="verified">Verified</button>
-              <button class="tab" type="button" data-filter="dismissed">Dismissed</button>
-            </div>
-          </div>
-          <div class="panel-body">
-            <div class="findings" id="findings">
-              <div class="empty">上传 PDF 并开始审查后，这里会显示冲突账本。</div>
-            </div>
-          </div>
-        </section>
+          <pre class="report" id="report">暂无报告。</pre>
+        </details>
       </section>
-
-      <aside class="inspector">
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <h2>Claim Pair</h2>
-              <p>当前选中冲突的两侧陈述。</p>
-            </div>
-          </div>
-          <div class="panel-body">
-            <div class="claim-pair" id="claim-pair">
-              <div class="empty">选择一条冲突后查看 claim 对照。</div>
-            </div>
-          </div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <h2>Evidence</h2>
-              <p>原文引用、页码和文档位置。</p>
-            </div>
-          </div>
-          <div class="panel-body">
-            <div class="evidence-list" id="evidence-list">
-              <div class="empty">暂无证据。</div>
-            </div>
-          </div>
-        </section>
-
-        <section class="panel">
-          <div class="panel-head">
-            <div>
-              <h2>Markdown Report</h2>
-              <p>审查完成后可复制或下载。</p>
-            </div>
-            <div class="report-actions">
-              <button id="copy-report" type="button">Copy</button>
-              <button id="download-report" type="button">Download</button>
-            </div>
-          </div>
-          <div class="panel-body">
-            <pre class="report" id="report">暂无报告。</pre>
-          </div>
-        </section>
-      </aside>
     </main>
 
     <dialog class="source-dialog" id="source-dialog" aria-labelledby="source-title">
@@ -1554,7 +204,9 @@
     </dialog>
 
 
-    <script>
+    <script type="module">
+      import { buildLedgerModel, mountLedger } from "/js/conflict-ledger.js";
+
       const form = document.querySelector("#review-form");
       const startupState = document.querySelector("#startup-state");
       const startupMessage = document.querySelector("#startup-message");
@@ -1575,7 +227,7 @@
       const libraryScreen = document.querySelector("#library-screen");
       const libraryList = document.querySelector("#library-list");
       const readingScreen = document.querySelector("#reading-screen");
-      const reviewScreen = document.querySelector(".shell");
+      const reviewScreen = document.querySelector("#review-screen");
       const reviewReading = document.querySelector("#review-reading");
       const backToReading = document.querySelector("#back-to-reading");
       const readingFileList = document.querySelector("#reading-file-list");
@@ -1589,10 +241,8 @@
       const statusText = document.querySelector("#status");
       const runDot = document.querySelector("#run-dot");
       const navTabs = Array.from(document.querySelectorAll(".nav-tab"));
-      const docList = document.querySelector("#doc-list");
-      const findingsEl = document.querySelector("#findings");
-      const claimPair = document.querySelector("#claim-pair");
-      const evidenceList = document.querySelector("#evidence-list");
+      const docStrip = document.querySelector("#doc-strip");
+      const ledgerRoot = document.querySelector("#ledger-root");
       const reportEl = document.querySelector("#report");
       const sourceDialog = document.querySelector("#source-dialog");
       const sourceTitle = document.querySelector("#source-title");
@@ -1604,18 +254,10 @@
       const closeSource = document.querySelector("#close-source");
       const copyReport = document.querySelector("#copy-report");
       const downloadReport = document.querySelector("#download-report");
-      const metricDocs = document.querySelector("#metric-docs");
-      const metricClaims = document.querySelector("#metric-claims");
-      const metricConflicts = document.querySelector("#metric-conflicts");
-      const mapDocs = document.querySelector("#map-docs");
-      const mapClaims = document.querySelector("#map-claims");
-      const mapConflicts = document.querySelector("#map-conflicts");
-      const tabs = Array.from(document.querySelectorAll(".tab"));
       const steps = ["parse", "extract", "compare", "verify", "report"];
 
       let result = null;
-      let selectedConflictId = null;
-      let filter = "all";
+      let ledger = null;
       let pdfjsRuntime = null;
       let sourceRenderToken = 0;
       let activeRenderTask = null;
@@ -1653,14 +295,6 @@
           .replaceAll(">", "&gt;")
           .replaceAll('"', "&quot;")
           .replaceAll("'", "&#039;");
-      }
-
-      function severityLabel(severity) {
-        return severity === "high" ? "High" : severity === "medium" ? "Medium" : "Low";
-      }
-
-      function statusLabel(status) {
-        return status === "verified" ? "Verified" : status === "dismissed" ? "Dismissed" : "Candidate";
       }
 
       function setRunState(state, message) {
@@ -2042,9 +676,7 @@
           fileTree.replaceChildren();
           ingestCount.textContent = "0 个文件";
           submit.disabled = true;
-          if (docList) docList.innerHTML = '<div class="empty">尚未选择文件。</div>';
-          metricDocs.textContent = "0";
-          mapDocs.textContent = "0";
+          if (docStrip) docStrip.innerHTML = '<span class="doc-chip">尚未选择文件</span>';
           return;
         }
 
@@ -2061,17 +693,15 @@
         ingestCount.textContent = selectionSummary;
         submit.textContent = pdfFiles.length ? `开始读取 · ${pdfFiles.length} 个 PDF` : "当前没有可读取的 PDF";
         submit.disabled = pdfFiles.length === 0;
-        metricDocs.textContent = String(files.length);
-        mapDocs.textContent = String(files.length);
         const tree = buildFileTree(files);
         fileTree.innerHTML = renderFileTree(tree);
-        if (docList) {
-          docList.innerHTML = files
-            .map(({ file, path }, index) => `
-              <div class="doc-item">
-                <strong>${escapeHtml(index + 1)}. ${escapeHtml(path)}</strong>
-                <span>${(file.size / 1024 / 1024).toFixed(2)} MB</span>
-              </div>
+        if (docStrip) {
+          docStrip.innerHTML = files
+            .map(({ file, path }) => `
+              <span class="doc-chip">
+                <strong>${escapeHtml(path)}</strong>
+                <span class="mono">${(file.size / 1024 / 1024).toFixed(2)} MB</span>
+              </span>
             `)
             .join("");
         }
@@ -2139,20 +769,20 @@
       }
 
       function renderReviewedDocuments(documents) {
-        docList.innerHTML = documents
+        docStrip.innerHTML = documents
           .map(
             (document) => `
-              <div class="doc-item">
+              <span class="doc-chip">
                 <strong>${escapeHtml(document.title)}</strong>
-                <span>${escapeHtml(document.format.toUpperCase())} · ${escapeHtml(document.pages)} pages</span>
-                ${(document.warnings ?? []).map((warning) => `<span>${escapeHtml(warning)}</span>`).join("")}
-                <button type="button" data-document-markdown="${escapeHtml(document.id)}">Download converted Markdown</button>
-              </div>
+                <span class="mono">${escapeHtml(document.format.toUpperCase())} · ${escapeHtml(document.pages)}p</span>
+                ${(document.warnings ?? []).map((warning) => `<span class="doc-chip-warn">${escapeHtml(warning)}</span>`).join("")}
+                <button type="button" data-document-markdown="${escapeHtml(document.id)}">MD ↗</button>
+              </span>
             `,
           )
           .join("");
 
-        docList.querySelectorAll("[data-document-markdown]").forEach((button) => {
+        docStrip.querySelectorAll("[data-document-markdown]").forEach((button) => {
           button.addEventListener("click", () => {
             const document = documents.find((item) => item.id === button.dataset.documentMarkdown);
             if (!document) return;
@@ -2165,73 +795,6 @@
             URL.revokeObjectURL(url);
           });
         });
-      }
-
-      function updateMetrics(data) {
-        const docs = data?.documents?.length ?? 0;
-        const claims = data?.claimCount ?? 0;
-        const conflicts = data?.conflictCount ?? 0;
-        metricDocs.textContent = String(docs);
-        metricClaims.textContent = String(claims);
-        metricConflicts.textContent = String(conflicts);
-        mapDocs.textContent = String(docs);
-        mapClaims.textContent = String(claims);
-        mapConflicts.textContent = String(conflicts);
-      }
-
-      function renderFindings() {
-        const conflicts = result?.conflicts ?? [];
-        const filtered = conflicts.filter((conflict) => filter === "all" || conflict.status === filter);
-        if (filtered.length === 0) {
-          findingsEl.innerHTML =
-            conflicts.length === 0
-              ? '<div class="empty">暂无冲突。上传多份存在差异的 PDF 后可查看审查结果。</div>'
-              : '<div class="empty">当前筛选下没有发现。</div>';
-          return;
-        }
-
-        selectedConflictId ??= filtered[0].id;
-        if (!filtered.some((conflict) => conflict.id === selectedConflictId)) {
-          selectedConflictId = filtered[0].id;
-        }
-
-        findingsEl.innerHTML = filtered
-          .map(
-            (conflict) => `
-              <button class="finding ${escapeHtml(conflict.status)} ${conflict.id === selectedConflictId ? "selected" : ""}" type="button" data-conflict-id="${escapeHtml(conflict.id)}">
-                <div>
-                  <div class="badges">
-                    <span class="badge ${escapeHtml(conflict.severity)}">${severityLabel(conflict.severity)}</span>
-                    <span class="badge neutral">${statusLabel(conflict.status)}</span>
-                    <span class="badge neutral">${escapeHtml(conflict.id)}</span>
-                  </div>
-                  <div class="finding-title">${escapeHtml(conflict.summary)}</div>
-                  <p class="finding-copy">${escapeHtml(conflict.rationale)}</p>
-                </div>
-                <div class="score">${Math.round((conflict.score ?? 0) * 100)}%</div>
-              </button>
-            `,
-          )
-          .join("");
-
-        findingsEl.querySelectorAll("[data-conflict-id]").forEach((button) => {
-          button.addEventListener("click", () => {
-            selectedConflictId = button.dataset.conflictId;
-            renderFindings();
-            renderInspector();
-          });
-        });
-      }
-
-      function claimText(claim) {
-        return claim?.text ?? claim?.value ?? claim?.summary ?? "No claim text captured.";
-      }
-
-      function claimSource(claim) {
-        const evidence = claim?.evidence?.[0];
-        if (!evidence) return claim?.documentId ?? "Unknown source";
-        const title = documentForId(evidence.documentId)?.title ?? evidence.documentId ?? claim?.documentId ?? "Unknown document";
-        return `${title} · page ${evidence.page ?? "?"}`;
       }
 
       function citationLabel(evidenceId) {
@@ -2319,46 +882,6 @@
         }
       }
 
-      function renderInspector() {
-        const conflict = result?.conflicts?.find((item) => item.id === selectedConflictId);
-        if (!conflict) {
-          claimPair.innerHTML = '<div class="empty">选择一条冲突后查看 claim 对照。</div>';
-          evidenceList.innerHTML = '<div class="empty">暂无证据。</div>';
-          return;
-        }
-
-        const claims = conflict.claims ?? [];
-        claimPair.innerHTML = claims
-          .map(
-            (claim, index) => `
-              <div class="claim">
-                <span>Claim ${index === 0 ? "A" : "B"} · ${escapeHtml(claimSource(claim))}</span>
-                <strong>${escapeHtml(claimText(claim))}</strong>
-              </div>
-            `,
-          )
-          .join("");
-
-        const evidence = conflict.evidence ?? [];
-        evidenceList.innerHTML =
-          evidence.length > 0
-            ? evidence
-                .map(
-                  (item) => `
-                    <div class="evidence">
-                      <div class="evidence-meta">
-                        <span>[${escapeHtml(citationLabel(item.id))}] ${escapeHtml(documentForId(item.documentId)?.title ?? item.documentId ?? "document")}</span>
-                        <span>page ${escapeHtml(item.page ?? "?")}</span>
-                      </div>
-                      <p class="quote">${escapeHtml(item.quote ?? "No quote captured.")}</p>
-                      ${documentForId(item.documentId)?.sourceUrl ? `<a class="source-link" data-source-id="${escapeHtml(item.id)}" href="${escapeHtml(documentForId(item.documentId).sourceUrl)}#page=${encodeURIComponent(item.page ?? 1)}">Open cited page ↗</a>` : ""}
-                    </div>
-                  `,
-                )
-                .join("")
-            : '<div class="empty">这条发现没有捕获到证据片段。</div>';
-      }
-
       function renderReport(markdown) {
         if (!markdown) {
           reportEl.textContent = "暂无报告。";
@@ -2381,6 +904,47 @@
         reportEl.innerHTML = escaped;
       }
 
+
+      function allEvidence() {
+        const items = [];
+        for (const conflict of result?.conflicts ?? []) {
+          for (const item of conflict.evidence ?? []) {
+            if (!items.some((candidate) => candidate.id === item.id)) items.push(item);
+          }
+        }
+        return items;
+      }
+
+      // 冲突清单组件的唯一入口。后端只要返回 POST /api/review 的契约体即可。
+      function renderLedger() {
+        const model = buildLedgerModel(result ?? { documents: [], conflicts: [] });
+        ledger = mountLedger(ledgerRoot, model, {
+          onOpenEvidence: ({ evidenceId }) => {
+            const source = allEvidence().find((item) => item.id === evidenceId);
+            if (source) void openSource(source);
+          },
+        });
+      }
+
+      /**
+       * 集成口子：审查结果到位后统一走这里。
+       * 契约体与 POST /api/review 的返回体一致：
+       *   { documents: [{ id, title, pages, sourceUrl? }], claimCount, conflictCount,
+       *     reportMarkdown, conflicts: [{ id, status, severity, summary, rationale,
+       *     score, claims: [Claim, Claim], evidence: EvidenceSpan[] }] }
+       * 后端换成任何实现，只要喂这个结构，前端不用动。
+       */
+      function applyReviewResult(data) {
+        result = data;
+        renderReviewedDocuments(data?.documents ?? []);
+        renderLedger();
+        renderReport(data?.reportMarkdown ?? "");
+        setView("review");
+      }
+
+      // 自动化验收与外部集成用：注入一次审查结果即可看到审查台。
+      window.crossdocApplyReviewResult = applyReviewResult;
+
       async function runReview() {
         const files = selectedFiles.filter(({ file }) => isPdf(file)).map(({ file, path }) => ({ file, path }));
         if (files.length === 0) {
@@ -2391,7 +955,6 @@
         const formData = new FormData();
         files.forEach(({ file, path }) => formData.append("documents", file, path));
         submit.disabled = true;
-        selectedConflictId = null;
         readingEvents?.close();
         setView("review");
         setRunState("Running", "正在上传并解析文档。");
@@ -2415,12 +978,7 @@
             throw new Error(data.error || "审查失败，请检查 PDF 是否损坏或为空。");
           }
 
-          result = data;
-          renderReviewedDocuments(data.documents);
-          updateMetrics(data);
-          renderFindings();
-          renderInspector();
-          renderReport(data.reportMarkdown);
+          applyReviewResult(data);
           setPipeline(steps.length);
           setRunState(
             "Ready",
@@ -2439,13 +997,8 @@
         HTMLFormElement.prototype.reset.call(form);
         selectedFiles = [];
         result = null;
-        selectedConflictId = null;
-        filter = "all";
-        tabs.forEach((tab) => tab.classList.toggle("active", tab.dataset.filter === "all"));
         updateFiles();
-        updateMetrics(null);
-        renderFindings();
-        renderInspector();
+        renderLedger();
         renderReport("");
         setPipeline(-1);
         setRunState("Idle", "等待上传。");
@@ -2545,15 +1098,6 @@
         if (event.dataTransfer?.files?.length) {
           addSelectedFiles(event.dataTransfer.files);
         }
-      });
-
-      tabs.forEach((tab) => {
-        tab.addEventListener("click", () => {
-          filter = tab.dataset.filter;
-          tabs.forEach((item) => item.classList.toggle("active", item === tab));
-          renderFindings();
-          renderInspector();
-        });
       });
 
       copyReport.addEventListener("click", async () => {

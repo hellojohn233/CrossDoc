@@ -487,6 +487,12 @@ async function main() {
     assert.doesNotMatch(clientSource, /model-warning|id="model-warning"/, "the selection view stays free of an extra model-configuration notice; the header tab is the only entry point");
     assert.match(clientSource, /data-view="selection"[\s\S]*?data-view="library"[\s\S]*?data-view="models"/, "the header exposes upload / library / model configuration as switchable views");
     assert.match(clientSource, /placeholder="输入或加载模型 ID"/, "model ID remains editable for manual entry if discovery fails");
+    assert.match(clientSource, /import \{ buildLedgerModel, mountLedger \} from "\/js\/conflict-ledger\.js"/, "the review console renders conflicts through the shared ledger component");
+    assert.match(clientSource, /id="review-screen"/, "the review console is its own screen");
+    assert.doesNotMatch(clientSource, /class="shell"|id="findings"|id="claim-pair"|id="evidence-list"/, "the review console keeps no legacy list/detail split");
+    assert.match(clientSource, /window\.crossdocApplyReviewResult = applyReviewResult/, "a finished review reaches the ledger through one documented seam");
+    const clientStyles = await readFile(join(process.cwd(), "public/styles.css"), "utf8");
+    assert.match(clientStyles, /\.ledger-entry\b/, "the ledger component ships its styles in the shared stylesheet");
 
     const cancelledResponse = await postPdf(`${baseUrl}/api/read`, "cancel.pdf", pdfBytes("Cancel source"));
     assert.equal(cancelledResponse.status, 202);

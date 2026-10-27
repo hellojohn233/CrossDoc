@@ -15,6 +15,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "verify:agent": "tsx scripts/verify-agent.mjs",
     "verify:agent-parallel": "tsx scripts/verify-agent-parallel.mjs",
+    "verify:conflict-diff": "node scripts/verify-conflict-diff.mjs",
     "verify:web-read": "tsx scripts/verify-web-read.mjs",
     "verify:pdf-page-render": "tsx scripts/verify-pdf-page-render.mjs",
     "verify:pdf-vector-classification": "tsx scripts/verify-pdf-vector-classification.mjs",
