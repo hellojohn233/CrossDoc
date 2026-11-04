@@ -7,9 +7,12 @@ eyebrow 小字、玻璃拟态卡片、浏览器窗口 mock、三段式 section �
 site/
   index.html          页面结构
   styles.css          样式与设计 token
+  preview.png         桌面宽度全页预览
   assets/
     crossdoc-logo.svg 深色背景版 logo（app 里那版是墨色，深底上看不清）
 ```
+
+![CrossDoc 主页预览](./preview.png)
 
 ## 本地预览
 
