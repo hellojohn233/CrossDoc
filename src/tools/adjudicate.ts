@@ -1,11 +1,12 @@
-import type { CandidatePair, ConflictJudgment, ConflictSeverity } from "../core/types.js";
+import type { AlignedPair } from "../core/key-data.js";
+import type { ConflictJudgment, ConflictSeverity } from "../core/types.js";
 
 /** Injected text completion. Keeps this module testable without a model runtime. */
 export type CompleteFn = (prompt: string) => Promise<string>;
 
 export interface AdjudicateOptions {
   complete: CompleteFn;
-  /** How many candidate pairs to send in one request. */
+  /** How many aligned pairs to send in one request. */
   batchSize?: number;
   onProgress?: (completed: number, total: number) => void;
 }
@@ -20,32 +21,33 @@ interface ParsedJudgment {
   rationale: string;
 }
 
-function quoteOf(claim: CandidatePair["claims"][number]): string {
-  return claim.evidence[0]?.quote?.trim() || claim.value.trim();
-}
-
-export function buildAdjudicationPrompt(batch: CandidatePair[]): string {
+export function buildAdjudicationPrompt(batch: AlignedPair[]): string {
   const payload = batch.map((pair) => ({
     id: pair.id,
-    signals: pair.signals,
-    a: { document: pair.claims[0].documentId, quote: quoteOf(pair.claims[0]) },
-    b: { document: pair.claims[1].documentId, quote: quoteOf(pair.claims[1]) },
+    key: pair.key,
+    label: pair.label,
+    a: { document: pair.left.documentId, value: pair.left.value, quote: pair.left.quote },
+    b: { document: pair.right.documentId, value: pair.right.value, quote: pair.right.quote },
+    values: pair.group.map((item) => ({ document: item.documentId, value: item.value })),
   }));
 
   return [
-    "You are the semantic adjudicator of a multi-document consistency review.",
-    "For each candidate pair, decide whether statement A and statement B CONTRADICT each other.",
+    "You are checking whether key data lines up across a set of documents.",
+    "Each candidate names one data point (a key) and shows the value two documents state for it.",
+    "The values array lists what every document states for that key, so you can see which documents agree and which differ.",
     "",
-    "A contradiction means the two statements cannot both be true for the same subject and scope, for example:",
-    "- different numbers, dates, amounts, percentages, or durations for the same obligation;",
-    "- opposite permissions or prohibitions (may vs must not);",
-    "- different parties, jurisdictions, or named terms for the same clause;",
-    "- one statement grants or excludes what the other grants or excludes.",
+    "Answer conflict=true only when the two values cannot both be right for the same subject and scope, for example:",
+    "- the same key carries different numbers, dates, amounts, or durations;",
+    "- the two documents bind different parties, jurisdictions, or named terms for the same key;",
+    "- one document grants or excludes what the other grants or excludes.",
     "",
-    "Not a contradiction: the statements agree, one is a more general or more specific version of the other,",
-    "they talk about different subjects or obligations, or they merely restate the same clause in other words.",
+    "Answer conflict=false when:",
+    "- the two values are the same thing written differently;",
+    "- one value is more general or more specific than the other but stays compatible;",
+    "- the two documents describe different subjects, parties, or obligations;",
+    "- one document does not state this key at all, so there is nothing to contradict.",
     "",
-    "Judge only from the quoted text. Never invent facts and never use outside knowledge.",
+    "Judge only from the values and quotes you are given. Never invent facts and never use outside knowledge.",
     "Answer in the language of the quotes.",
     "",
     "Candidates (JSON):",
@@ -54,7 +56,7 @@ export function buildAdjudicationPrompt(batch: CandidatePair[]): string {
     "Return ONLY a JSON array with one object per candidate, same order, no prose and no code fence:",
     '[{"id":"<candidate id>","conflict":true,"severity":"low|medium|high","confidence":0.0,"summary":"<=80 chars","rationale":"one sentence"}]',
     "",
-    "severity: high = changes a legal or financial permission or obligation; medium = changes a material term; low = minor.",
+    "severity: high = changes an amount, a deadline, or who is bound; medium = changes a material term; low = minor.",
   ].join("\n");
 }
 
@@ -108,38 +110,38 @@ export function parseAdjudicationResponse(raw: string): Map<string, ParsedJudgme
 }
 
 /**
- * Stage 2 of the review: ask a language model whether each recalled pair really contradicts.
+ * Stage 3 of the review: ask a language model whether two aligned values contradict.
  *
  * Pairs are batched so a review costs a handful of requests instead of one per pair.
  * A pair the model omits is treated as consistent, never as a conflict.
  */
-export async function adjudicateCandidates(
-  candidates: CandidatePair[],
+export async function adjudicatePairs(
+  pairs: AlignedPair[],
   options: AdjudicateOptions,
 ): Promise<ConflictJudgment[]> {
-  if (candidates.length === 0) return [];
+  if (pairs.length === 0) return [];
   const batchSize = Math.max(1, options.batchSize ?? 8);
   const judgments: ConflictJudgment[] = [];
 
-  for (let index = 0; index < candidates.length; index += batchSize) {
-    const batch = candidates.slice(index, index + batchSize);
+  for (let index = 0; index < pairs.length; index += batchSize) {
+    const batch = pairs.slice(index, index + batchSize);
     const raw = await options.complete(buildAdjudicationPrompt(batch));
     const parsed = parseAdjudicationResponse(raw);
 
-    for (const candidate of batch) {
-      const verdict = parsed.get(candidate.id);
+    for (const pair of batch) {
+      const verdict = parsed.get(pair.id);
       judgments.push(
         verdict
           ? {
-              candidateId: candidate.id,
+              candidateId: pair.id,
               conflict: verdict.conflict,
               severity: verdict.severity,
               confidence: verdict.confidence,
-              summary: verdict.summary || `Conflict between ${candidate.claims[0].documentId} and ${candidate.claims[1].documentId}`,
+              summary: verdict.summary || `${pair.label} 不一致`,
               rationale: verdict.rationale || "The adjudicator reported a contradiction without a rationale.",
             }
           : {
-              candidateId: candidate.id,
+              candidateId: pair.id,
               conflict: false,
               severity: "low",
               confidence: 0,
@@ -149,7 +151,7 @@ export async function adjudicateCandidates(
       );
     }
 
-    options.onProgress?.(Math.min(index + batchSize, candidates.length), candidates.length);
+    options.onProgress?.(Math.min(index + batchSize, pairs.length), pairs.length);
   }
 
   return judgments;

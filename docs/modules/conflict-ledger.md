@@ -40,7 +40,7 @@ The ledger consumes exactly the `POST /api/review` response body. Nothing else.
 ```ts
 ReviewResult = {
   documents: { id: string; title: string; sourceUrl?: string }[];
-  claimCount: number;
+  claimCount: number;             // key data points extracted
   conflictCount: number;
   verifiedConflictCount: number;
   judgeSource: "model" | "rule";   // which stage produced the verdicts

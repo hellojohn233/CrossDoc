@@ -982,7 +982,7 @@
           setPipeline(steps.length);
           setRunState(
             "Ready",
-            `完成：${data.documents.length} 份文档，${data.claimCount} 条 claim，${data.conflictCount} 条冲突。`,
+            `完成：${data.documents.length} 份文档，${data.claimCount} 条关键数据，${data.conflictCount} 条冲突。`,
           );
         } catch (error) {
           setPipeline(-1);

@@ -5,7 +5,7 @@ import { resolve } from "node:path";
 
 import { reviewDocuments } from "./review.js";
 import { createBuiltinModels } from "./agent.js";
-import { createModelAdjudicator } from "./model-adjudicator.js";
+import { createReviewModel } from "./review-model.js";
 import { LocalDatabase } from "./storage/database.js";
 import { writeReviewArtifacts } from "./storage/review-store.js";
 
@@ -38,7 +38,7 @@ async function review(patterns: string[]): Promise<void> {
   const database = new LocalDatabase(resolve("data"));
   const result = await reviewDocuments(files, {
     onProgress: (progress) => console.log(`- ${progress.message}`),
-    adjudicator: createModelAdjudicator(createBuiltinModels(), database.getModelProfile("main")),
+    model: createReviewModel(createBuiltinModels(), database.getModelProfile("main")),
   });
 
   const outDir = resolve("crossdoc-output");

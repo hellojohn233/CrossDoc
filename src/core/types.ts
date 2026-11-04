@@ -1,4 +1,5 @@
 import type { Claim, EvidenceSpan, ParsedDocument } from "./claims.js";
+import type { AlignedPair, KeyDataItem } from "./key-data.js";
 
 export type ConflictSeverity = "low" | "medium" | "high";
 export type ConflictStatus = "candidate" | "verified" | "dismissed";
@@ -19,27 +20,7 @@ export interface Conflict {
   judgeSource?: JudgeSource;
 }
 
-/**
- * Cheap signals that make a claim pair worth a semantic look.
- * These describe *why* a pair was recalled, never whether it really conflicts.
- */
-export type RecallSignal =
-  | "opposite-polarity"
-  | "different-number"
-  | "different-date"
-  | "different-amount"
-  | "shared-overlap";
-
-/** A recalled pair of claims awaiting an adjudication verdict. */
-export interface CandidatePair {
-  id: string;
-  claims: [Claim, Claim];
-  /** Recall score (0-1). Cheap heuristic, never a verdict. */
-  recallScore: number;
-  signals: RecallSignal[];
-}
-
-/** The semantic verdict for one candidate pair. */
+/** The semantic verdict for one aligned pair. */
 export interface ConflictJudgment {
   candidateId: string;
   conflict: boolean;
@@ -49,15 +30,33 @@ export interface ConflictJudgment {
   rationale: string;
 }
 
-/** Verdicts for a batch of recalled candidates, plus how they were produced. */
+/** Verdict for one aligned pair, plus how the verdict was produced. */
 export interface AdjudicationResult {
   judgments: ConflictJudgment[];
   source: JudgeSource;
   warning?: string;
 }
 
-/** Stage 2 of the review: turns recalled candidates into verdicts. */
-export type Adjudicator = (candidates: CandidatePair[]) => Promise<AdjudicationResult>;
+/** Stage 3 of the review: turns aligned pairs into verdicts. */
+export type Adjudicator = (pairs: AlignedPair[]) => Promise<AdjudicationResult>;
+
+/** The key data one document states, plus how it was obtained. */
+export interface KeyDataExtraction {
+  items: KeyDataItem[];
+  source: JudgeSource;
+  warning?: string;
+}
+
+/**
+ * The model-backed stages of the review. Both can fall back to a rule pass, in
+ * which case they report it through `source` and `warning`.
+ */
+export interface ReviewModel {
+  /** Stage 1: which key data points a document asserts. */
+  extractKeyData: (document: ParsedDocument) => Promise<KeyDataExtraction>;
+  /** Stage 3: whether two aligned values contradict. */
+  adjudicate: Adjudicator;
+}
 
 export interface ReviewResult {
   documents: ParsedDocument[];

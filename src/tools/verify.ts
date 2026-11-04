@@ -1,39 +1,44 @@
-import type { EvidenceSpan } from "../core/claims.js";
-import type { CandidatePair, Conflict, ConflictJudgment, JudgeSource } from "../core/types.js";
+import type { EvidenceSpan, ParsedDocument } from "../core/claims.js";
+import type { AlignedPair } from "../core/key-data.js";
+import type { Conflict, ConflictJudgment, JudgeSource } from "../core/types.js";
+import { claimForItem } from "./key-data.js";
 
 export interface VerifyOptions {
   judgeSource?: JudgeSource;
+  /** Parsed documents, used to trace a quote back to its source blocks. */
+  documents?: Map<string, ParsedDocument>;
 }
 
 /**
- * Stage 3 of the review: turn adjudication verdicts into conflicts, and check that
- * every conflict still carries citable evidence.
+ * Stage 4 of the review: turn verdicts on aligned pairs into conflicts, and check
+ * that every conflict still carries citable evidence.
  *
- * A conflict whose evidence does not point back at its own claim is dismissed:
+ * A conflict whose evidence does not point back at its own document is dismissed:
  * an uncitable finding is worse than a missing one.
  */
 export function verifyConflicts(
-  candidates: CandidatePair[],
+  pairs: AlignedPair[],
   judgments: ConflictJudgment[],
   options: VerifyOptions = {},
 ): Conflict[] {
-  const candidateById = new Map(candidates.map((candidate) => [candidate.id, candidate]));
+  const pairById = new Map(pairs.map((pair) => [pair.id, pair]));
   const conflicts: Conflict[] = [];
 
   for (const judgment of judgments) {
-    const candidate = candidateById.get(judgment.candidateId);
-    if (!candidate) continue;
+    const pair = pairById.get(judgment.candidateId);
+    if (!pair) continue;
 
-    const [left, right] = candidate.claims;
+    const left = claimForItem(pair.left, options.documents?.get(pair.left.documentId));
+    const right = claimForItem(pair.right, options.documents?.get(pair.right.documentId));
     const evidence = [left.evidence[0], right.evidence[0]].filter((item): item is EvidenceSpan => Boolean(item));
     const evidenceProblem = evidenceProblemFor(left, right);
     const accepted = judgment.conflict && !evidenceProblem;
 
     conflicts.push({
-      id: candidate.id,
+      id: pair.id.replace(/^pair-/, "conflict-"),
       status: accepted ? "verified" : "dismissed",
       severity: accepted ? judgment.severity : "low",
-      summary: judgment.summary || `Conflict between ${left.documentId} and ${right.documentId}`,
+      summary: judgment.summary || `${pair.label} 不一致`,
       rationale: evidenceProblem ? `${judgment.rationale} ${evidenceProblem}` : judgment.rationale,
       claims: [left, right],
       evidence,
@@ -46,8 +51,8 @@ export function verifyConflicts(
 }
 
 function evidenceProblemFor(
-  left: CandidatePair["claims"][number],
-  right: CandidatePair["claims"][number],
+  left: { documentId: string; evidence: { documentId: string; quote: string }[] },
+  right: { documentId: string; evidence: { documentId: string; quote: string }[] },
 ): string | undefined {
   for (const claim of [left, right]) {
     const evidence = claim.evidence[0];

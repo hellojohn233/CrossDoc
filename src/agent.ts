@@ -11,13 +11,14 @@ import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import { Type } from "typebox";
 
 import type { Claim, DocumentBlock, ParsedDocument, PdfSourceLocation } from "./core/claims.js";
-import type { CandidatePair, Conflict, ConflictJudgment } from "./core/types.js";
+import { isTaxonomyKey, keyLabel, type AlignedPair, type KeyDataItem } from "./core/key-data.js";
+import type { Conflict, ConflictJudgment } from "./core/types.js";
 import { renderPdfPage, type RenderedPdfPage } from "./loaders/render-pdf-page.js";
 import type { ParseDocumentOptions } from "./loaders/types.js";
 import { renderDocumentMarkdown } from "./markdown/document.js";
-import { extractClaims } from "./tools/extract.js";
+import { createReviewModel } from "./review-model.js";
 import { parseDoc } from "./tools/parse.js";
-import { recallCandidates } from "./tools/recall.js";
+import { alignKeyData, expandAlignedPairs } from "./tools/key-data.js";
 import { reportConflicts } from "./tools/report.js";
 import { searchDocument } from "./tools/search-document.js";
 import { verifyConflicts } from "./tools/verify.js";
@@ -46,8 +47,17 @@ const documentIdsParameters = Type.Object({
 });
 const claimsParameters = Type.Object({ claims: Type.Array(Type.Any()) });
 const conflictsParameters = Type.Object({ conflicts: Type.Array(Type.Any()) });
+const keyDataParameters = Type.Object({ documentId: Type.String({ minLength: 1 }) });
+const keyDataItemSchema = Type.Object({
+  documentId: Type.String({ minLength: 1 }),
+  key: Type.String({ minLength: 1 }),
+  value: Type.String({ minLength: 1 }),
+  quote: Type.String({ minLength: 1 }),
+  page: Type.Optional(Type.Integer({ minimum: 1 })),
+});
+const alignParameters = Type.Object({ items: Type.Array(keyDataItemSchema) });
 const judgmentsParameters = Type.Object({
-  candidates: Type.Array(Type.Any()),
+  pairs: Type.Array(Type.Any()),
   judgments: Type.Array(Type.Any()),
 });
 const reportParameters = Type.Object({
@@ -230,6 +240,24 @@ export async function resolveVisionModel(models: Pick<Models, "getModel" | "chec
     modelId: configuredModel.slice(separator + 1).trim(),
   }, "vision");
   return resolved.model;
+}
+
+function toKeyDataItem(
+  item: { documentId: string; key: string; value: string; quote: string; page?: number },
+  index: number,
+): KeyDataItem {
+  const key = item.key.trim().toLowerCase().replace(/\s+/g, "_");
+  return {
+    id: `${item.documentId}:${key}:${index + 1}`,
+    documentId: item.documentId,
+    key,
+    label: keyLabel(key),
+    value: item.value.trim(),
+    quote: item.quote.trim(),
+    ...(item.page === undefined ? {} : { page: item.page }),
+    confidence: 0.8,
+    custom: !isTaxonomyKey(key),
+  };
 }
 
 function asJson(value: unknown): JsonValue {
@@ -633,36 +661,47 @@ export function createCrossDocTools(options: CrossDocAgentOptions): AgentTool<an
     },
   } satisfies AgentTool<typeof searchParameters>;
 
-  const extract = {
-    name: "extract_claims",
-    label: "Extract claims",
-    description: "Extract evidence-grounded claims from parsed documents when the user requests a consistency review.",
-    parameters: documentIdsParameters,
+  const extractKeyDataTool = {
+    name: "extract_key_data",
+    label: "Extract key data",
+    description: "List the key data points a document states about itself, using the fixed key vocabulary, when the user requests a consistency review.",
+    parameters: keyDataParameters,
     executionMode: "parallel",
-    async execute(_callId, { documentIds }) {
-      const claims = [...new Set(documentIds)].flatMap((id) => extractClaims(getParsed(id)));
-      return { content: [{ type: "text", text: JSON.stringify(claims) }], structuredContent: asJson(claims), details: { count: claims.length } };
+    async execute(_callId, { documentId }) {
+      const model = createReviewModel(options.models ?? createBuiltinModels(), options.mainProfile);
+      const extraction = await model.extractKeyData(getParsed(documentId));
+      return {
+        content: [{ type: "text", text: JSON.stringify(extraction.items) }],
+        structuredContent: asJson(extraction.items),
+        details: { count: extraction.items.length, source: extraction.source, warning: extraction.warning },
+      };
     },
-  } satisfies AgentTool<typeof documentIdsParameters>;
-  const compare = {
-    name: "compare_claims",
-    label: "Recall candidate claims",
-    description: "Recall claim pairs that may contradict each other when the user requests a consistency review. Returns candidate pairs with their quotes and recall signals, without deciding whether they conflict.",
-    parameters: claimsParameters,
+  } satisfies AgentTool<typeof keyDataParameters>;
+  const align = {
+    name: "align_key_data",
+    label: "Align key data",
+    description: "Line the key data points of several documents up by key and return the values that disagree.",
+    parameters: alignParameters,
     executionMode: "parallel",
-    async execute(_callId, { claims }) {
-      const candidates = recallCandidates(claims as Claim[]);
-      return { content: [{ type: "text", text: JSON.stringify(candidates) }], structuredContent: asJson(candidates), details: { count: candidates.length } };
+    async execute(_callId, { items }) {
+      const keyItems = items.map((item, index) => toKeyDataItem(item, index));
+      const groups = alignKeyData(keyItems);
+      const pairs = expandAlignedPairs(groups);
+      return {
+        content: [{ type: "text", text: JSON.stringify(pairs) }],
+        structuredContent: asJson(pairs),
+        details: { groups: groups.length, pairs: pairs.length },
+      };
     },
-  } satisfies AgentTool<typeof claimsParameters>;
+  } satisfies AgentTool<typeof alignParameters>;
   const verify = {
     name: "verify_conflicts",
     label: "Verify conflicts",
-    description: "Turn your contradiction verdicts into verified conflicts. Pass the candidate pairs from compare_claims and one judgment per candidate: {candidateId, conflict, severity, confidence, summary, rationale}.",
+    description: "Turn your contradiction verdicts into verified conflicts. Pass the differing pairs from align_key_data and one judgment per pair: {candidateId, conflict, severity, confidence, summary, rationale}.",
     parameters: judgmentsParameters,
     executionMode: "parallel",
-    async execute(_callId, { candidates, judgments }) {
-      const result = verifyConflicts(candidates as CandidatePair[], judgments as ConflictJudgment[]);
+    async execute(_callId, { pairs, judgments }) {
+      const result = verifyConflicts(pairs as AlignedPair[], judgments as ConflictJudgment[]);
       return { content: [{ type: "text", text: JSON.stringify(result) }], structuredContent: asJson(result), details: { count: result.length } };
     },
   } satisfies AgentTool<typeof judgmentsParameters>;
@@ -682,7 +721,7 @@ export function createCrossDocTools(options: CrossDocAgentOptions): AgentTool<an
     },
   } satisfies AgentTool<typeof reportParameters>;
 
-  return [inspect, loadSkill, parse, render, savePage, search, extract, compare, verify, report] as AgentTool<any>[];
+  return [inspect, loadSkill, parse, render, savePage, search, extractKeyDataTool, align, verify, report] as AgentTool<any>[];
 }
 
 export async function createCrossDocAgent(options: CrossDocAgentOptions): Promise<Agent> {
@@ -709,8 +748,8 @@ export async function createCrossDocAgent(options: CrossDocAgentOptions): Promis
         "For a request to read or summarize selected PDFs: inspect each document, load pdf-reading, parse it, and call render_scan_page once for every scan-candidate page. That tool sends the page to the vision model and saves its exact transcript and citation itself; do not call save_scan_page_text to relay the OCR. Then load document-overview and give a brief cited overview. Use save_scan_page_text only when the user explicitly asks to repair or replace saved scan text. Do not call review tools for ordinary reading or overview.",
         "When multiple PDFs are selected, issue their independent parse_document calls together in selected-file order. CrossDoc limits active parse-plus-save work to three documents, preserves the call order in results, and reports one file's error without discarding successful reads.",
         "For follow-up questions, use search_document with the user's question and selected parsed document IDs. Answer only from returned evidence and cite each source page using [[cite:<document-id>:<page-number>]], preserving exact IDs and page numbers. If no evidence matches, say so.",
-        "Call extract_claims, compare_claims, verify_conflicts, and report_conflicts only when the user asks for a consistency review or comparison.",
-        "For a consistency review you judge the contradictions yourself. compare_claims only recalls candidate pairs and never decides anything: read both quotes of every candidate, and call verify_conflicts with those candidates plus one judgment per candidate ({candidateId, conflict, severity, confidence, summary, rationale}). Mark conflict=true only when the two statements cannot both be true; a different number, date, amount, party, or an opposite permission is a conflict, while a paraphrase, a more specific restatement, or two statements about different subjects are not.",
+        "Call extract_key_data, align_key_data, verify_conflicts, and report_conflicts only when the user asks for a consistency review or comparison.",
+        "For a consistency review you judge the contradictions yourself. Call extract_key_data for every document, then align_key_data with the collected items to line the key data up and see which values disagree. Read every differing pair, then call verify_conflicts with those pairs plus one judgment per pair ({candidateId, conflict, severity, confidence, summary, rationale}), using the pair id as candidateId. Mark conflict=true only when the two values cannot both be right for the same subject and scope: a different number, date, amount, party, or jurisdiction is a conflict, while the same value written differently, a more specific restatement, or two values about different subjects are not.",
         "If a scan page is unreadable, do not invent its content; report its page number and keep the warning visible.",
       ].join("\n"),
       tools: createCrossDocTools({ ...options, models, visionProfile: vision.profile }),

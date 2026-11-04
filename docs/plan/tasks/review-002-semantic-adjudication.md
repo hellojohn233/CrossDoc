@@ -7,6 +7,8 @@ status: done
 
 # review-002: Semantic conflict adjudication
 
+> Superseded by [`review-003`](./review-003-key-data-alignment.md), which replaced the recall stage with key data alignment. This document records what was true at the time of this task.
+
 ## Objective
 
 Decide whether two statements contradict each other with a language model, not with token overlap.

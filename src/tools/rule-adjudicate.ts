@@ -1,38 +1,34 @@
-import type { CandidatePair, ConflictJudgment, ConflictSeverity } from "../core/types.js";
+import type { AlignedPair } from "../core/key-data.js";
+import type { ConflictJudgment, ConflictSeverity } from "../core/types.js";
+
+const HIGH_IMPACT_KEYS = new Set([
+  "contract_value",
+  "currency",
+  "payment_term",
+  "effective_date",
+  "expiry_date",
+  "contract_subject",
+  "liability_cap",
+  "late_fee",
+]);
 
 /**
  * Degraded adjudicator used when no language model is configured or the model call failed.
  *
- * It can only catch explicit contradictions (different dates, amounts, numbers, or opposite
- * polarity). It never claims to understand paraphrases, so it stays conservative.
+ * Two documents that state different values for the same key disagree, but the rule
+ * pass cannot tell a genuine contradiction from a legitimate difference in scope,
+ * so it never claims more than a medium severity.
  */
-export function ruleAdjudicate(candidates: CandidatePair[]): ConflictJudgment[] {
-  return candidates.map((candidate) => {
-    const [left, right] = candidate.claims;
-    const signals = candidate.signals;
-    const difference = signals.find(
-      (signal) => signal === "opposite-polarity" || signal === "different-date" || signal === "different-amount" || signal === "different-number",
-    );
-
-    if (!difference) {
-      return {
-        candidateId: candidate.id,
-        conflict: false,
-        severity: "low",
-        confidence: 0.4,
-        summary: "",
-        rationale: "No explicit contradiction was detected without a language model to judge the wording.",
-      };
-    }
-
-    const severity: ConflictSeverity = difference === "opposite-polarity" ? "high" : "medium";
+export function ruleAdjudicatePairs(pairs: AlignedPair[]): ConflictJudgment[] {
+  return pairs.map((pair) => {
+    const severity: ConflictSeverity = HIGH_IMPACT_KEYS.has(pair.key) ? "medium" : "low";
     return {
-      candidateId: candidate.id,
+      candidateId: pair.id,
       conflict: true,
       severity,
-      confidence: difference === "different-number" ? 0.6 : 0.7,
-      summary: `Conflict between ${left.documentId} and ${right.documentId}`,
-      rationale: `The two statements differ in ${difference.replace(/-/g, " ")}; no language model was available to confirm the wording.`,
+      confidence: 0.6,
+      summary: `${pair.label} 不一致`,
+      rationale: `${pair.left.documentId} states "${pair.left.value}" while ${pair.right.documentId} states "${pair.right.value}"; no language model was available to confirm the scope.`,
     };
   });
 }
