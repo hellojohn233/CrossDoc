@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1390 1194" width="1390" height="1194" role="img" aria-labelledby="cd-title">
+  <title id="cd-title">CrossDoc</title>
+  <desc>两份文档块，中间一条贯穿的蓝色横条代表跨文档对齐一致的那一行，底部一条长短不一的琥珀横条代表冲突的那一行。深色背景版本。</desc>
+
+  <!-- 上排：两份文档的块（仅顶部两角圆角 r=47，底部直角） -->
+  <g fill="#C3D3F2">
+    <path d="M1 47 A47 47 0 0 1 48 0 H576 A47 47 0 0 1 623 47 V429 H1 Z"/>
+    <path d="M768 47 A47 47 0 0 1 815 0 H1342 A47 47 0 0 1 1389 47 V429 H768 Z"/>
+  </g>
+
+  <!-- 蓝色横条：贯穿两份文档，代表对齐一致的那一行 -->
+  <rect x="0" y="477" width="1390" height="159" fill="#3D7BFF"/>
+
+  <!-- 下排：两份文档的正文块 -->
+  <g fill="#C3D3F2">
+    <rect x="1" y="687" width="622" height="276"/>
+    <rect x="768" y="687" width="622" height="276"/>
+  </g>
+
+  <!-- 琥珀横条：左长右短且断开，代表冲突的那一行 -->
+  <g fill="#F5A611">
+    <rect x="0" y="1020" width="856" height="174"/>
+    <rect x="995" y="1020" width="395" height="174"/>
+  </g>
+</svg>

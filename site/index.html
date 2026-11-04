@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CrossDoc — 一组文件的关键数据，是否对齐</title>
+<meta name="description" content="CrossDoc 逐份读取文档、抽取关键数据、按统一口径对齐，再交给模型逐条判定。每一条结论都能追回原文与页码。">
+<link rel="icon" href="assets/crossdoc-logo.svg" type="image/svg+xml">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- 应用地址：本地运行时改成 http://localhost:5177/ -->
+<header class="site-nav">
+  <div class="nav-inner">
+    <a class="brand" href="#top">
+      <img src="assets/crossdoc-logo.svg" alt="" width="28" height="24">
+      <span>CrossDoc</span>
+    </a>
+    <nav class="nav-links" aria-label="主导航">
+      <a href="#keys">关键数据</a>
+      <a href="#local">本地优先</a>
+      <a href="#desk">审查台</a>
+    </nav>
+    <div class="nav-actions">
+      <a class="btn btn-ghost" href="https://github.com/hellojohn233/CrossDoc" target="_blank" rel="noreferrer">GitHub</a>
+      <a class="btn btn-primary" href="http://localhost:5177/">打开工作台</a>
+    </div>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- ── Hero ─────────────────────────────────────────────── -->
+  <section class="hero">
+    <div class="glow" aria-hidden="true"></div>
+    <p class="eyebrow eyebrow-center"><span class="spark">✦</span> 本地优先的文档核对工作台</p>
+    <h1 class="hero-title">一组文件的关键数据<br>是否对齐，一眼看清。</h1>
+    <p class="hero-sub">
+      CrossDoc 逐份读取文档，抽取它们各自声明的关键数据，按同一套口径对齐，
+      再交给模型逐条判定能不能同时成立。<br>
+      每一条结论都带着原文原话和页码。
+    </p>
+    <div class="hero-cta">
+      <a class="btn btn-primary btn-lg" href="http://localhost:5177/">
+        <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M4 5h16M4 12h10M4 19h7" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg>
+        开始核对
+      </a>
+      <a class="link-arrow" href="#desk">看看工作台 <span aria-hidden="true">→</span></a>
+    </div>
+
+    <ul class="chips" aria-label="支持核对的关键数据类型">
+      <li><span class="chip-dot"></span>付款期限</li>
+      <li><span class="chip-dot"></span>合同金额</li>
+      <li><span class="chip-dot"></span>生效日期</li>
+      <li><span class="chip-dot"></span>签约主体</li>
+    </ul>
+
+    <!-- 工作台预览 -->
+    <div class="window" aria-label="审查台预览">
+      <div class="window-bar">
+        <span class="dot dot-red"></span><span class="dot dot-amber"></span><span class="dot dot-green"></span>
+        <span class="window-title">CrossDoc — 冲突清单</span>
+      </div>
+      <div class="window-body">
+        <div class="mock-stats">
+          <div><span class="mock-num">3</span><span class="mock-label">份文档</span></div>
+          <div><span class="mock-num">22</span><span class="mock-label">项关键数据</span></div>
+          <div><span class="mock-num accent">4</span><span class="mock-label">待处理</span></div>
+          <div><span class="mock-num">1</span><span class="mock-label">已排除</span></div>
+        </div>
+        <div class="mock-list">
+          <article class="mock-entry high">
+            <div class="mock-rail"><span>01</span></div>
+            <div class="mock-main">
+              <header class="mock-head">
+                <h3>数值不一致：120000 ↔ 150000</h3>
+                <span class="sev sev-high">高</span>
+              </header>
+              <div class="mock-sides">
+                <p class="side"><span class="tag">A</span>The total contract value is USD <del>120000</del> including delivery and support.</p>
+                <p class="side"><span class="tag">B</span>The total contract value is USD <ins>150000</ins> including delivery and support.</p>
+              </div>
+              <p class="mock-reason">两份文件对同一合同总金额记载不同，金额无法同时成立。</p>
+            </div>
+          </article>
+          <article class="mock-entry high">
+            <div class="mock-rail"><span>02</span></div>
+            <div class="mock-main">
+              <header class="mock-head">
+                <h3>付款期限不一致：45 天 ↔ 90 天</h3>
+                <span class="sev sev-high">高</span>
+              </header>
+              <div class="mock-sides">
+                <p class="side"><span class="tag">A</span>The Client shall pay all undisputed invoices within <del>45</del> days of receipt.</p>
+                <p class="side"><span class="tag">B</span>The Client shall pay all undisputed invoices within <ins>90</ins> days of receipt.</p>
+              </div>
+              <p class="mock-reason">两份协议约定的付款期限不同，不能同时适用于同一付款义务。</p>
+            </div>
+          </article>
+          <article class="mock-entry medium">
+            <div class="mock-rail"><span>03</span></div>
+            <div class="mock-main">
+              <header class="mock-head">
+                <h3>生效日期不一致：March 1 ↔ April 1</h3>
+                <span class="sev sev-medium">中</span>
+              </header>
+              <div class="mock-sides">
+                <p class="side"><span class="tag">A</span>This Agreement takes effect on <del>March 1, 2026</del> and continues for twelve months.</p>
+                <p class="side"><span class="tag">B</span>This Agreement takes effect on <ins>April 1, 2026</ins> and continues for twelve months.</p>
+              </div>
+              <p class="mock-reason">同一份协议被写上了两个不同的生效日期。</p>
+            </div>
+          </article>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 关键数据 ─────────────────────────────────────────── -->
+  <section class="section" id="keys">
+    <header class="section-head">
+      <p class="eyebrow">关键数据</p>
+      <h2 class="section-title">一套口径，核对每一份文件</h2>
+      <a class="link-arrow" href="http://localhost:5177/">打开工作台 <span aria-hidden="true">→</span></a>
+    </header>
+
+    <article class="feature-card">
+      <div class="feature-main">
+        <div class="feature-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="22" height="22"><path d="M12 3v18M4 7h16M6 7l-3 7h6ZM18 7l-3 7h6Z" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linejoin="round"/></svg>
+        </div>
+        <div>
+          <div class="feature-title-row">
+            <h3>付款期限</h3>
+            <span class="badge badge-default">默认口径</span>
+          </div>
+          <p class="feature-desc">
+            跨文档最容易对不上的一个口径。CrossDoc 把它当成同一个 key，
+            直接把各份文件写的天数摆在一起比，而不是去猜哪两句句子“像”。
+          </p>
+          <ul class="tags">
+            <li>45 天</li><li>60 天</li><li>90 天</li><li>收到发票后</li>
+          </ul>
+        </div>
+      </div>
+      <footer class="feature-meta">
+        <span>2 份文件</span><span class="sep">·</span><span>1 处冲突</span><span class="sep">·</span><span>P.3</span>
+      </footer>
+    </article>
+
+    <div class="card-grid">
+      <article class="card">
+        <div class="card-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M6 3h8l4 4v14H6z" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linejoin="round"/><path d="M14 3v4h4M9 12h6M9 16h4" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round"/></svg>
+        </div>
+        <div class="card-title-row"><h3>抽取</h3><span class="badge">取值</span></div>
+        <p class="card-desc">每份文档读一次，抽出它自己声明的关键数据，连同原文原话和页码一起留下。</p>
+        <footer class="card-meta">22 项关键数据 · 3 份文档</footer>
+      </article>
+
+      <article class="card">
+        <div class="card-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 8h16M4 16h16M9 4v16M15 4v16" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round"/></svg>
+        </div>
+        <div class="card-title-row"><h3>对齐</h3><span class="badge">口径</span></div>
+        <p class="card-desc">同一类数据落到同一个 key 上，跨文档直接摆在一起比，用词不同也不影响对齐。</p>
+        <footer class="card-meta">25 个固定口径 · 线性对齐</footer>
+      </article>
+
+      <article class="card">
+        <div class="card-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M12 3l8 4v6c0 4-3.4 6.8-8 8-4.6-1.2-8-4-8-8V7z" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="card-title-row"><h3>判定</h3><span class="badge">结论</span></div>
+        <p class="card-desc">模型读原文判断两个取值能不能同时成立，给出严重度、一句话理由和引用的原文。</p>
+        <footer class="card-meta">高 / 中 / 低 · 每条带理由</footer>
+      </article>
+    </div>
+  </section>
+
+  <!-- ── 本地优先 ─────────────────────────────────────────── -->
+  <section class="section" id="local">
+    <header class="section-head">
+      <p class="eyebrow">本地优先</p>
+      <h2 class="section-title">数据留在本机，模型用你自己的</h2>
+      <a class="link-arrow" href="https://github.com/hellojohn233/CrossDoc" target="_blank" rel="noreferrer">查看仓库 <span aria-hidden="true">→</span></a>
+    </header>
+
+    <div class="plan-grid">
+      <article class="plan">
+        <h3>开源运行</h3>
+        <p class="plan-figure">免费</p>
+        <ul class="plan-list">
+          <li>MIT 许可，克隆下来就能跑，不需要账号</li>
+          <li>文档、索引、密钥都存在你自己的机器上</li>
+          <li>没有遥测，也没有任何后端</li>
+        </ul>
+        <a class="btn btn-outline" href="https://github.com/hellojohn233/CrossDoc" target="_blank" rel="noreferrer">查看仓库</a>
+      </article>
+
+      <article class="plan plan-featured">
+        <span class="badge badge-float">最省心</span>
+        <h3>自带模型</h3>
+        <p class="plan-figure">自配</p>
+        <ul class="plan-list">
+          <li>填一个 OpenAI 兼容端点就能开工</li>
+          <li>密钥只写在本地 SQLite 里，不随文档上传</li>
+          <li>主模型和扫描页视觉模型可以分开配</li>
+        </ul>
+        <a class="btn btn-primary" href="http://localhost:5177/">配置模型</a>
+      </article>
+
+      <article class="plan">
+        <h3>结论可追溯</h3>
+        <p class="plan-figure">页码级</p>
+        <ul class="plan-list">
+          <li>每条结论都带原文原话，不给改写</li>
+          <li>点开就能跳到那一页，光标落在原句上</li>
+          <li>引文对不上的结论会被直接驳回</li>
+        </ul>
+        <a class="btn btn-outline" href="#desk">看审查台</a>
+      </article>
+    </div>
+    <p class="plan-footnote">审查本身不上传任何文档；只有你点下开始，抽取和判定才会调用你自己配置的模型端点。</p>
+  </section>
+
+  <!-- ── 审查台 ───────────────────────────────────────────── -->
+  <section class="section" id="desk">
+    <header class="section-head">
+      <p class="eyebrow">审查台</p>
+      <h2 class="section-title">每一条不一致，都带着原文</h2>
+      <a class="link-arrow" href="http://localhost:5177/">打开真实审查台 <span aria-hidden="true">→</span></a>
+    </header>
+
+    <div class="desk">
+      <div class="desk-side">
+        <p class="desk-kicker">冲突清单</p>
+        <h3 class="desk-title">合同金额<br>两份文件写了两个数</h3>
+        <p class="desk-desc">
+          清单按严重度排下来，每一条自带 A / B 对照：上面这份怎么写的，下面那份怎么写的，
+          差在哪个词上用红线标出来。
+        </p>
+        <ul class="desk-list">
+          <li>按 key 排，一个口径只报一次</li>
+          <li>取值一致的不进清单</li>
+          <li>每条带严重度和一句话理由</li>
+        </ul>
+        <a class="link-arrow" href="http://localhost:5177/">打开工作台 <span aria-hidden="true">→</span></a>
+      </div>
+
+      <div class="desk-panel">
+        <div class="desk-row high">
+          <span class="desk-index">01</span>
+          <div class="desk-body">
+            <div class="desk-row-head"><h4>数值不一致：120000 ↔ 150000</h4><span class="sev sev-high">高</span></div>
+            <p class="side"><span class="tag">A</span>The total contract value is USD <del>120000</del> including delivery and support.</p>
+            <p class="side"><span class="tag">B</span>The total contract value is USD <ins>150000</ins> including delivery and support.</p>
+            <p class="desk-evidence"><span class="ev">E1</span>合同甲.pdf · P.1 <span class="ev">E2</span>合同乙.pdf · P.1</p>
+          </div>
+        </div>
+        <div class="desk-row medium">
+          <span class="desk-index">02</span>
+          <div class="desk-body">
+            <div class="desk-row-head"><h4>生效日期不一致：March 1 ↔ April 1</h4><span class="sev sev-medium">中</span></div>
+            <p class="side"><span class="tag">A</span>This Agreement takes effect on <del>March 1, 2026</del> and continues for twelve months.</p>
+            <p class="side"><span class="tag">B</span>This Agreement takes effect on <ins>April 1, 2026</ins> and continues for twelve months.</p>
+            <p class="desk-evidence"><span class="ev">E1</span>合同甲.pdf · P.1 <span class="ev">E2</span>合同乙.pdf · P.1</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-foot">
+  <p>© 2026 CrossDoc. 本地运行，文档不出本机。</p>
+  <p class="foot-links">
+    <a href="https://github.com/hellojohn233/CrossDoc" target="_blank" rel="noreferrer">GitHub</a>
+    <span class="sep">|</span>
+    <a href="http://localhost:5177/">工作台</a>
+  </p>
+</footer>
+
+</body>
+</html>
