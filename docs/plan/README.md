@@ -17,6 +17,7 @@ pdf-001 classify pages and normalize native text
                                   -> ui-001 header navigation and unified visual system
                                   -> e2e-001 PDF acceptance
                                   -> review-001 optional consistency-review skill
+                                  -> review-002 semantic conflict adjudication
 ```
 
 The scan-reading engine is Pi vision, as selected by the user. Task paths may overlap; work serially unless an isolated worktree is deliberately used. Current task status is listed below.
@@ -38,6 +39,7 @@ The scan-reading engine is Pi vision, as selected by the user. Task paths may ov
 | `ui-002` | Web UI | Rebuild the conflict ledger as a single-column register with inline A/B redline comparison, evidence links, and a defined `/api/review` contract | `ui-001` | done |
 | `e2e-001` | PDF acceptance | Verify native, scanned, and mixed PDFs through actual UI, Pi loop, loaders, SQLite-backed library, overview, and citations | `pdf-001`, `pdf-002`, `skill-001`, `agent-001`, `agent-002`, `web-001`, `storage-001` | pending |
 | `review-001` | Optional review | Expose existing comparison/report tools only when requested | `agent-001`, `web-001` | pending |
+| `review-002` | Semantic adjudication | Split conflict detection into rule-based recall, language-model adjudication, and evidence verification | `ui-002` | done |
 
 ## Acceptance Slice
 
@@ -46,6 +48,7 @@ Select a native PDF, a scan, or a mixed PDF. CrossDoc classifies each page, extr
 ## Plan Artifacts
 
 - [PDF reading design](../modules/pdf-reading.md)
+- [Review adjudication](../modules/review-adjudication.md)
 - [Agent-first reading analysis](./analysis/agent-first-reading.md)
-- Tasks: [`pdf-001`](./tasks/pdf-001-page-classification.md), [`ingest-001`](./tasks/ingest-001-line-blocks.md), [`pdf-002`](./tasks/pdf-002-scan-ocr.md), [`skill-001`](./tasks/skill-001-overview-qa.md), [`agent-001`](./tasks/agent-001-dynamic-loop.md), [`agent-002`](./tasks/agent-002-parallel-reading.md), [`web-001`](./tasks/web-001-agent-entry.md), [`storage-001`](./tasks/storage-001-local-db-and-model-roles.md), [`setup-001`](./tasks/setup-001-custom-model-setup.md), [`ui-001`](./tasks/ui-001-navigation-and-visual-hierarchy.md), [`ui-002`](./tasks/ui-002-conflict-ledger.md), [`e2e-001`](./tasks/e2e-001-reading-flow.md), [`review-001`](./tasks/review-001-optional-review.md)
+- Tasks: [`pdf-001`](./tasks/pdf-001-page-classification.md), [`ingest-001`](./tasks/ingest-001-line-blocks.md), [`pdf-002`](./tasks/pdf-002-scan-ocr.md), [`skill-001`](./tasks/skill-001-overview-qa.md), [`agent-001`](./tasks/agent-001-dynamic-loop.md), [`agent-002`](./tasks/agent-002-parallel-reading.md), [`web-001`](./tasks/web-001-agent-entry.md), [`storage-001`](./tasks/storage-001-local-db-and-model-roles.md), [`setup-001`](./tasks/setup-001-custom-model-setup.md), [`ui-001`](./tasks/ui-001-navigation-and-visual-hierarchy.md), [`ui-002`](./tasks/ui-002-conflict-ledger.md), [`e2e-001`](./tasks/e2e-001-reading-flow.md), [`review-001`](./tasks/review-001-optional-review.md), [`review-002`](./tasks/review-002-semantic-adjudication.md)
 - [Backlog](./backlog.md)

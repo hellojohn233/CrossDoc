@@ -8,6 +8,7 @@ import express, { type Express, type Request, type Response } from "express";
 import multer from "multer";
 
 import { createBuiltinModels, createCrossDocAgent, CrossDocVisionModelConfigError, type CrossDocAgentOptions, type ScopedDocument } from "./agent.js";
+import { createModelAdjudicator } from "./model-adjudicator.js";
 import { reviewDocuments } from "./review.js";
 import { getLibraryDocument, listLibraryDocuments, saveLibraryDocument } from "./storage/library-store.js";
 import { LocalDatabase, type ModelProfile, type ModelProtocol, type ModelRole } from "./storage/database.js";
@@ -840,6 +841,7 @@ export function createWebApp(options: WebAppOptions = {}) {
         const reviewId = randomUUID();
         const result = await reviewDocuments(files.map((file) => file.path), {
           documents: files.map((file) => ({ id: file.filename.replace(/\.pdf$/i, ""), title: cleanDisplayName(file.originalname) })),
+          adjudicator: createModelAdjudicator(modelCatalog, database.getModelProfile("main")),
         });
         await writeReviewArtifacts(result, resolve(reviewDirectory, reviewId));
         await Promise.all(result.documents.map((document) => {
@@ -853,6 +855,8 @@ export function createWebApp(options: WebAppOptions = {}) {
           claimCount: result.claims.length,
           conflictCount: result.conflicts.length,
           verifiedConflictCount: result.conflicts.filter((conflict) => conflict.status === "verified").length,
+          judgeSource: result.judgeSource ?? "rule",
+          ...(result.warning ? { warning: result.warning } : {}),
           conflicts: result.conflicts,
           reportMarkdown: result.reportMarkdown,
         });

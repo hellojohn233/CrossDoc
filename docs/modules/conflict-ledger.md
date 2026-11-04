@@ -42,6 +42,9 @@ ReviewResult = {
   documents: { id: string; title: string; sourceUrl?: string }[];
   claimCount: number;
   conflictCount: number;
+  verifiedConflictCount: number;
+  judgeSource: "model" | "rule";   // which stage produced the verdicts
+  warning?: string;                // present when the review degraded
   reportMarkdown: string;
   conflicts: Conflict[];
 };
@@ -53,6 +56,7 @@ Conflict = {
   summary: string;      // not rendered
   rationale: string;    // shown as 判定
   score: number;        // not rendered
+  judgeSource?: "model" | "rule";
   claims: [Claim, Claim];
   evidence: EvidenceSpan[];
 };
@@ -68,11 +72,12 @@ EvidenceSpan = {
 
 Rules the backend owns:
 
-- `summary` and `score` are not displayed. `score` is a similarity measure, not a confidence measure, so showing it next to a verdict reads backwards.
+- `summary` and `score` are not displayed. `score` is the adjudicator's confidence that the pair really contradicts; it is not a similarity measure.
 - `status` decides which group an entry lands in: `verified` goes to 待处理, everything else to 已排除.
 - `severity` is the only severity signal the UI trusts.
 - `claim.evidence[0].quote` is the text that gets diffed, so it must be the exact source wording.
 - `evidence[].id` must be stable and shared with `claim.evidence[].id`, so an entry can be traced back to a page.
+- `judgeSource` and `warning` are informational. The ledger renders the same either way; a rule-only review simply produces fewer, weaker findings.
 
 ## Frontend Surface
 

@@ -4,6 +4,9 @@ import { glob, mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import { reviewDocuments } from "./review.js";
+import { createBuiltinModels } from "./agent.js";
+import { createModelAdjudicator } from "./model-adjudicator.js";
+import { LocalDatabase } from "./storage/database.js";
 import { writeReviewArtifacts } from "./storage/review-store.js";
 
 function usage(): never {
@@ -32,8 +35,10 @@ async function review(patterns: string[]): Promise<void> {
 
   console.log(`CrossDoc reviewing ${files.length} document(s)...`);
 
+  const database = new LocalDatabase(resolve("data"));
   const result = await reviewDocuments(files, {
     onProgress: (progress) => console.log(`- ${progress.message}`),
+    adjudicator: createModelAdjudicator(createBuiltinModels(), database.getModelProfile("main")),
   });
 
   const outDir = resolve("crossdoc-output");
@@ -42,6 +47,8 @@ async function review(patterns: string[]): Promise<void> {
 
   console.log(`Claims: ${result.claims.length}`);
   console.log(`Conflicts: ${result.conflicts.filter((conflict) => conflict.status === "verified").length} verified / ${result.conflicts.length} total`);
+  console.log(`Judge: ${result.judgeSource ?? "rule"}`);
+  if (result.warning) console.log(`Warning: ${result.warning}`);
   console.log(`Structured review: ${resolve(outDir, "review.json")}`);
   console.log(`Report: ${resolve(outDir, "review.md")}`);
   console.log(`Parsed documents: ${resolve(outDir, "documents")}`);

@@ -1,7 +1,7 @@
 import type { Claim, ClaimKind, ParsedDocument, ParsedPage } from "../core/claims.js";
 
-const DATE_PATTERN = /\b(?:20\d{2}|19\d{2})[-/.年](?:0?[1-9]|1[0-2])[-/.月](?:0?[1-9]|[12]\d|3[01])日?\b/g;
-const MONEY_PATTERN = /(?:[$¥￥]\s?\d[\d,]*(?:\.\d+)?|\b\d[\d,]*(?:\.\d+)?\s?(?:USD|CNY|RMB|美元|人民币|元)\b)/gi;
+const DATE_PATTERN = /\b(?:20\d{2}|19\d{2})[-/.年](?:0?[1-9]|1[0-2])[-/.月](?:0?[1-9]|[12]\d|3[01])日?\b/;
+const MONEY_PATTERN = /(?:[$¥￥]\s?\d[\d,]*(?:\.\d+)?|\b\d[\d,]*(?:\.\d+)?\s?(?:USD|CNY|RMB|美元|人民币|元)\b)/i;
 const OBLIGATION_PATTERN = /(shall|must|required to|不得|必须|应当|需要|负责)/i;
 
 function normalizeValue(value: string): string {
@@ -10,9 +10,7 @@ function normalizeValue(value: string): string {
 
 function inferKind(sentence: string): ClaimKind {
   if (DATE_PATTERN.test(sentence)) return "date";
-  DATE_PATTERN.lastIndex = 0;
   if (MONEY_PATTERN.test(sentence)) return "amount";
-  MONEY_PATTERN.lastIndex = 0;
   if (OBLIGATION_PATTERN.test(sentence)) return "obligation";
   return "fact";
 }

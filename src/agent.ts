@@ -11,13 +11,13 @@ import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import { Type } from "typebox";
 
 import type { Claim, DocumentBlock, ParsedDocument, PdfSourceLocation } from "./core/claims.js";
-import type { Conflict } from "./core/types.js";
+import type { CandidatePair, Conflict, ConflictJudgment } from "./core/types.js";
 import { renderPdfPage, type RenderedPdfPage } from "./loaders/render-pdf-page.js";
 import type { ParseDocumentOptions } from "./loaders/types.js";
 import { renderDocumentMarkdown } from "./markdown/document.js";
-import { compareClaims } from "./tools/compare.js";
 import { extractClaims } from "./tools/extract.js";
 import { parseDoc } from "./tools/parse.js";
+import { recallCandidates } from "./tools/recall.js";
 import { reportConflicts } from "./tools/report.js";
 import { searchDocument } from "./tools/search-document.js";
 import { verifyConflicts } from "./tools/verify.js";
@@ -46,6 +46,10 @@ const documentIdsParameters = Type.Object({
 });
 const claimsParameters = Type.Object({ claims: Type.Array(Type.Any()) });
 const conflictsParameters = Type.Object({ conflicts: Type.Array(Type.Any()) });
+const judgmentsParameters = Type.Object({
+  candidates: Type.Array(Type.Any()),
+  judgments: Type.Array(Type.Any()),
+});
 const reportParameters = Type.Object({
   documentIds: Type.Array(Type.String({ minLength: 1 }), { minItems: 1, maxItems: 32 }),
   claims: Type.Array(Type.Any()),
@@ -232,7 +236,7 @@ function asJson(value: unknown): JsonValue {
   return value as JsonValue;
 }
 
-function profileRequestOptions(profile: ModelProfile): SimpleStreamOptions {
+export function profileRequestOptions(profile: ModelProfile): SimpleStreamOptions {
   const allowed = ["reasoning", "temperature", "maxTokens", "samplingParams", "timeoutMs", "maxRetries", "maxRetryDelayMs", "transport"];
   return Object.fromEntries(Object.entries(profile.options ?? {}).filter(([key]) => allowed.includes(key))) as SimpleStreamOptions;
 }
@@ -642,26 +646,26 @@ export function createCrossDocTools(options: CrossDocAgentOptions): AgentTool<an
   } satisfies AgentTool<typeof documentIdsParameters>;
   const compare = {
     name: "compare_claims",
-    label: "Compare claims",
-    description: "Compare supplied claims for candidate contradictions when the user requests a consistency review.",
+    label: "Recall candidate claims",
+    description: "Recall claim pairs that may contradict each other when the user requests a consistency review. Returns candidate pairs with their quotes and recall signals, without deciding whether they conflict.",
     parameters: claimsParameters,
     executionMode: "parallel",
     async execute(_callId, { claims }) {
-      const conflicts = compareClaims(claims as Claim[]);
-      return { content: [{ type: "text", text: JSON.stringify(conflicts) }], structuredContent: asJson(conflicts), details: { count: conflicts.length } };
+      const candidates = recallCandidates(claims as Claim[]);
+      return { content: [{ type: "text", text: JSON.stringify(candidates) }], structuredContent: asJson(candidates), details: { count: candidates.length } };
     },
   } satisfies AgentTool<typeof claimsParameters>;
   const verify = {
     name: "verify_conflicts",
     label: "Verify conflicts",
-    description: "Verify candidate conflicts when the user requests a consistency review.",
-    parameters: conflictsParameters,
+    description: "Turn your contradiction verdicts into verified conflicts. Pass the candidate pairs from compare_claims and one judgment per candidate: {candidateId, conflict, severity, confidence, summary, rationale}.",
+    parameters: judgmentsParameters,
     executionMode: "parallel",
-    async execute(_callId, { conflicts }) {
-      const result = verifyConflicts(conflicts as Conflict[]);
+    async execute(_callId, { candidates, judgments }) {
+      const result = verifyConflicts(candidates as CandidatePair[], judgments as ConflictJudgment[]);
       return { content: [{ type: "text", text: JSON.stringify(result) }], structuredContent: asJson(result), details: { count: result.length } };
     },
-  } satisfies AgentTool<typeof conflictsParameters>;
+  } satisfies AgentTool<typeof judgmentsParameters>;
   const report = {
     name: "report_conflicts",
     label: "Report conflicts",
@@ -706,6 +710,7 @@ export async function createCrossDocAgent(options: CrossDocAgentOptions): Promis
         "When multiple PDFs are selected, issue their independent parse_document calls together in selected-file order. CrossDoc limits active parse-plus-save work to three documents, preserves the call order in results, and reports one file's error without discarding successful reads.",
         "For follow-up questions, use search_document with the user's question and selected parsed document IDs. Answer only from returned evidence and cite each source page using [[cite:<document-id>:<page-number>]], preserving exact IDs and page numbers. If no evidence matches, say so.",
         "Call extract_claims, compare_claims, verify_conflicts, and report_conflicts only when the user asks for a consistency review or comparison.",
+        "For a consistency review you judge the contradictions yourself. compare_claims only recalls candidate pairs and never decides anything: read both quotes of every candidate, and call verify_conflicts with those candidates plus one judgment per candidate ({candidateId, conflict, severity, confidence, summary, rationale}). Mark conflict=true only when the two statements cannot both be true; a different number, date, amount, party, or an opposite permission is a conflict, while a paraphrase, a more specific restatement, or two statements about different subjects are not.",
         "If a scan page is unreadable, do not invent its content; report its page number and keep the warning visible.",
       ].join("\n"),
       tools: createCrossDocTools({ ...options, models, visionProfile: vision.profile }),
