@@ -8,6 +8,8 @@ The project uses `@earendil-works/pi-agent-core`, not the complete Pi Coding Age
 
 Skills are instructions for choosing and using document capabilities. Loaders are executable format adapters that do the parsing. A skill may guide the agent to use a loader, but it cannot replace the loader's source-location contract.
 
+CrossDoc implements the [Agent Skills specification](https://agentskills.io/specification), the format Pi uses. The skills live in `.agents/skills/<name>/SKILL.md` and are discovered, not listed in code: `src/skills/loader.ts` walks the directory, validates each skill against the specification, and raises a diagnostic for one it cannot use. Only the name, description, and location of each visible skill go into the system prompt; the bodies are loaded on demand. The review procedure is injected into the first turn rather than left to the model to load, so a review cannot run without it. See [the skills contract](./modules/skills.md).
+
 ## Agent-Directed Data Flow
 
 ```text

@@ -19,6 +19,7 @@ import { normalizeJudgment, verifyConflicts } from "../src/tools/verify.ts";
 import { runConsistencyReview } from "../src/review-run.ts";
 import { createToolCallGuard, TOOL_CALL_LIMITS } from "../src/agent-guard.ts";
 import { KEY_TAXONOMY, normalizeValue } from "../src/core/key-data.ts";
+import { parseFrontmatter } from "../src/skills/frontmatter.ts";
 
 const checks = [];
 const check = async (name, fn) => {
@@ -49,7 +50,10 @@ const keyItem = (documentId, key, value, quote = `${key}: ${value}`, page = 1) =
 await check("S1 三个审查 skill 都在，front-matter 的 name 与目录名一致", async () => {
   for (const name of ["consistency-review", "key-data-alignment", "conflict-adjudication"]) {
     const content = await readSkill(name);
-    assert.match(content, new RegExp(`^---\\nname: ${name}\\ndescription: .+\\n---`), `${name} 的 front-matter 不完整`);
+    const { frontmatter, warnings } = parseFrontmatter(content);
+    assert.deepEqual(warnings, [], `${name} 的 front-matter 有问题`);
+    assert.equal(frontmatter.name, name, `${name} 的 front-matter name 与目录名不一致`);
+    assert.ok(frontmatter.description?.trim(), `${name} 缺少 description`);
   }
 });
 
@@ -248,9 +252,12 @@ const items = [
 const scriptedCalls = [
   toolCall("inspect_document", { documentId: "doc-a" }),
   toolCall("inspect_document", { documentId: "doc-b" }),
-  toolCall("load_document_skill", { skill: "consistency-review" }),
   toolCall("parse_document", { documentId: "doc-a" }),
   toolCall("parse_document", { documentId: "doc-b" }),
+  // The review procedure itself is injected, so the agent loads the two steps
+  // it is made of, in order.
+  toolCall("load_document_skill", { skill: "key-data-alignment" }),
+  toolCall("load_document_skill", { skill: "conflict-adjudication" }),
   toolCall("list_key_vocabulary", {}),
   toolCall("align_key_data", { items }),
   // The pairs are not repeated here: the tool takes them from the session.
@@ -263,7 +270,9 @@ const scriptedCalls = [
 await check("B1 agent 按 skill 走完流程，产出冲突清单", async () => {
   const models = makeModels();
   let index = 0;
-  models.streamSimple = () => {
+  let firstContext = "";
+  models.streamSimple = (_model, context) => {
+    if (!firstContext) firstContext = JSON.stringify(context);
     const call = scriptedCalls[index++];
     if (!call) return scriptedStream([{ type: "text", text: "审查完成。" }], "stop");
     return scriptedStream([call], "toolUse");
@@ -296,6 +305,30 @@ await check("B1 agent 按 skill 走完流程，产出冲突清单", async () => 
   assert.ok(result.stages.includes("align_key_data"));
   assert.ok(result.stages.includes("verify_conflicts"));
   assert.match(result.reportMarkdown, /CrossDoc Consistency Review/);
+});
+
+await check("B1b 审查流程在第一轮就把 skill 正文注入对话", async () => {
+  const models = makeModels();
+  let index = 0;
+  let firstContext = "";
+  models.streamSimple = (_model, context) => {
+    if (!firstContext) firstContext = JSON.stringify(context);
+    const call = scriptedCalls[index++];
+    if (!call) return scriptedStream([{ type: "text", text: "审查完成。" }], "stop");
+    return scriptedStream([call], "toolUse");
+  };
+
+  await runConsistencyReview({
+    documents,
+    models,
+    mainProfile: { role: "main", provider: "test-provider", modelId: "main-text", apiKey: "scripted-key" },
+    visionProfile,
+    parseDocument: async (_path, options) => fakeDocument(options.id, options.title),
+  });
+
+  assert.match(firstContext, /<skill name=\\"consistency-review\\"/, "第一轮对话里没有审查 skill 的正文");
+  assert.match(firstContext, /render_scan_page/, "注入的正文应当包含审查步骤");
+  assert.match(firstContext, /<available_skills>/, "系统提示里应当有 skill 索引");
 });
 
 await check("B2 引文在原文里找不到的结论不会进清单", async () => {

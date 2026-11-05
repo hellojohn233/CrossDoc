@@ -35,6 +35,8 @@ Pi 是发动机，审查是整车。
 
 一个 agent 读 `consistency-review`,它再去读另外两份,然后一步步调工具。**改「什么算冲突」是改一个 Markdown 文件,不是发一次版。**
 
+skill 不是写在代码里的名单,是从 `.agents/skills/` **发现**出来的:加一个目录就多一个 skill,不用改 TypeScript。格式遵循 [Agent Skills 规范](https://agentskills.io/specification),和 Pi CLI 用的是同一套,所以这些目录直接扔进 Pi 也能用。
+
 代码里只留下能力与护栏：
 
 - `parse_document`：由格式解析器读取文档，产出带来源位置的统一 JSON。
@@ -135,6 +137,9 @@ CrossDoc/
 │   ├── agent-guard.ts
 │   ├── cli.ts
 │   ├── review-run.ts
+│   ├── skills/
+│   │   ├── frontmatter.ts
+│   │   └── loader.ts
 │   ├── core/
 │   │   ├── claims.ts
 │   │   ├── key-data.ts

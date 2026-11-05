@@ -17,6 +17,7 @@
     "verify:agent-parallel": "tsx scripts/verify-agent-parallel.mjs",
     "verify:conflict-diff": "node scripts/verify-conflict-diff.mjs",
     "verify:review-semantics": "tsx scripts/verify-review-semantics.mjs",
+    "verify:skills": "tsx scripts/verify-skills.mjs",
     "verify:web-read": "tsx scripts/verify-web-read.mjs",
     "verify:pdf-page-render": "tsx scripts/verify-pdf-page-render.mjs",
     "verify:pdf-vector-classification": "tsx scripts/verify-pdf-vector-classification.mjs",

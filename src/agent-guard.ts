@@ -10,6 +10,7 @@ import type { BeforeToolCallContext, BeforeToolCallResult } from "@earendil-work
  */
 export const TOOL_CALL_LIMITS: Readonly<Record<string, number>> = {
   load_document_skill: 12,
+  read_skill_file: 12,
   inspect_document: 12,
   parse_document: 8,
   render_scan_page: 80,

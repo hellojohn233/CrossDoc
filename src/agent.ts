@@ -24,18 +24,16 @@ import { searchDocument } from "./tools/search-document.js";
 import { verifyConflicts } from "./tools/verify.js";
 import type { ModelProfile, ModelProtocol, ModelRole } from "./storage/database.js";
 import { createToolCallGuard } from "./agent-guard.js";
+import { formatSkillInvocation, formatSkillsForPrompt, loadSkills, readSkillBody, resolveInsideSkill, type Skill } from "./skills/loader.js";
 
 const inspectParameters = Type.Object({ documentId: Type.String({ minLength: 1 }) });
-const SKILL_NAMES = [
-  "pdf-reading",
-  "document-overview",
-  "consistency-review",
-  "key-data-alignment",
-  "conflict-adjudication",
-] as const;
-type SkillName = (typeof SKILL_NAMES)[number];
-const skillParameters = Type.Object({
-  skill: Type.Union(SKILL_NAMES.map((name) => Type.Literal(name)) as [Type.TLiteral<SkillName>, ...Type.TLiteral<SkillName>[]]),
+// The skill name is a free string on purpose: the set of skills is discovered
+// from `.agents/skills/`, so adding a skill is a new directory and not a
+// change to this file.
+const skillParameters = Type.Object({ skill: Type.String({ minLength: 1 }) });
+const skillFileParameters = Type.Object({
+  skill: Type.String({ minLength: 1 }),
+  path: Type.String({ minLength: 1 }),
 });
 const documentIdParameters = Type.Object({ documentId: Type.String({ minLength: 1 }) });
 const pageParameters = Type.Object({
@@ -83,6 +81,8 @@ export interface ScopedDocument {
 
 export interface CrossDocAgentOptions {
   documents: readonly ScopedDocument[];
+  /** The skills this agent may load. Discovered from `.agents/skills/` when absent. */
+  skills?: Skill[];
   onDocumentUpdated?: (document: ParsedDocument, source: ScopedDocument) => Promise<void> | void;
   onDocumentRejected?: (documentId: string, source: ScopedDocument, reason: string) => Promise<void> | void;
   /** Injected model collection and stream function are intended for deterministic integration tests. */
@@ -300,10 +300,6 @@ function boundedPageMarkdown(document: ParsedDocument, budget: number): { markdo
   return { markdown: sections.join("\n\n"), truncated: fullLength > budget };
 }
 
-function skillPath(skill: SkillName): string {
-  return resolve(".agents/skills", skill, "SKILL.md");
-}
-
 function createSemaphore(limit: number): <T>(operation: () => Promise<T>) => Promise<T> {
   let active = 0;
   const waiting: Array<() => void> = [];
@@ -357,6 +353,7 @@ export function createCrossDocTools(options: CrossDocAgentOptions): AgentTool<an
     ids.add(source.id);
   }
   const sources = new Map(options.documents.map((source) => [source.id, { ...source, path: resolve(source.path) }]));
+  const skillsByName = new Map((options.skills ?? []).map((skill) => [skill.name, skill]));
   const parsed = new Map<string, ParsedDocument>();
   const parseInFlight = new Map<string, Promise<any>>();
   const parseBudget = Math.floor(MAX_READ_TURN_CONTENT_CHARACTERS / Math.max(1, sources.size));
@@ -511,14 +508,53 @@ export function createCrossDocTools(options: CrossDocAgentOptions): AgentTool<an
   const loadSkill = {
     name: "load_document_skill",
     label: "Load document skill",
-    description: "Load CrossDoc's trusted instructions: PDF reading, document overview, or the consistency review procedure.",
+    description: "Load one of CrossDoc's trusted skill procedures by name. The available skills are listed in the system prompt.",
     parameters: skillParameters,
     executionMode: "parallel",
     async execute(_callId, { skill }) {
-      const content = await readFile(skillPath(skill), "utf8");
-      return { content: [{ type: "text", text: content }], structuredContent: { skill, content }, details: { skill } };
+      const found = skillsByName.get(skill.trim());
+      if (!found) {
+        const available = [...skillsByName.keys()].join(", ");
+        throw new Error(`Unknown skill "${skill}". Available skills: ${available || "none"}.`);
+      }
+      const body = formatSkillInvocation(found, readSkillBody(found));
+      return {
+        content: [{ type: "text", text: body }],
+        structuredContent: asJson({ skill: found.name, location: found.filePath, baseDir: found.baseDir, content: body }),
+        details: { skill: found.name, location: found.filePath, baseDir: found.baseDir },
+      };
     },
   } satisfies AgentTool<typeof skillParameters>;
+
+  const readSkillFile = {
+    name: "read_skill_file",
+    label: "Read skill file",
+    description: "Read a file bundled with a skill, such as a reference document. The path is relative to the skill directory.",
+    parameters: skillFileParameters,
+    executionMode: "parallel",
+    async execute(_callId, { skill, path }) {
+      const found = skillsByName.get(skill.trim());
+      if (!found) {
+        const available = [...skillsByName.keys()].join(", ");
+        throw new Error(`Unknown skill "${skill}". Available skills: ${available || "none"}.`);
+      }
+      const target = resolveInsideSkill(found, path);
+      if (!target) {
+        throw new Error(`"${path}" is outside the skill directory. Reference files are read from inside the skill's own directory.`);
+      }
+      let content: string;
+      try {
+        content = await readFile(target, "utf8");
+      } catch {
+        throw new Error(`"${path}" could not be read from the ${found.name} skill.`);
+      }
+      return {
+        content: [{ type: "text", text: content }],
+        structuredContent: asJson({ skill: found.name, path, content }),
+        details: { skill: found.name, path, length: content.length },
+      };
+    },
+  } satisfies AgentTool<typeof skillFileParameters>;
 
   const parse = {
     name: "parse_document",
@@ -760,7 +796,7 @@ export function createCrossDocTools(options: CrossDocAgentOptions): AgentTool<an
     },
   } satisfies AgentTool<typeof reportParameters>;
 
-  return [inspect, loadSkill, parse, render, savePage, search, listVocabulary, align, verify, report] as AgentTool<any>[];
+  return [inspect, loadSkill, readSkillFile, parse, render, savePage, search, listVocabulary, align, verify, report] as AgentTool<any>[];
 }
 
 export async function createCrossDocAgent(options: CrossDocAgentOptions): Promise<Agent> {
@@ -777,6 +813,9 @@ export async function createCrossDocAgent(options: CrossDocAgentOptions): Promis
     ...streamOptions,
     ...(main.profile.apiKey ? { apiKey: main.profile.apiKey } : {}),
   }));
+  // The skills are discovered, not listed. A skill is a directory under
+  // `.agents/skills/`, so adding one is a new directory and not a code change.
+  const skills = options.skills ?? loadSkills().skills;
   // A guard, not a workflow: it only stops a tool from running more often than
   // it can produce something new.
   const guard = createToolCallGuard();
@@ -792,10 +831,12 @@ export async function createCrossDocAgent(options: CrossDocAgentOptions): Promis
         "When multiple PDFs are selected, issue their independent parse_document calls together in selected-file order. CrossDoc limits active parse-plus-save work to three documents, preserves the call order in results, and reports one file's error without discarding successful reads.",
         "For follow-up questions, use search_document with the user's question and selected parsed document IDs. Answer only from returned evidence and cite each source page using [[cite:<document-id>:<page-number>]], preserving exact IDs and page numbers. If no evidence matches, say so.",
         "Call list_key_vocabulary, align_key_data, verify_conflicts, and report_conflicts only when the user asks for a consistency review or comparison.",
-        "For a consistency review, load the consistency-review skill and follow it. It loads key-data-alignment and conflict-adjudication in turn, and those skills carry the procedure and the rules. The skill is the procedure: follow it instead of improvising your own sequence, and compare key data rather than sentences.",
+        "A skill carries the procedure. When a task matches a skill's description, load it and follow it instead of improvising your own sequence.",
+        "For a consistency review, load the consistency-review skill and follow it. It loads key-data-alignment and conflict-adjudication in turn, and those skills carry the procedure and the rules. Compare key data rather than sentences.",
         "If a scan page is unreadable, do not invent its content; report its page number and keep the warning visible.",
-      ].join("\n"),
-      tools: createCrossDocTools({ ...options, models, visionProfile: vision.profile }),
+        formatSkillsForPrompt(skills),
+      ].filter((line) => line.length > 0).join("\n"),
+      tools: createCrossDocTools({ ...options, skills, models, visionProfile: vision.profile }),
     },
     streamFn,
   });

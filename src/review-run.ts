@@ -9,6 +9,7 @@ import type { ParseDocumentOptions } from "./loaders/types.js";
 import type { AlignedPair, KeyDataItem } from "./core/key-data.js";
 import type { Conflict, ConflictJudgment, ReviewResult } from "./core/types.js";
 import type { ModelProfile } from "./storage/database.js";
+import { formatSkillInvocation, loadSkills, readSkillBody, type Skill } from "./skills/loader.js";
 import { claimForItem } from "./tools/align.js";
 import { reportConflicts } from "./tools/report.js";
 import { verifyConflicts } from "./tools/verify.js";
@@ -16,8 +17,13 @@ import { verifyConflicts } from "./tools/verify.js";
 /** How long one review run may take before it is cut short and reported anyway. */
 export const DEFAULT_REVIEW_TIMEOUT_MS = 10 * 60 * 1000;
 
+/** The skill that carries the review procedure. */
+export const REVIEW_SKILL_NAME = "consistency-review";
+
 export interface ReviewRunOptions {
   documents: ScopedDocument[];
+  /** The skills this run may load. Discovered from `.agents/skills/` when absent. */
+  skills?: Skill[];
   agentFactory?: (options: CrossDocAgentOptions) => Promise<Agent>;
   models?: MutableModels;
   mainProfile?: ModelProfile;
@@ -55,8 +61,22 @@ export async function runConsistencyReview(options: ReviewRunOptions): Promise<R
   const judgments: ConflictJudgment[] = [];
   const stages: string[] = [];
 
+  // The skills are discovered, not listed. The review procedure is injected
+  // into the first turn rather than left to the model to remember to load, so
+  // a review can never run without its procedure.
+  const loaded = loadSkills();
+  const skills = options.skills ?? loaded.skills;
+  const reviewSkill = skills.find((skill) => skill.name === REVIEW_SKILL_NAME);
+  if (!reviewSkill) {
+    throw new Error(`The ${REVIEW_SKILL_NAME} skill was not found under ${loaded.skills.length ? "the skills directory" : "the skills directory"}.`);
+  }
+  for (const diagnostic of loaded.diagnostics) {
+    notes.push(`Skill ${diagnostic.path ?? diagnostic.type}: ${diagnostic.message}`);
+  }
+
   const agent = await (options.agentFactory ?? createCrossDocAgent)({
     documents: options.documents,
+    skills,
     ...(options.models ? { models: options.models } : {}),
     ...(options.mainProfile ? { mainProfile: options.mainProfile } : {}),
     ...(options.visionProfile ? { visionProfile: options.visionProfile } : {}),
@@ -107,6 +127,7 @@ export async function runConsistencyReview(options: ReviewRunOptions): Promise<R
   });
 
   const scope = options.documents.map((document) => `${document.title} (${document.id})`).join(", ");
+  const procedure = formatSkillInvocation(reviewSkill, readSkillBody(reviewSkill));
   const timeoutMs = options.timeoutMs ?? DEFAULT_REVIEW_TIMEOUT_MS;
   const timer = setTimeout(() => {
     agent.abort();
@@ -116,7 +137,8 @@ export async function runConsistencyReview(options: ReviewRunOptions): Promise<R
     await agent.prompt([
       "Run a consistency review over the documents selected in this request.",
       `Available document IDs: ${scope}`,
-      "Load the consistency-review skill and follow it. Read every scan-candidate page with render_scan_page before you compare anything.",
+      "The review procedure is below. Follow it. Read every scan-candidate page with render_scan_page before you compare anything.",
+      procedure,
     ].join("\n\n"));
   } catch (error) {
     notes.push(error instanceof Error ? error.message : "The review agent stopped early.");

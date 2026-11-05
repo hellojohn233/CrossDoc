@@ -35,6 +35,8 @@ The review procedure does not live in the code. It lives in skills, under `.agen
 
 One agent loads `consistency-review`, which loads the other two in turn, and drives the tools itself. **Changing what counts as a conflict is a change to a Markdown file, not a release.**
 
+The skills are not a list in the code. They are **discovered** under `.agents/skills/`: adding a directory adds a skill, with no TypeScript change. The format follows the [Agent Skills specification](https://agentskills.io/specification), the same one Pi uses, so these directories work under the Pi CLI as they are.
+
 The code keeps capability and guardrail only:
 
 - `parse_document`: use a format loader to produce normalized JSON with source positions.
@@ -135,6 +137,9 @@ CrossDoc/
 │   ├── agent-guard.ts
 │   ├── cli.ts
 │   ├── review-run.ts
+│   ├── skills/
+│   │   ├── frontmatter.ts
+│   │   └── loader.ts
 │   ├── core/
 │   │   ├── claims.ts
 │   │   ├── key-data.ts

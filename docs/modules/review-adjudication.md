@@ -20,6 +20,8 @@ The third design keeps what the second one got right (compare key data, not sent
 
 One agent loads `consistency-review`, which loads the other two in turn, and drives the tools itself. The skill is the procedure: the steps, the criteria for a conflict, the shape of a value, the requirement that a quote be copied verbatim. Changing what a review considers a conflict is a change to a Markdown file, not to a prompt constant in `src/`.
 
+The review procedure is injected into the first turn rather than left to the model to load, so a review cannot run without it. The two child skills are still loaded by the agent, in order, because they are steps of the procedure rather than capabilities of their own. See [the skills contract](./skills.md).
+
 What stays in code is capability and guardrail:
 
 | | Lives in | Why |
@@ -31,8 +33,11 @@ What stays in code is capability and guardrail:
 | Lining documents up by key | `src/tools/align.ts` | pure function, testable without a model |
 | Whether a finding is citable | `src/tools/verify.ts` | guardrail, not a step |
 | Whether a verdict is well-formed | `src/tools/verify.ts` | guardrail, not a step |
+| Which skills exist | `src/skills/loader.ts` | discovered from the disk, not listed in code |
 
 The vocabulary lives in code so there is one copy of it. The skill reads it through a tool instead of restating it, so the two cannot drift apart.
+
+The skills themselves are discovered rather than listed, and the review procedure is injected into the first turn rather than left to the model to load. See [the skills contract](./skills.md).
 
 ## The tools
 
@@ -62,12 +67,13 @@ These are checks, not steps. They are deterministic, they never ask a second opi
 
 ```text
 inspect_document × N -> parse_document × N -> render_scan_page × scan pages
+   -> load_document_skill × 2 (the two steps of the review)
    -> list_key_vocabulary -> align_key_data -> verify_conflicts -> report_conflicts
 ```
 
 Every scan-candidate page is read with the vision model before anything is compared. A page that was never read looks exactly like a page where the documents agree.
 
-`src/review-run.ts` does not decide anything. It scopes the documents, collects what the tools returned, re-verifies the verdicts against the parsed source, and renders the report. The pairs it uses are the ones `align_key_data` returned, not the ones the model typed into the next call.
+`src/review-run.ts` does not decide anything. It scopes the documents, injects the review procedure, collects what the tools returned, re-verifies the verdicts against the parsed source, and renders the report. The pairs it uses are the ones `align_key_data` returned, not the ones the model typed into the next call.
 
 ## Contract
 
@@ -117,9 +123,9 @@ Three example contracts, MiniMax-M3.1-Flash as the main model, one live run per 
 | Verified conflicts with identical quotes on both sides | 21 | 0 | 0 |
 | Conflicts found | payment terms, contract value, effective date, counterparty | the same four | the same four |
 | Chinese negation contradiction | never recalled | recalled and judged `high` | recalled and judged `high` |
-| End to end | — | 12.2s | 42s |
+| End to end | — | 12.2s | 31s |
 
-The skill-driven run costs more wall-clock time, because the agent reads the documents itself and decides what to compare instead of a fixed script deciding it in advance. It is also the first design where the review can be changed without a release.
+The skill-driven run costs more wall-clock time than the fixed pipeline, because the agent reads the documents itself and decides what to compare instead of a fixed script deciding it in advance. It is also the first design where the review can be changed without a release. Injecting the procedure rather than asking the model to load it took the run from 42s to 31s, because a tool call was removed from the path.
 
 A live Chinese check through the same model found all three planted contradictions — 60 days against 90 days on payment, 人民币 100000 against 150000 on the contract value, 2026 年 3 月 1 日 against 2026 年 4 月 1 日 on the effective date — each with a Chinese rationale.
 
