@@ -8,7 +8,7 @@
 
 CrossDoc — 一个基于证据的文档一致性审查 Agent，构建在 Pi 之上。
 
-CrossDoc 不是一个 Pi demo。Pi 是最小化的 Agent 运行时；CrossDoc 是围绕多文档一致性审查构建的领域系统：解析、抽取、比较、验证，并用证据报告文档之间的矛盾。
+CrossDoc 不是一个 Pi demo。Pi 是最小化的 Agent 运行时；CrossDoc 是围绕多文档一致性审查构建的领域系统：读取、抽取、比较、验证，并用证据报告文档之间的矛盾。
 
 > 标志含义：两个深墨色块代表两份文档，中间贯穿的蓝条代表跨文档对齐后**一致**的那一行，底部断开的琥珀条代表**冲突**的那一行。矢量源在 [`public/crossdoc-logo.svg`](./public/crossdoc-logo.svg)。
 
@@ -25,13 +25,25 @@ CrossDoc 不是一个 Pi demo。Pi 是最小化的 Agent 运行时；CrossDoc �
 
 Pi 是发动机，审查是整车。
 
-审查流水线由 CrossDoc 自己负责：
+审查流程不住在代码里，而是住在 skill 里。`.agents/skills/` 下有三份 skill：
 
-- `parse_doc`：由格式解析器读取文档，产出带来源位置的统一 JSON。
-- `extract_claims`：把文档文本转换成可审查的 claims。
-- `compare_claims`：跨文档查找候选矛盾。
-- `verify_conflicts`：降级弱匹配，控制误报。
-- `report_conflicts`：从结构化审查结果生成带来源引用的 Markdown 报告。
+| Skill | 管什么 |
+|---|---|
+| `consistency-review` | 整个审查：读文档、读扫描页、对齐、判定、出报告 |
+| `key-data-alignment` | 每份文档抽哪些关键数据,值和引文怎么写 |
+| `conflict-adjudication` | 两个取值什么时候才算真冲突,严重度怎么定,怎么报 |
+
+一个 agent 读 `consistency-review`,它再去读另外两份,然后一步步调工具。**改「什么算冲突」是改一个 Markdown 文件,不是发一次版。**
+
+代码里只留下能力与护栏：
+
+- `parse_document`：由格式解析器读取文档，产出带来源位置的统一 JSON。
+- `list_key_vocabulary`：给出固定的 key 词表,两份文档才知道「同一个东西」叫什么。
+- `align_key_data`：按 key 把各文档的值排成一队,只把取值不同的组交出去(纯函数)。
+- `verify_conflicts`：判定落到冲突上,并检查引文是否真在原文里(纯函数)。
+- `report_conflicts`：从已经产出的关键数据和冲突生成带来源引用的 Markdown 报告。
+
+护栏留在代码里,因为它们不是步骤,是底线：引文在原文里找不到,这条结论就被丢掉;模型给的 `confidence` 是 `"92%"` 也能照样归一化;同一个工具反复调用会被挡住,审查不会死循环。
 
 每个解析出的文字块都会保留来源 ID 和位置。PDF 按页区分可提取文字和扫描内容：文字层保留 PDF 坐标，扫描页由 Pi 视觉模型读取并保留页码来源。点击引用会打开对应 PDF 页；首版扫描文字只保证页级定位。
 
@@ -49,13 +61,13 @@ Pi 只作为运行时边界使用：
 npm install
 ```
 
-运行一个不依赖 LLM 的确定性本地审查：
+运行一次一致性审查（需要先在「模型配置」页配好主模型）：
 
 ```bash
 npm run dev -- review "./examples/docs/*.pdf"
 ```
 
-命令行会在 `crossdoc-output/` 保存 `review.json`、`review.md`,并在 `documents/` 下保存每份文档的结构化 JSON 和带来源脚注的 Markdown。
+命令行会在 `crossdoc-output/` 保存 `review.json`、`review.md`,并在 `documents/` 下保存每份文档的结构化 JSON 和带来源脚注的 Markdown。审查本身由 agent 读 skill 驱动，需要主模型可用。
 
 `examples/docs/` 里是三份可重建的示例合同(两份修订版 + 一份含相同样板条款的合同),用来演示文档转换和一致性审查。重新生成:
 
@@ -109,14 +121,23 @@ Web UI 的主要入口用于阅读：选择 PDF 后由 Pi Agent 按文件格式�
 ```text
 CrossDoc/
 ├── package.json
+├── .agents/skills/
+│   ├── consistency-review/SKILL.md
+│   ├── key-data-alignment/SKILL.md
+│   ├── conflict-adjudication/SKILL.md
+│   ├── document-overview/SKILL.md
+│   └── pdf-reading/SKILL.md
 ├── public/
 │   ├── crossdoc-logo.svg
 │   └── index.html
 ├── src/
 │   ├── agent.ts
+│   ├── agent-guard.ts
 │   ├── cli.ts
+│   ├── review-run.ts
 │   ├── core/
 │   │   ├── claims.ts
+│   │   ├── key-data.ts
 │   │   └── types.ts
 │   ├── loaders/
 │   │   ├── index.ts
@@ -130,10 +151,11 @@ CrossDoc/
 │   │   ├── library-store.ts
 │   │   └── review-store.ts
 │   └── tools/
-│       ├── compare.ts
-│       ├── extract.ts
+│       ├── align.ts
 │       ├── parse.ts
 │       ├── report.ts
+│       ├── review-session.ts
+│       ├── search-document.ts
 │       └── verify.ts
 └── examples/
     └── docs/
@@ -149,8 +171,8 @@ CrossDoc/
 - `markdown/` 分别生成单文档转换 Markdown 和最终审查报告;来源脚注按来源位置去重,原生行各自一条,扫描页一页一条。
 - `storage/` 在展示报告前保存 JSON 和 Markdown。
 - PDF 扫描页由配置的 Pi 视觉模型读取;Word 和 Excel 解析器还未接入。
-- Claim 抽取是确定性的,并且刻意保守。
-- 比较与验证目前是基于规则的占位实现。
+- 一致性审查由 agent 读 `.agents/skills/` 里的 skill 驱动,代码只提供对齐、校验、渲染这些纯函数能力。
+- 审查不再有基于规则的降级路径:skill 需要一个 agent 去读它,所以没有主模型时 `/api/review` 直接返回 503。
 - Pi 接入仍隔离在 `src/agent.ts`,格式解析和报告生成不依赖 Pi。
 
 Web 阅读入口、request-scoped Pi Agent、自动概述和引用来源页的后续提问已接通。后续可以在同一 source-location 契约下增加 DOCX、XLSX 与图片加载器。

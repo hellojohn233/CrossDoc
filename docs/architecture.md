@@ -22,10 +22,12 @@ User task + selected files
   -> CrossDoc archives source + Markdown in data/library/<document-id>/
   -> agent runs the document-overview skill for the initial reading response
   -> user can ask follow-up questions grounded in retrieved blocks
-  -> agent optionally compares / verifies / reports when the user asks
+  -> agent loads the consistency-review skill and drives the review tools when the user asks
 ```
 
 There is no required `parse -> extract -> compare -> verify -> report` chain. The agent selects tools based on the user task. Consistency review is an optional capability, not the only way to use the documents.
+
+A consistency review is itself a skill, not a code path. `consistency-review` states the review end to end and loads `key-data-alignment` and `conflict-adjudication` in turn; the agent reads them and calls the tools itself. The code owns only the capability the skills call into — the key vocabulary, alignment by key, and the check that a finding is citable. See [the review adjudication contract](./modules/review-adjudication.md).
 
 ## Agent and Tool Responsibilities
 
@@ -36,7 +38,7 @@ There is no required `parse -> extract -> compare -> verify -> report` chain. Th
 | Format detector | File signature/extension evidence and detected format | Parsing document contents |
 | Skills | On-demand instructions and format-specific reading guidance | Executable parser implementation or source coordinate fabrication |
 | Loaders | Format parsing, normalized blocks, page/sheet/paragraph locations, Markdown | User intent or whether to compare documents |
-| Optional review tools | Claim extraction, comparison, verification, report rendering | Mandatory orchestration for every task |
+| Optional review tools | Key data vocabulary, alignment by key, citable-finding check, report rendering | The review procedure, which lives in the skill |
 | Library storage | Original source and derived JSON/Markdown files under `data/library/`; SQLite document index and settings | Remote sync or review decisions |
 
 The server passes the agent only the files selected for the current task. Agent tools resolve document IDs through that scope; model-provided arbitrary filesystem paths are not accepted as document input.
@@ -53,7 +55,7 @@ The Web reading lifecycle is hosted in `src/server.ts`. `POST /api/read` stages 
 
 Session memory has finite retention: at most six sessions, a 60-minute idle TTL, a four-hour absolute lifetime, and 30 accepted follow-up questions per session. The server retains at most 500 SSE events, capped at 256 KiB per session and 4 MiB process-wide, plus 10 answer snapshots per session; displayed assistant text is capped at 12,000 characters. Web parse-plus-archive concurrency is capped at three across the process, total uploads at 100 MiB per session, and extracted text at 1,000,000 characters per document / 2,000,000 per session. At session capacity it evicts the least recently active idle session or rejects a new read with HTTP 503 if all sessions are busy. A file is marked ready only after parsing and the Library persistence callback both succeed. Session restart/expiry only removes in-memory Agent and parsed state; archived Library files remain durable.
 
-The reading page is the primary Web route. It shows a compact ordered file status list beside the overview and follow-up conversation. The deterministic `/api/review` endpoint remains available as a separate optional capability. Model-generated text is HTML-escaped before citation tokens are converted into page links; a token is linked only when its document UUID belongs to the active session and its page is a positive integer.
+The reading page is the primary Web route. It shows a compact ordered file status list beside the overview and follow-up conversation. The `/api/review` endpoint remains available as a separate optional capability; it drives the review skill through the same agent and streams NDJSON progress. Model-generated text is HTML-escaped before citation tokens are converted into page links; a token is linked only when its document UUID belongs to the active session and its page is a positive integer.
 
 The OCR adapter is an explicit implementation choice in [the PDF reading design](./modules/pdf-reading.md). OCR failure, unsupported language data, or unusable scan output must be visible in document warnings and in the reading response, never silently converted to an empty document.
 
@@ -97,8 +99,8 @@ The current connected format is PDF, so its source is saved as `source.pdf`. `da
 
 - The request-scoped Pi Agent provides inspection, skill loading, PDF parsing, scan image rendering/transcription through a separate vision profile, vision text saving, and lexical search. Legacy main/vision profiles resolve through the local model catalog and can use ambient credentials; custom profiles register independent Pi API adapters. The main model may be text-only, and the user selects an image-capable custom vision model.
 - DOCX, XLSX, and image source-location types exist, but matching loaders and skills are not connected.
-- The Web reading entry point runs a request-scoped Pi Agent, streams progress through bounded replayable SSE, presents overview and Q&A, and archives parsed source/Markdown artifacts. `/api/review` and the CLI review command remain deterministic optional review paths.
+- The Web reading entry point runs a request-scoped Pi Agent, streams progress through bounded replayable SSE, presents overview and Q&A, and archives parsed source/Markdown artifacts. `/api/review` and the CLI review command are optional review paths that drive the review skill through the agent.
 - The agent adapter's source-bounded persistence callback is wired to the local Library. Web sessions retain the Pi transcript and parsed scope only in memory; a server restart ends active sessions while archived files remain.
 - Local library storage saves source PDFs, canonical parsed JSON, and Markdown under `data/library/`; versioned SQLite migrations store the relative-path index and model/settings configuration, and import existing metadata records idempotently.
 
-The delivery plan under `docs/plan/` first completes the PDF text/scan reading path, overview, and cited Q&A, then replaces the fixed review entry point with the broader agent-directed path.
+The delivery plan under `docs/plan/` first completed the PDF text/scan reading path, overview, and cited Q&A, and then replaced the fixed review entry point with the agent-directed path: the review procedure now lives in skills under `.agents/skills/`.

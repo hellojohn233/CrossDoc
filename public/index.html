@@ -162,10 +162,10 @@
           </p>
           <ol class="pipeline" id="pipeline">
             <li class="step" data-step="parse"><span class="step-index">1</span><span>解析</span></li>
-            <li class="step" data-step="extract"><span class="step-index">2</span><span>抽取</span></li>
-            <li class="step" data-step="align"><span class="step-index">3</span><span>对齐</span></li>
-            <li class="step" data-step="adjudicate"><span class="step-index">4</span><span>判定</span></li>
-            <li class="step" data-step="verify"><span class="step-index">5</span><span>校验</span></li>
+            <li class="step" data-step="scan"><span class="step-index">2</span><span>读取扫描页</span></li>
+            <li class="step" data-step="extract"><span class="step-index">3</span><span>抽取</span></li>
+            <li class="step" data-step="align"><span class="step-index">4</span><span>对齐</span></li>
+            <li class="step" data-step="adjudicate"><span class="step-index">5</span><span>判定</span></li>
             <li class="step" data-step="report"><span class="step-index">6</span><span>报告</span></li>
           </ol>
         </div>
@@ -255,7 +255,29 @@
       const closeSource = document.querySelector("#close-source");
       const copyReport = document.querySelector("#copy-report");
       const downloadReport = document.querySelector("#download-report");
-      const steps = ["parse", "extract", "compare", "verify", "report"];
+      // 审查台的步骤对应 agent 真实调用的工具，不再是写死的流程。
+      const steps = ["解析", "读取扫描页", "抽取", "对齐", "判定", "报告"];
+      const STAGE_STEP = {
+        inspect_document: 0,
+        parse_document: 0,
+        render_scan_page: 1,
+        save_scan_page_text: 1,
+        load_document_skill: 2,
+        list_key_vocabulary: 2,
+        align_key_data: 3,
+        verify_conflicts: 4,
+        report_conflicts: 5,
+      };
+      const STAGE_LABEL = {
+        inspect_document: "正在识别文档与页面类型",
+        parse_document: "正在解析文档",
+        render_scan_page: "正在读取扫描页",
+        load_document_skill: "正在加载审查流程",
+        list_key_vocabulary: "正在取关键数据口径",
+        align_key_data: "正在按口径对齐",
+        verify_conflicts: "正在判定差异",
+        report_conflicts: "正在生成清单",
+      };
 
       let result = null;
       let ledger = null;
@@ -961,23 +983,52 @@
         setRunState("Running", "正在上传并解析文档。");
         setPipeline(0);
 
-        const timers = steps.slice(1).map((_, index) =>
-          window.setTimeout(() => {
-            const step = steps[index + 1];
-            setPipeline(index + 1);
-            setRunState("Running", `${step[0].toUpperCase()}${step.slice(1)} in progress.`);
-          }, 700 * (index + 1)),
-        );
-
         try {
           const response = await fetch("/api/review", {
             method: "POST",
             body: formData,
           });
-          const data = await response.json().catch(() => ({}));
           if (!response.ok) {
-            throw new Error(data.error || "审查失败，请检查 PDF 是否损坏或为空。");
+            const failure = await response.json().catch(() => ({}));
+            throw new Error(failure.error || "审查失败，请检查 PDF 是否损坏或为空。");
           }
+
+          // 服务端按行推送：{type:"progress",stage} 逐个工具事件，最后一行是结果。
+          const reader = response.body.getReader();
+          const decoder = new TextDecoder();
+          let buffer = "";
+          let data = null;
+
+          const handle = (event) => {
+            if (event.type === "progress") {
+              const index = STAGE_STEP[event.stage];
+              if (index === undefined) return;
+              setPipeline(index);
+              setRunState("Running", STAGE_LABEL[event.stage] ?? "正在审查。");
+              return;
+            }
+            if (event.type === "result") {
+              data = event;
+              return;
+            }
+            if (event.type === "error") {
+              throw new Error(event.error || "审查失败。");
+            }
+          };
+
+          for (;;) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split("\n");
+            buffer = lines.pop() ?? "";
+            for (const line of lines) {
+              if (!line.trim()) continue;
+              handle(JSON.parse(line));
+            }
+          }
+          if (buffer.trim()) handle(JSON.parse(buffer));
+          if (!data) throw new Error("审查没有返回结果，请重试。");
 
           applyReviewResult(data);
           setPipeline(steps.length);
@@ -989,7 +1040,6 @@
           setPipeline(-1);
           setRunState("Failed", error instanceof Error ? error.message : "审查失败，请检查文件后重试。");
         } finally {
-          timers.forEach(window.clearTimeout);
           submit.disabled = false;
         }
       }

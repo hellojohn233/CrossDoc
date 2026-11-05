@@ -6,6 +6,12 @@ function evidenceLocation(evidence: Conflict["evidence"][number]): string {
   return locations.length > 0 ? locations.join("; ") : evidence.page === undefined ? "location unavailable" : `page ${evidence.page}`;
 }
 
+/** Formats a score that may have come from free-form model output. */
+function formatScore(score: unknown): string {
+  const value = typeof score === "number" ? score : Number.parseFloat(String(score));
+  return Number.isFinite(value) ? value.toFixed(2) : "0.00";
+}
+
 function renderConflict(conflict: Conflict, citationIds: Map<string, string>): string {
   const evidence = conflict.evidence
     .map(
@@ -19,7 +25,7 @@ function renderConflict(conflict: Conflict, citationIds: Map<string, string>): s
     "",
     `- Status: ${conflict.status}`,
     `- Severity: ${conflict.severity}`,
-    `- Score: ${conflict.score.toFixed(2)}`,
+    `- Score: ${formatScore(conflict.score)}`,
     `- Rationale: ${conflict.rationale}`,
     "",
     "Evidence:",

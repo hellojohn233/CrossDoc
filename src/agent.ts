@@ -10,23 +10,32 @@ import type { Models } from "@earendil-works/pi-ai/models";
 import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import { Type } from "typebox";
 
-import type { Claim, DocumentBlock, ParsedDocument, PdfSourceLocation } from "./core/claims.js";
-import { isTaxonomyKey, keyLabel, type AlignedPair, type KeyDataItem } from "./core/key-data.js";
-import type { Conflict, ConflictJudgment } from "./core/types.js";
+import type { DocumentBlock, ParsedDocument, PdfSourceLocation } from "./core/claims.js";
+import { isTaxonomyKey, keyLabel, KEY_TAXONOMY, type AlignedPair, type KeyDataItem } from "./core/key-data.js";
+import type { ConflictJudgment } from "./core/types.js";
 import { renderPdfPage, type RenderedPdfPage } from "./loaders/render-pdf-page.js";
 import type { ParseDocumentOptions } from "./loaders/types.js";
 import { renderDocumentMarkdown } from "./markdown/document.js";
-import { createReviewModel } from "./review-model.js";
 import { parseDoc } from "./tools/parse.js";
-import { alignKeyData, expandAlignedPairs } from "./tools/key-data.js";
+import { alignKeyData, claimForItem, expandAlignedPairs } from "./tools/align.js";
 import { reportConflicts } from "./tools/report.js";
+import { createReviewSession } from "./tools/review-session.js";
 import { searchDocument } from "./tools/search-document.js";
 import { verifyConflicts } from "./tools/verify.js";
 import type { ModelProfile, ModelProtocol, ModelRole } from "./storage/database.js";
+import { createToolCallGuard } from "./agent-guard.js";
 
 const inspectParameters = Type.Object({ documentId: Type.String({ minLength: 1 }) });
+const SKILL_NAMES = [
+  "pdf-reading",
+  "document-overview",
+  "consistency-review",
+  "key-data-alignment",
+  "conflict-adjudication",
+] as const;
+type SkillName = (typeof SKILL_NAMES)[number];
 const skillParameters = Type.Object({
-  skill: Type.Union([Type.Literal("pdf-reading"), Type.Literal("document-overview")]),
+  skill: Type.Union(SKILL_NAMES.map((name) => Type.Literal(name)) as [Type.TLiteral<SkillName>, ...Type.TLiteral<SkillName>[]]),
 });
 const documentIdParameters = Type.Object({ documentId: Type.String({ minLength: 1 }) });
 const pageParameters = Type.Object({
@@ -45,26 +54,20 @@ const searchParameters = Type.Object({
 const documentIdsParameters = Type.Object({
   documentIds: Type.Array(Type.String({ minLength: 1 }), { minItems: 1, maxItems: 32 }),
 });
-const claimsParameters = Type.Object({ claims: Type.Array(Type.Any()) });
-const conflictsParameters = Type.Object({ conflicts: Type.Array(Type.Any()) });
-const keyDataParameters = Type.Object({ documentId: Type.String({ minLength: 1 }) });
 const keyDataItemSchema = Type.Object({
   documentId: Type.String({ minLength: 1 }),
   key: Type.String({ minLength: 1 }),
   value: Type.String({ minLength: 1 }),
   quote: Type.String({ minLength: 1 }),
   page: Type.Optional(Type.Integer({ minimum: 1 })),
+  label: Type.Optional(Type.String()),
 });
 const alignParameters = Type.Object({ items: Type.Array(keyDataItemSchema) });
 const judgmentsParameters = Type.Object({
-  pairs: Type.Array(Type.Any()),
+  pairs: Type.Optional(Type.Array(Type.Any())),
   judgments: Type.Array(Type.Any()),
 });
-const reportParameters = Type.Object({
-  documentIds: Type.Array(Type.String({ minLength: 1 }), { minItems: 1, maxItems: 32 }),
-  claims: Type.Array(Type.Any()),
-  conflicts: Type.Array(Type.Any()),
-});
+const reportParameters = Type.Object({});
 const MAX_READ_TURN_CONTENT_CHARACTERS = 80_000;
 const MAX_CONCURRENT_DOCUMENT_READS = 3;
 const MAX_DOCUMENT_EXTRACTED_CHARACTERS = 1_000_000;
@@ -243,7 +246,7 @@ export async function resolveVisionModel(models: Pick<Models, "getModel" | "chec
 }
 
 function toKeyDataItem(
-  item: { documentId: string; key: string; value: string; quote: string; page?: number },
+  item: { documentId: string; key: string; value: string; quote: string; page?: number; label?: string },
   index: number,
 ): KeyDataItem {
   const key = item.key.trim().toLowerCase().replace(/\s+/g, "_");
@@ -251,7 +254,7 @@ function toKeyDataItem(
     id: `${item.documentId}:${key}:${index + 1}`,
     documentId: item.documentId,
     key,
-    label: keyLabel(key),
+    label: item.label?.trim() || keyLabel(key),
     value: item.value.trim(),
     quote: item.quote.trim(),
     ...(item.page === undefined ? {} : { page: item.page }),
@@ -297,7 +300,7 @@ function boundedPageMarkdown(document: ParsedDocument, budget: number): { markdo
   return { markdown: sections.join("\n\n"), truncated: fullLength > budget };
 }
 
-function skillPath(skill: "pdf-reading" | "document-overview"): string {
+function skillPath(skill: SkillName): string {
   return resolve(".agents/skills", skill, "SKILL.md");
 }
 
@@ -358,7 +361,21 @@ export function createCrossDocTools(options: CrossDocAgentOptions): AgentTool<an
   const parseInFlight = new Map<string, Promise<any>>();
   const parseBudget = Math.floor(MAX_READ_TURN_CONTENT_CHARACTERS / Math.max(1, sources.size));
   const extractedCharactersByDocument = new Map<string, number>();
+  /** What the review tools have produced so far, shared by the tools of this run. */
+  const session = createReviewSession();
   let sessionExtractedCharacters = 0;
+
+  /** The parsed documents a set of aligned pairs points at. */
+  function parsedDocumentsFor(pairs: AlignedPair[]): Map<string, ParsedDocument> {
+    const documents = new Map<string, ParsedDocument>();
+    for (const pair of pairs) {
+      for (const item of [pair.left, pair.right]) {
+        const document = parsed.get(item.documentId);
+        if (document) documents.set(item.documentId, document);
+      }
+    }
+    return documents;
+  }
 
   function getSource(documentId: string): ScopedDocument {
     const source = sources.get(documentId);
@@ -494,7 +511,7 @@ export function createCrossDocTools(options: CrossDocAgentOptions): AgentTool<an
   const loadSkill = {
     name: "load_document_skill",
     label: "Load document skill",
-    description: "Load CrossDoc's trusted instructions for PDF extraction or concise document overview.",
+    description: "Load CrossDoc's trusted instructions: PDF reading, document overview, or the consistency review procedure.",
     parameters: skillParameters,
     executionMode: "parallel",
     async execute(_callId, { skill }) {
@@ -661,22 +678,20 @@ export function createCrossDocTools(options: CrossDocAgentOptions): AgentTool<an
     },
   } satisfies AgentTool<typeof searchParameters>;
 
-  const extractKeyDataTool = {
-    name: "extract_key_data",
-    label: "Extract key data",
-    description: "List the key data points a document states about itself, using the fixed key vocabulary, when the user requests a consistency review.",
-    parameters: keyDataParameters,
+  const listVocabulary = {
+    name: "list_key_vocabulary",
+    label: "List key vocabulary",
+    description: "List the fixed key vocabulary a consistency review uses, so two documents that state the same kind of data carry the same key.",
+    parameters: Type.Object({}),
     executionMode: "parallel",
-    async execute(_callId, { documentId }) {
-      const model = createReviewModel(options.models ?? createBuiltinModels(), options.mainProfile);
-      const extraction = await model.extractKeyData(getParsed(documentId));
+    async execute() {
       return {
-        content: [{ type: "text", text: JSON.stringify(extraction.items) }],
-        structuredContent: asJson(extraction.items),
-        details: { count: extraction.items.length, source: extraction.source, warning: extraction.warning },
+        content: [{ type: "text", text: JSON.stringify(KEY_TAXONOMY) }],
+        structuredContent: asJson(KEY_TAXONOMY),
+        details: { count: KEY_TAXONOMY.length },
       };
     },
-  } satisfies AgentTool<typeof keyDataParameters>;
+  } satisfies AgentTool<any>;
   const align = {
     name: "align_key_data",
     label: "Align key data",
@@ -687,41 +702,65 @@ export function createCrossDocTools(options: CrossDocAgentOptions): AgentTool<an
       const keyItems = items.map((item, index) => toKeyDataItem(item, index));
       const groups = alignKeyData(keyItems);
       const pairs = expandAlignedPairs(groups);
+      session.items = keyItems;
+      session.pairs = pairs;
+      const summary = groups.map((group) => ({
+        key: group.key,
+        label: group.label,
+        documents: group.items.length,
+        values: group.values,
+        consistent: group.consistent,
+      }));
       return {
-        content: [{ type: "text", text: JSON.stringify(pairs) }],
-        structuredContent: asJson(pairs),
-        details: { groups: groups.length, pairs: pairs.length },
+        content: [{ type: "text", text: JSON.stringify({ groups: summary, pairs }) }],
+        structuredContent: asJson({ groups: summary, pairs }),
+        details: { items: keyItems.length, groups: groups.length, pairs: pairs.length },
       };
     },
   } satisfies AgentTool<typeof alignParameters>;
   const verify = {
     name: "verify_conflicts",
     label: "Verify conflicts",
-    description: "Turn your contradiction verdicts into verified conflicts. Pass the differing pairs from align_key_data and one judgment per pair: {candidateId, conflict, severity, confidence, summary, rationale}.",
+    description: "Turn your contradiction verdicts into verified conflicts. Pass one judgment per aligned pair: {candidateId, conflict, severity, confidence, summary, rationale}. The pairs are the ones the last align_key_data call returned, so you do not need to repeat them.",
     parameters: judgmentsParameters,
     executionMode: "parallel",
     async execute(_callId, { pairs, judgments }) {
-      const result = verifyConflicts(pairs as AlignedPair[], judgments as ConflictJudgment[]);
+      const resolvedPairs = (Array.isArray(pairs) && pairs.length > 0 ? pairs : session.pairs) as AlignedPair[];
+      if (resolvedPairs.length === 0) {
+        throw new Error("There is nothing to judge. Call align_key_data first and judge the pairs it returns.");
+      }
+      const result = verifyConflicts(resolvedPairs, judgments as ConflictJudgment[], {
+        judgeSource: "model",
+        documents: parsedDocumentsFor(resolvedPairs),
+      });
+      session.pairs = resolvedPairs;
+      session.judgments = judgments as ConflictJudgment[];
+      session.conflicts = result;
       return { content: [{ type: "text", text: JSON.stringify(result) }], structuredContent: asJson(result), details: { count: result.length } };
     },
   } satisfies AgentTool<typeof judgmentsParameters>;
   const report = {
     name: "report_conflicts",
     label: "Report conflicts",
-    description: "Render a traceable review report from scoped parsed documents, claims, and conflicts.",
+    description: "Render the review report from the key data and the conflicts this run has already verified. It takes no arguments.",
     parameters: reportParameters,
     executionMode: "parallel",
-    async execute(_callId, { documentIds, claims, conflicts }) {
-      const result = reportConflicts({
-        documents: [...new Set(documentIds)].map(getParsed),
-        claims: claims as Claim[],
-        conflicts: conflicts as Conflict[],
-      });
-      return { content: [{ type: "text", text: result }], structuredContent: { report: result }, details: { length: result.length } };
+    async execute() {
+      const documentIds = [...new Set(session.items.map((item) => item.documentId))];
+      const documents = documentIds
+        .map((documentId) => parsed.get(documentId))
+        .filter((document): document is ParsedDocument => Boolean(document));
+      const claims = session.items.map((item) => claimForItem(item, parsed.get(item.documentId)));
+      const result = reportConflicts({ documents, claims, conflicts: session.conflicts });
+      return {
+        content: [{ type: "text", text: result }],
+        structuredContent: { report: result },
+        details: { report: result, length: result.length, conflicts: session.conflicts.length },
+      };
     },
   } satisfies AgentTool<typeof reportParameters>;
 
-  return [inspect, loadSkill, parse, render, savePage, search, extractKeyDataTool, align, verify, report] as AgentTool<any>[];
+  return [inspect, loadSkill, parse, render, savePage, search, listVocabulary, align, verify, report] as AgentTool<any>[];
 }
 
 export async function createCrossDocAgent(options: CrossDocAgentOptions): Promise<Agent> {
@@ -738,7 +777,11 @@ export async function createCrossDocAgent(options: CrossDocAgentOptions): Promis
     ...streamOptions,
     ...(main.profile.apiKey ? { apiKey: main.profile.apiKey } : {}),
   }));
+  // A guard, not a workflow: it only stops a tool from running more often than
+  // it can produce something new.
+  const guard = createToolCallGuard();
   return new Agent({
+    beforeToolCall: guard.beforeToolCall,
     initialState: {
       model: main.model,
       systemPrompt: [
@@ -748,8 +791,8 @@ export async function createCrossDocAgent(options: CrossDocAgentOptions): Promis
         "For a request to read or summarize selected PDFs: inspect each document, load pdf-reading, parse it, and call render_scan_page once for every scan-candidate page. That tool sends the page to the vision model and saves its exact transcript and citation itself; do not call save_scan_page_text to relay the OCR. Then load document-overview and give a brief cited overview. Use save_scan_page_text only when the user explicitly asks to repair or replace saved scan text. Do not call review tools for ordinary reading or overview.",
         "When multiple PDFs are selected, issue their independent parse_document calls together in selected-file order. CrossDoc limits active parse-plus-save work to three documents, preserves the call order in results, and reports one file's error without discarding successful reads.",
         "For follow-up questions, use search_document with the user's question and selected parsed document IDs. Answer only from returned evidence and cite each source page using [[cite:<document-id>:<page-number>]], preserving exact IDs and page numbers. If no evidence matches, say so.",
-        "Call extract_key_data, align_key_data, verify_conflicts, and report_conflicts only when the user asks for a consistency review or comparison.",
-        "For a consistency review you judge the contradictions yourself. Call extract_key_data for every document, then align_key_data with the collected items to line the key data up and see which values disagree. Read every differing pair, then call verify_conflicts with those pairs plus one judgment per pair ({candidateId, conflict, severity, confidence, summary, rationale}), using the pair id as candidateId. Mark conflict=true only when the two values cannot both be right for the same subject and scope: a different number, date, amount, party, or jurisdiction is a conflict, while the same value written differently, a more specific restatement, or two values about different subjects are not.",
+        "Call list_key_vocabulary, align_key_data, verify_conflicts, and report_conflicts only when the user asks for a consistency review or comparison.",
+        "For a consistency review, load the consistency-review skill and follow it. It loads key-data-alignment and conflict-adjudication in turn, and those skills carry the procedure and the rules. The skill is the procedure: follow it instead of improvising your own sequence, and compare key data rather than sentences.",
         "If a scan page is unreadable, do not invent its content; report its page number and keep the warning visible.",
       ].join("\n"),
       tools: createCrossDocTools({ ...options, models, visionProfile: vision.profile }),

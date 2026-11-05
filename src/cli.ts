@@ -1,11 +1,11 @@
 #!/usr/bin/env node
 
+import { randomUUID } from "node:crypto";
 import { glob, mkdir } from "node:fs/promises";
-import { resolve } from "node:path";
+import { basename, resolve } from "node:path";
 
-import { reviewDocuments } from "./review.js";
 import { createBuiltinModels } from "./agent.js";
-import { createReviewModel } from "./review-model.js";
+import { runConsistencyReview } from "./review-run.js";
 import { LocalDatabase } from "./storage/database.js";
 import { writeReviewArtifacts } from "./storage/review-store.js";
 
@@ -33,21 +33,33 @@ async function review(patterns: string[]): Promise<void> {
     throw new Error(`No PDF files matched: ${patterns.join(", ")}`);
   }
 
+  const database = new LocalDatabase(resolve("data"));
+  const mainProfile = database.getModelProfile("main");
+  const visionProfile = database.getModelProfile("vision");
+  if (!mainProfile) {
+    throw new Error("Configure the main model in Settings before running a consistency review.");
+  }
+
   console.log(`CrossDoc reviewing ${files.length} document(s)...`);
 
-  const database = new LocalDatabase(resolve("data"));
-  const result = await reviewDocuments(files, {
-    onProgress: (progress) => console.log(`- ${progress.message}`),
-    model: createReviewModel(createBuiltinModels(), database.getModelProfile("main")),
+  const result = await runConsistencyReview({
+    documents: files.map((path) => ({
+      id: randomUUID(),
+      title: basename(path),
+      sourceName: basename(path),
+      path,
+    })),
+    models: createBuiltinModels(),
+    mainProfile,
+    ...(visionProfile ? { visionProfile } : {}),
   });
 
   const outDir = resolve("crossdoc-output");
   await mkdir(outDir, { recursive: true });
   await writeReviewArtifacts(result, outDir);
 
-  console.log(`Claims: ${result.claims.length}`);
+  console.log(`Key data: ${result.claims.length}`);
   console.log(`Conflicts: ${result.conflicts.filter((conflict) => conflict.status === "verified").length} verified / ${result.conflicts.length} total`);
-  console.log(`Judge: ${result.judgeSource ?? "rule"}`);
   if (result.warning) console.log(`Warning: ${result.warning}`);
   console.log(`Structured review: ${resolve(outDir, "review.json")}`);
   console.log(`Report: ${resolve(outDir, "review.md")}`);

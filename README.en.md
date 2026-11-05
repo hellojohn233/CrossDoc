@@ -25,13 +25,25 @@ Design principle:
 
 Pi is the engine; consistency review is the vehicle.
 
-The review pipeline is owned by CrossDoc:
+The review procedure does not live in the code. It lives in skills, under `.agents/skills/`:
 
-- `parse_doc`: use a format loader to produce normalized JSON with source positions.
-- `extract_claims`: convert document text into reviewable claims.
-- `compare_claims`: find candidate contradictions across documents.
-- `verify_conflicts`: demote weak matches and keep false positives under control.
-- `report_conflicts`: render a Markdown report with source citations from structured review data.
+| Skill | Owns |
+|---|---|
+| `consistency-review` | the review end to end: read the documents, read the scan pages, align, adjudicate, report |
+| `key-data-alignment` | which key data each document contributes, and how a value and a quote are written |
+| `conflict-adjudication` | when two values really disagree, how severe it is, and how it is reported |
+
+One agent loads `consistency-review`, which loads the other two in turn, and drives the tools itself. **Changing what counts as a conflict is a change to a Markdown file, not a release.**
+
+The code keeps capability and guardrail only:
+
+- `parse_document`: use a format loader to produce normalized JSON with source positions.
+- `list_key_vocabulary`: hand out the fixed key vocabulary, so two documents know the same name for the same thing.
+- `align_key_data`: line the values up by key and hand back only the groups whose values differ (pure functions).
+- `verify_conflicts`: turn the verdicts into conflicts and check that each quote really is in the source text (pure functions).
+- `report_conflicts`: render a Markdown report with source citations from the key data and conflicts the run already produced.
+
+The guardrails stay in code because they are not steps, they are limits: a quote that is not in the source text is dropped, a `confidence` of `"92%"` is normalized rather than fatal, and a tool that keeps repeating itself is blocked so a review cannot loop forever.
 
 Each extracted text block keeps a source ID and location. PDF pages are classified as selectable text or scans: native text retains PDF coordinates, while Pi vision reads scan pages with page-level provenance. A citation opens the corresponding PDF page; scan text has page-level location in this first version.
 
@@ -49,13 +61,13 @@ Install dependencies:
 npm install
 ```
 
-Run a deterministic local review without an LLM:
+Run a consistency review (configure the main model first, under "Model Setup"):
 
 ```bash
 npm run dev -- review "./examples/docs/*.pdf"
 ```
 
-The CLI writes `review.json` and `review.md` under `crossdoc-output/`, plus structured JSON and source-footnoted Markdown for each document under `documents/`.
+The CLI writes `review.json` and `review.md` under `crossdoc-output/`, plus structured JSON and source-footnoted Markdown for each document under `documents/`. The review itself is driven by an agent reading the skills, so it needs the main model.
 
 `examples/docs/` holds three rebuildable sample contracts (two revisions plus one that repeats the same boilerplate clause) for demonstrating document conversion and consistency review. Regenerate them with:
 
@@ -109,14 +121,23 @@ Compatible baseline:
 ```text
 CrossDoc/
 ├── package.json
+├── .agents/skills/
+│   ├── consistency-review/SKILL.md
+│   ├── key-data-alignment/SKILL.md
+│   ├── conflict-adjudication/SKILL.md
+│   ├── document-overview/SKILL.md
+│   └── pdf-reading/SKILL.md
 ├── public/
 │   ├── crossdoc-logo.svg
 │   └── index.html
 ├── src/
 │   ├── agent.ts
+│   ├── agent-guard.ts
 │   ├── cli.ts
+│   ├── review-run.ts
 │   ├── core/
 │   │   ├── claims.ts
+│   │   ├── key-data.ts
 │   │   └── types.ts
 │   ├── loaders/
 │   │   ├── index.ts
@@ -130,10 +151,11 @@ CrossDoc/
 │   │   ├── library-store.ts
 │   │   └── review-store.ts
 │   └── tools/
-│       ├── compare.ts
-│       ├── extract.ts
+│       ├── align.ts
 │       ├── parse.ts
 │       ├── report.ts
+│       ├── review-session.ts
+│       ├── search-document.ts
 │       └── verify.ts
 └── examples/
     └── docs/
@@ -149,11 +171,11 @@ Current data flow:
 - `markdown/` renders per-document Markdown and the final review report separately; source notes are keyed by source position, so a native line gets its own note and a scanned page is cited once.
 - `storage/` writes JSON and Markdown before the UI presents the results.
 - Scanned PDF pages are read by the configured Pi vision model; DOCX/XLSX loaders are not connected yet.
-- Claim extraction is deterministic and intentionally conservative.
-- Comparison and verification are rule-based placeholders.
+- A consistency review is driven by an agent reading the skills under `.agents/skills/`; the code only supplies the pure capabilities those skills call into — alignment, citable-finding checks, rendering.
+- There is no rule fallback any more: a skill needs an agent to read it, so `/api/review` returns 503 when no main model is configured.
 - Pi wiring remains isolated in `src/agent.ts`; parsing and report generation do not depend on Pi.
 
-The request-scoped Pi Agent, the automatic overview, and follow-up questions with source-page citations are connected. Next steps are the DOCX/XLSX loaders and a request-scoped review skill.
+The request-scoped Pi Agent, the automatic overview, and follow-up questions with source-page citations are connected. Next steps are the DOCX/XLSX loaders and a skill-level evaluation corpus for the review.
 
 ## Acknowledgements
 

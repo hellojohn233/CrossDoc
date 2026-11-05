@@ -8,8 +8,7 @@ import express, { type Express, type Request, type Response } from "express";
 import multer from "multer";
 
 import { createBuiltinModels, createCrossDocAgent, CrossDocVisionModelConfigError, type CrossDocAgentOptions, type ScopedDocument } from "./agent.js";
-import { createReviewModel } from "./review-model.js";
-import { reviewDocuments } from "./review.js";
+import { runConsistencyReview } from "./review-run.js";
 import { getLibraryDocument, listLibraryDocuments, saveLibraryDocument } from "./storage/library-store.js";
 import { LocalDatabase, type ModelProfile, type ModelProtocol, type ModelRole } from "./storage/database.js";
 import { writeReviewArtifacts } from "./storage/review-store.js";
@@ -839,27 +838,64 @@ export function createWebApp(options: WebAppOptions = {}) {
       }
       try {
         const reviewId = randomUUID();
-        const result = await reviewDocuments(files.map((file) => file.path), {
-          documents: files.map((file) => ({ id: file.filename.replace(/\.pdf$/i, ""), title: cleanDisplayName(file.originalname) })),
-          model: createReviewModel(modelCatalog, database.getModelProfile("main")),
-        });
-        await writeReviewArtifacts(result, resolve(reviewDirectory, reviewId));
-        await Promise.all(result.documents.map((document) => {
-          const sourceFile = files.find((file) => file.filename === `${document.id}.pdf`);
-          if (!sourceFile) throw new Error(`Uploaded source file missing for document ${document.id}.`);
-          return saveLibraryDocument(document, sourceFile.path, cleanDisplayName(sourceFile.originalname), libraryDirectory, database);
+        const mainProfile = database.getModelProfile("main");
+        const visionProfile = database.getModelProfile("vision");
+        if (!mainProfile) {
+          response.status(503).json({ error: "Configure the main model in Settings before running a consistency review." });
+          return;
+        }
+
+        // The review procedure lives in .agents/skills/consistency-review. The agent
+        // reads it and drives the tools; this route only collects what the tools returned
+        // and streams the agent's real progress.
+        const sources: ScopedDocument[] = files.map((file) => ({
+          id: randomUUID(),
+          title: cleanDisplayName(file.originalname),
+          sourceName: cleanDisplayName(file.originalname),
+          path: file.path,
         }));
-        response.json({
-          reviewId,
-          documents: result.documents.map((document) => ({ id: document.id, title: document.title, pages: document.pages.length, format: document.format, markdown: document.markdown, warnings: document.warnings, sourceUrl: `/api/library/${document.id}/source` })),
-          claimCount: result.claims.length,
-          conflictCount: result.conflicts.length,
-          verifiedConflictCount: result.conflicts.filter((conflict) => conflict.status === "verified").length,
-          judgeSource: result.judgeSource ?? "rule",
-          ...(result.warning ? { warning: result.warning } : {}),
-          conflicts: result.conflicts,
-          reportMarkdown: result.reportMarkdown,
-        });
+
+        response.status(200);
+        response.set({ "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-cache" });
+        const write = (payload: Record<string, unknown>) => {
+          if (!response.writableEnded) response.write(`${JSON.stringify(payload)}\n`);
+        };
+
+        try {
+          const result = await runConsistencyReview({
+            documents: sources,
+            ...(options.agentFactory ? { agentFactory: options.agentFactory } : {}),
+            models: modelCatalog,
+            mainProfile,
+            ...(visionProfile ? { visionProfile } : {}),
+            onStage: (tool) => write({ type: "progress", stage: tool }),
+            onDocumentUpdated: async (document, source) => {
+              await saveLibraryDocument(document, source.path, source.sourceName ?? source.title, libraryDirectory, database);
+            },
+            onDocumentRejected: async (documentId, _source, reason) => {
+              await rm(resolve(libraryDirectory, documentId), { recursive: true, force: true });
+            },
+          });
+
+          await writeReviewArtifacts(result, resolve(reviewDirectory, reviewId));
+          write({
+            type: "result",
+            reviewId,
+            documents: result.documents.map((document) => ({ id: document.id, title: document.title, pages: document.pages.length, format: document.format, markdown: document.markdown, warnings: document.warnings, sourceUrl: `/api/library/${document.id}/source` })),
+            claimCount: result.claims.length,
+            conflictCount: result.conflicts.length,
+            verifiedConflictCount: result.conflicts.filter((conflict) => conflict.status === "verified").length,
+            judgeSource: result.judgeSource ?? "model",
+            stages: result.stages,
+            ...(result.warning ? { warning: result.warning } : {}),
+            conflicts: result.conflicts,
+            reportMarkdown: result.reportMarkdown,
+          });
+        } catch (error) {
+          write({ type: "error", error: error instanceof Error ? error.message : "Review failed." });
+        } finally {
+          if (!response.writableEnded) response.end();
+        }
       } catch (error) {
         response.status(500).json({ error: error instanceof Error ? error.message : "Review failed." });
       } finally {

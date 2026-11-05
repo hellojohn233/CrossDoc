@@ -1,20 +1,23 @@
 /**
- * 关键数据对齐语义验收。
+ * 关键数据一致性审查验收。
  *
- * 锁住三段式流程的行为边界：模型抽关键数据 → 按 key 对齐 → 模型判定 → 证据校验。
- * 不依赖真实模型，用注入的 stub 判定器，保证断言可重复。
+ * 审查流程本身住在 .agents/skills/ 里，由一个 agent 读 skill 后一步步调工具。
+ * 这个脚本锁住三件事：
+ *   1. skill 文件是流程的所在，而且内容真的写清了步骤与判据；
+ *   2. 对齐与校验这两个纯函数的行为边界；
+ *   3. 整条链路真的由 agent 驱动 —— 用脚本化的模型把工具调用喂进去，
+ *      断言跑完之后的冲突清单是不是预期的那个。
  */
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 
-import { adjudicatePairs } from "../src/tools/adjudicate.ts";
-import {
-  alignKeyData,
-  expandAlignedPairs,
-  parseKeyExtractionResponse,
-} from "../src/tools/key-data.ts";
-import { ruleAdjudicatePairs } from "../src/tools/rule-adjudicate.ts";
-import { extractKeyDataByRules } from "../src/tools/rule-key-data.ts";
-import { verifyConflicts } from "../src/tools/verify.ts";
+import { createAssistantMessageEventStream } from "@earendil-works/pi-ai/utils/event-stream";
+
+import { alignKeyData, expandAlignedPairs } from "../src/tools/align.ts";
+import { normalizeJudgment, verifyConflicts } from "../src/tools/verify.ts";
+import { runConsistencyReview } from "../src/review-run.ts";
+import { createToolCallGuard, TOOL_CALL_LIMITS } from "../src/agent-guard.ts";
 import { KEY_TAXONOMY, normalizeValue } from "../src/core/key-data.ts";
 
 const checks = [];
@@ -27,61 +30,63 @@ const check = async (name, fn) => {
   }
 };
 
-const keyItem = (documentId, key, value, quote = `${key}: ${value}`) => ({
+const skillRoot = resolve(process.cwd(), ".agents/skills");
+const readSkill = (name) => readFile(resolve(skillRoot, name, "SKILL.md"), "utf8");
+
+const keyItem = (documentId, key, value, quote = `${key}: ${value}`, page = 1) => ({
   id: `${documentId}:${key}:1`,
   documentId,
   key,
   label: key,
   value,
   quote,
-  page: 1,
-  confidence: 0.8,
+  page,
+  confidence: 0.9,
   custom: false,
 });
 
-const document = (id, text) => ({
-  id,
-  title: `${id}.pdf`,
-  format: "pdf",
-  pages: [{ page: 1, text, blocks: [] }],
-  blocks: [],
-  text,
-  markdown: text,
-  warnings: [],
+// ── 1. skill 是流程的所在 ────────────────────────────────────
+await check("S1 三个审查 skill 都在，front-matter 的 name 与目录名一致", async () => {
+  for (const name of ["consistency-review", "key-data-alignment", "conflict-adjudication"]) {
+    const content = await readSkill(name);
+    assert.match(content, new RegExp(`^---\\nname: ${name}\\ndescription: .+\\n---`), `${name} 的 front-matter 不完整`);
+  }
 });
 
-await check("K1 关键数据词表是固定的，且能识别词表内的 key", () => {
+await check("S2 consistency-review 写清了步骤，并且会加载另外两个 skill", async () => {
+  const content = await readSkill("consistency-review");
+  assert.match(content, /parse_document/);
+  assert.match(content, /render_scan_page/, "扫描页必须先读，否则未读的页看起来就像一致");
+  assert.match(content, /key-data-alignment/);
+  assert.match(content, /conflict-adjudication/);
+  assert.match(content, /do not substitute a text diff/i);
+});
+
+await check("S3 key-data-alignment 规定取口径与引文的写法", async () => {
+  const content = await readSkill("key-data-alignment");
+  assert.match(content, /list_key_vocabulary/);
+  assert.match(content, /align_key_data/);
+  assert.match(content, /only the value/i);
+  assert.match(content, /verbatim/i);
+});
+
+await check("S4 conflict-adjudication 规定什么时候才算冲突，以及怎么报", async () => {
+  const content = await readSkill("conflict-adjudication");
+  assert.match(content, /verify_conflicts/);
+  assert.match(content, /report_conflicts/);
+  assert.match(content, /conflict: true/);
+  assert.match(content, /conflict: false/);
+  assert.match(content, /severity/);
+});
+
+await check("S5 固定口径是一份受控词表", () => {
   assert.ok(KEY_TAXONOMY.length >= 20);
   assert.ok(KEY_TAXONOMY.some((entry) => entry.key === "payment_term"));
-  assert.ok(KEY_TAXONOMY.some((entry) => entry.key === "contract_value"));
+  assert.ok(KEY_TAXONOMY.every((entry) => /^[a-z_]+$/.test(entry.key)), "key 必须是稳定的 slug");
 });
 
-await check("K2 抽取结果能解析，且词表内的 key 与自定义 key 分别标记", () => {
-  const parsed = parseKeyExtractionResponse(
-    JSON.stringify([
-      { key: "payment_term", value: "45 days", quote: "Pay within 45 days.", page: 1 },
-      { key: "warranty_period", value: "12 months", quote: "Warranty is 12 months.", page: 2 },
-    ]),
-    "doc-a",
-  );
-  assert.equal(parsed.length, 2);
-  assert.equal(parsed[0].key, "payment_term");
-  assert.equal(parsed[0].custom, false);
-  assert.equal(parsed[1].key, "warranty_period");
-  assert.equal(parsed[1].custom, true);
-  assert.equal(parsed[0].page, 1);
-});
-
-await check("K3 抽取结果包在代码围栏或散文里也能解析", () => {
-  const parsed = parseKeyExtractionResponse(
-    `这是抽取结果：\n\`\`\`json\n${JSON.stringify([{ key: "effective_date", value: "March 1, 2026", quote: "Takes effect on March 1, 2026.", page: 1 }])}\n\`\`\`\n以上。`,
-    "doc-a",
-  );
-  assert.equal(parsed.length, 1);
-  assert.equal(parsed[0].value, "March 1, 2026");
-});
-
-await check("K4 同一个 key 的数据在不同文档之间对齐，不靠字面共享词", () => {
+// ── 2. 纯函数的行为边界 ──────────────────────────────────────
+await check("A1 同一个 key 的数据在不同文档之间对齐，不靠字面共享词", () => {
   const groups = alignKeyData([
     keyItem("doc-a", "payment_term", "45 days"),
     keyItem("doc-b", "payment_term", "90 days"),
@@ -91,10 +96,9 @@ await check("K4 同一个 key 的数据在不同文档之间对齐，不靠字�
   assert.ok(payment, "付款期限应当对齐成一组");
   assert.equal(payment.items.length, 2);
   assert.equal(payment.consistent, false);
-  assert.deepEqual(payment.values.sort(), ["45 days", "90 days"]);
 });
 
-await check("K5 一份文档对同一个 key 只保留一个值，取信息量最大的那个", () => {
+await check("A2 一份文档对同一个 key 只保留一个值", () => {
   const groups = alignKeyData([
     keyItem("doc-a", "confidentiality", "all disclosed information"),
     { ...keyItem("doc-a", "confidentiality", "maintain confidentiality of all disclosed information"), id: "doc-a:confidentiality:2" },
@@ -104,7 +108,7 @@ await check("K5 一份文档对同一个 key 只保留一个值，取信息量�
   assert.equal(group.items[0].value, "maintain confidentiality of all disclosed information");
 });
 
-await check("K6 取值相同的 key 不产生待判定对", () => {
+await check("A3 取值相同的 key 不产生待判定对", () => {
   const groups = alignKeyData([
     keyItem("doc-a", "term_length", "twelve months"),
     keyItem("doc-b", "term_length", "twelve months"),
@@ -113,7 +117,7 @@ await check("K6 取值相同的 key 不产生待判定对", () => {
   assert.equal(expandAlignedPairs(groups).length, 0);
 });
 
-await check("K7 取值不同的 key 产生待判定对，且带上整组取值", () => {
+await check("A4 取值不同的 key 产生待判定对，且带上整组取值", () => {
   const groups = alignKeyData([
     keyItem("doc-a", "payment_term", "45 days"),
     keyItem("doc-b", "payment_term", "90 days"),
@@ -126,141 +130,255 @@ await check("K7 取值不同的 key 产生待判定对，且带上整组取值",
   assert.equal(pairs[0].group.length, 3);
 });
 
-await check("K8 取值归一化忽略标点、冠词和多余的零", () => {
+await check("A5 取值归一化忽略标点、千分位、冠词和多余的零", () => {
   assert.equal(normalizeValue("The analytics platform."), normalizeValue("analytics platform"));
   assert.equal(normalizeValue("USD 1,200.0"), normalizeValue("usd 1200"));
   assert.notEqual(normalizeValue("45 days"), normalizeValue("90 days"));
 });
 
-await check("K9 模型判定为冲突时产出 verified，判定不冲突时产出 dismissed", async () => {
+await check("A6 引文对不上的冲突被判为 dismissed", () => {
   const groups = alignKeyData([
-    keyItem("doc-a", "payment_term", "45 days"),
-    keyItem("doc-b", "payment_term", "90 days"),
-  ]);
-  const pairs = expandAlignedPairs(groups);
-
-  const verified = verifyConflicts(
-    pairs,
-    await adjudicatePairs(pairs, {
-      complete: async () =>
-        JSON.stringify([{ id: pairs[0].id, conflict: true, severity: "high", confidence: 0.93, summary: "账期不一致", rationale: "付款期限不同。" }]),
-    }),
-    { judgeSource: "model" },
-  );
-  assert.equal(verified[0].status, "verified");
-  assert.equal(verified[0].severity, "high");
-  assert.equal(verified[0].score, 0.93);
-  assert.equal(verified[0].judgeSource, "model");
-  assert.equal(verified[0].evidence.length, 2);
-
-  const dismissed = verifyConflicts(
-    pairs,
-    await adjudicatePairs(pairs, {
-      complete: async () =>
-        JSON.stringify([{ id: pairs[0].id, conflict: false, severity: "medium", confidence: 0.8, summary: "无冲突", rationale: "两者可以并存。" }]),
-    }),
-  );
-  assert.equal(dismissed[0].status, "dismissed");
-  assert.equal(dismissed[0].severity, "low");
-});
-
-await check("K10 模型漏判的候选按未冲突处理，不误报成冲突", async () => {
-  const groups = alignKeyData([
-    keyItem("doc-a", "payment_term", "45 days"),
-    keyItem("doc-b", "payment_term", "90 days"),
-  ]);
-  const pairs = expandAlignedPairs(groups);
-  const conflicts = verifyConflicts(pairs, await adjudicatePairs(pairs, { complete: async () => "[]" }));
-  assert.equal(conflicts.length, 1);
-  assert.equal(conflicts[0].status, "dismissed");
-  assert.equal(conflicts[0].score, 0);
-});
-
-await check("K11 引文为空的冲突被判为 dismissed，不产出无法引用的结论", () => {
-  const groups = alignKeyData([
-    { ...keyItem("doc-a", "payment_term", "45 days"), quote: "" },
+    keyItem("doc-a", "payment_term", "45 days", "原文中并没有这一句"),
     keyItem("doc-b", "payment_term", "90 days"),
   ]);
   const pairs = expandAlignedPairs(groups);
   const conflicts = verifyConflicts(pairs, [
     { candidateId: pairs[0].id, conflict: true, severity: "high", confidence: 0.9, summary: "账期不一致", rationale: "付款期限不同。" },
-  ]);
-  assert.equal(conflicts[0].status, "dismissed");
-  assert.match(conflicts[0].rationale, /Evidence/);
-});
-
-await check("K12 没有模型时的规则回退：抽得到关键数据，并只报取值不同的 key", () => {
-  const text = [
-    "Agreement between Northwind Analytics and Bright Harbor Ltd.",
-    "The Client shall pay all undisputed invoices within 45 days of receipt.",
-    "The total contract value is USD 120000 including delivery and support.",
-    "This Agreement takes effect on March 1, 2026 and continues for twelve months.",
-  ].join("\n");
-  const items = extractKeyDataByRules(document("doc-a", text));
-  const keys = items.map((item) => item.key);
-  assert.ok(keys.includes("contract_subject"));
-  assert.ok(keys.includes("payment_term"));
-  assert.ok(keys.includes("contract_value"));
-  assert.ok(keys.includes("effective_date"));
-
-  const pairs = expandAlignedPairs(
-    alignKeyData([...items, keyItem("doc-b", "payment_term", "90 days")]),
-  );
-  assert.equal(pairs.length, 1);
-  assert.equal(pairs[0].key, "payment_term");
-  const judgments = ruleAdjudicatePairs(pairs);
-  assert.equal(judgments[0].conflict, true);
-  const conflicts = verifyConflicts(pairs, judgments, { judgeSource: "rule" });
-  assert.equal(conflicts[0].judgeSource, "rule");
-  assert.equal(conflicts[0].status, "verified");
-});
-
-await check("K13 端到端：抽取 → 对齐 → 判定 → 校验，只留下真冲突", async () => {
-  const extracted = {
-    "doc-a": [
-      { key: "payment_term", value: "45 days", quote: "The Client shall pay all undisputed invoices within 45 days of receipt." },
-      { key: "contract_value", value: "USD 120000", quote: "The total contract value is USD 120000 including delivery and support." },
-      { key: "confidentiality", value: "all disclosed information", quote: "Each party shall maintain confidentiality of all disclosed information." },
-    ],
-    "doc-b": [
-      { key: "payment_term", value: "90 days", quote: "The Client shall pay all undisputed invoices within 90 days of receipt." },
-      { key: "contract_value", value: "USD 150000", quote: "The total contract value is USD 150000 including delivery and support." },
-      { key: "confidentiality", value: "maintain confidentiality of all disclosed information", quote: "Each party shall maintain confidentiality of all disclosed information." },
-    ],
-  };
-  const complete = async (prompt) => {
-    const items = Object.entries(extracted).find(([, values]) => prompt.includes(values[0].quote));
-    const payload = items
-      ? items[1].map((item) => ({ ...item, page: 1 }))
-      : [];
-    return JSON.stringify(payload.map((item) => ({ ...item, page: 1 })));
-  };
-
-  const { extractKeyData } = await import("../src/tools/key-data.ts");
-  const items = [];
-  for (const id of ["doc-a", "doc-b"]) {
-    items.push(...(await extractKeyData(document(id, extracted[id].map((item) => item.quote).join("\n")), { complete })));
-  }
-  const pairs = expandAlignedPairs(alignKeyData(items));
-  assert.equal(pairs.length, 3);
-
-  const judgments = await adjudicatePairs(pairs, {
-    complete: async () =>
-      JSON.stringify(
-        pairs.map((pair) => ({
-          id: pair.id,
-          conflict: pair.key !== "confidentiality",
-          severity: "high",
-          confidence: 0.9,
-          summary: `${pair.label} 不一致`,
-          rationale: "两份文件对该 key 的取值不同。",
-        })),
-      ),
+  ], {
+    documents: new Map([["doc-a", { id: "doc-a", title: "a", format: "pdf", pages: [], blocks: [], text: "完全不同的正文。", markdown: "", warnings: [] }]]),
   });
-  const conflicts = verifyConflicts(pairs, judgments, { judgeSource: "model" });
-  assert.equal(conflicts.length, 3);
-  assert.equal(conflicts.filter((conflict) => conflict.status === "verified").length, 2);
-  assert.equal(conflicts.filter((conflict) => conflict.status === "dismissed").length, 1);
+  assert.equal(conflicts[0].status, "dismissed");
+  assert.match(conflicts[0].rationale, /not found in the source text/);
+});
+
+await check("A7 模型给的判定字段会被归一化，脏字段不会炸掉整次审查", () => {
+  const messy = normalizeJudgment({
+    candidate_id: "pair-1",
+    conflict: "true",
+    severity: "catastrophic",
+    confidence: "92%",
+    summary: "金额不一致",
+    reason: "两处金额不同。",
+  });
+  assert.equal(messy.candidateId, "pair-1");
+  assert.equal(messy.conflict, true);
+  assert.equal(messy.severity, "medium", "不认识的严重度退回 medium");
+  assert.equal(messy.confidence, 0.92, "百分比写法的置信度被归一化到 0-1");
+  assert.equal(messy.rationale, "两处金额不同。");
+  assert.equal(normalizeJudgment({ confidence: 0.5 }), undefined, "没有 candidateId 的判定被丢掉");
+  assert.equal(normalizeJudgment({ candidateId: "p", confidence: "abc" }).confidence, 0.5);
+});
+
+// ── 3. 整条链路由 agent 驱动 ────────────────────────────────
+const fakeText = (title) =>
+  title.includes("乙")
+    ? "The Client shall pay all undisputed invoices within 90 days of receipt."
+    : "The Client shall pay all undisputed invoices within 45 days of receipt.";
+
+const fakeDocument = (id, title) => {
+  const text = fakeText(title);
+  return {
+    id,
+    title,
+    format: "pdf",
+    pages: [{ page: 1, text, blocks: [], classification: "text-native", extractionMethod: "native-text" }],
+    blocks: [],
+    text,
+    markdown: `# ${title}\n\n${text}\n`,
+    warnings: [],
+  };
+};
+
+function makeModels() {
+  const model = (id, input) => ({
+    id,
+    name: `Scripted ${id}`,
+    api: "openai-responses",
+    provider: "test-provider",
+    baseUrl: "https://unused.invalid",
+    input,
+    cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+    reasoning: false,
+    contextWindow: 32_000,
+    maxTokens: 2_000,
+  });
+  const main = model("main-text", ["text"]);
+  const vision = model("vision-test", ["text", "image"]);
+  return {
+    getModel: (provider, id) => (provider === "test-provider" ? (id === "main-text" ? main : id === "vision-test" ? vision : undefined) : undefined),
+    checkAuth: async (provider) => (provider === "test-provider" ? { type: "api_key" } : undefined),
+  };
+}
+
+const visionProfile = { role: "vision", provider: "test-provider", modelId: "vision-test", apiKey: "scripted-key" };
+
+function scriptedStream(content, stopReason) {
+  const stream = createAssistantMessageEventStream();
+  stream.push({
+    type: "done",
+    reason: stopReason === "toolUse" ? "toolUse" : "stop",
+    message: {
+      role: "assistant",
+      content,
+      api: "openai-responses",
+      provider: "test-provider",
+      model: "main-text",
+      usage: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 0, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 } },
+      stopReason,
+      timestamp: Date.now(),
+    },
+  });
+  return stream;
+}
+
+const toolCall = (name, args) => ({ type: "toolCall", id: `call-${name}-${Math.random().toString(16).slice(2)}`, name, arguments: args });
+
+const documents = [
+  { id: "doc-a", title: "合同甲.pdf", path: "/tmp/contract-a.pdf" },
+  { id: "doc-b", title: "合同乙.pdf", path: "/tmp/contract-b.pdf" },
+];
+
+const quoteA = "The Client shall pay all undisputed invoices within 45 days of receipt.";
+const quoteB = "The Client shall pay all undisputed invoices within 90 days of receipt.";
+const items = [
+  { documentId: "doc-a", key: "payment_term", value: "45 days", quote: quoteA, page: 1 },
+  { documentId: "doc-b", key: "payment_term", value: "90 days", quote: quoteB, page: 1 },
+];
+
+const scriptedCalls = [
+  toolCall("inspect_document", { documentId: "doc-a" }),
+  toolCall("inspect_document", { documentId: "doc-b" }),
+  toolCall("load_document_skill", { skill: "consistency-review" }),
+  toolCall("parse_document", { documentId: "doc-a" }),
+  toolCall("parse_document", { documentId: "doc-b" }),
+  toolCall("list_key_vocabulary", {}),
+  toolCall("align_key_data", { items }),
+  // The pairs are not repeated here: the tool takes them from the session.
+  toolCall("verify_conflicts", {
+    judgments: [{ candidateId: "pair-1", conflict: true, severity: "high", confidence: 0.94, summary: "付款期限不一致", rationale: "两份协议约定的付款期限不同。" }],
+  }),
+  toolCall("report_conflicts", {}),
+];
+
+await check("B1 agent 按 skill 走完流程，产出冲突清单", async () => {
+  const models = makeModels();
+  let index = 0;
+  models.streamSimple = () => {
+    const call = scriptedCalls[index++];
+    if (!call) return scriptedStream([{ type: "text", text: "审查完成。" }], "stop");
+    return scriptedStream([call], "toolUse");
+  };
+
+  const seen = [];
+  const result = await runConsistencyReview({
+    documents,
+    models,
+    mainProfile: { role: "main", provider: "test-provider", modelId: "main-text", apiKey: "scripted-key" },
+    visionProfile,
+    parseDocument: async (_path, options) => fakeDocument(options.id, options.title),
+    onDocumentUpdated: (document) => seen.push(document.id),
+    onStage: (tool) => seen.push(tool),
+  });
+
+  assert.ok(seen.includes("consistency-review") === false, "skill 名称不是工具名");
+  assert.ok(seen.includes("load_document_skill"));
+  assert.ok(seen.includes("align_key_data"));
+  assert.ok(seen.includes("verify_conflicts"));
+
+  assert.equal(result.documents.length, 2, "两份文档都被解析并归档");
+  assert.equal(result.claims.length, 2, "两项关键数据");
+  assert.equal(result.conflicts.length, 1);
+  assert.equal(result.conflicts[0].status, "verified");
+  assert.equal(result.conflicts[0].severity, "high");
+  assert.equal(result.conflicts[0].score, 0.94);
+  assert.equal(result.conflicts[0].claims[0].evidence[0].quote, quoteA);
+  assert.equal(result.conflicts[0].claims[1].evidence[0].quote, quoteB);
+  assert.ok(result.stages.includes("align_key_data"));
+  assert.ok(result.stages.includes("verify_conflicts"));
+  assert.match(result.reportMarkdown, /CrossDoc Consistency Review/);
+});
+
+await check("B2 引文在原文里找不到的结论不会进清单", async () => {
+  const models = makeModels();
+  const forged = [
+    { documentId: "doc-a", key: "payment_term", value: "45 days", quote: "这句原文里根本没有。", page: 1 },
+    { documentId: "doc-b", key: "payment_term", value: "90 days", quote: quoteB, page: 1 },
+  ];
+  const calls = scriptedCalls.map((call) =>
+    call.name === "align_key_data"
+      ? toolCall("align_key_data", { items: forged })
+      : call);
+  let index = 0;
+  models.streamSimple = () => {
+    const call = calls[index++];
+    if (!call) return scriptedStream([{ type: "text", text: "审查完成。" }], "stop");
+    return scriptedStream([call], "toolUse");
+  };
+
+  const result = await runConsistencyReview({
+    documents,
+    models,
+    mainProfile: { role: "main", provider: "test-provider", modelId: "main-text", apiKey: "scripted-key" },
+    visionProfile,
+    parseDocument: async (_path, options) => fakeDocument(options.id, options.title),
+  });
+
+  assert.equal(result.conflicts.length, 1);
+  assert.equal(result.conflicts[0].status, "dismissed");
+  assert.equal(result.conflicts[0].severity, "low");
+});
+
+await check("B3 report_conflicts 反复调用会被护栏挡住，审查不会死循环", async () => {
+  const models = makeModels();
+  const calls = [
+    toolCall("inspect_document", { documentId: "doc-a" }),
+    toolCall("inspect_document", { documentId: "doc-b" }),
+    toolCall("parse_document", { documentId: "doc-a" }),
+    toolCall("parse_document", { documentId: "doc-b" }),
+    toolCall("align_key_data", { items }),
+    toolCall("verify_conflicts", {
+      judgments: [{ candidateId: "pair-1", conflict: true, severity: "high", confidence: 0.9, summary: "付款期限不一致", rationale: "付款期限不同。" }],
+    }),
+    toolCall("report_conflicts", {}),
+    toolCall("report_conflicts", {}),
+    toolCall("report_conflicts", {}),
+    toolCall("report_conflicts", {}),
+    toolCall("report_conflicts", {}),
+  ];
+  let index = 0;
+  let reportCalls = 0;
+  models.streamSimple = () => {
+    const call = calls[index++];
+    if (!call) return scriptedStream([{ type: "text", text: "审查完成。" }], "stop");
+    if (call.name === "report_conflicts") reportCalls += 1;
+    return scriptedStream([call], "toolUse");
+  };
+
+  const result = await runConsistencyReview({
+    documents,
+    models,
+    mainProfile: { role: "main", provider: "test-provider", modelId: "main-text", apiKey: "scripted-key" },
+    visionProfile,
+    parseDocument: async (_path, options) => fakeDocument(options.id, options.title),
+  });
+
+  assert.ok(reportCalls <= 3, `report_conflicts 被调用了 ${reportCalls} 次，护栏没有生效`);
+  assert.equal(result.conflicts.length, 1, "挡下来的重复调用不影响已经产生的结论");
+  assert.equal(result.conflicts[0].status, "verified");
+});
+
+await check("B4 护栏按工具分别限次，超出的调用会被挡下", async () => {
+  const guard = createToolCallGuard();
+  const context = (name) => ({ toolCall: { name }, args: {}, assistantMessage: {}, context: {} });
+  const limit = TOOL_CALL_LIMITS.list_key_vocabulary;
+  for (let index = 0; index < limit; index += 1) {
+    assert.equal(await guard.beforeToolCall(context("list_key_vocabulary")), undefined, `第 ${index + 1} 次不该被挡`);
+  }
+  const blocked = await guard.beforeToolCall(context("list_key_vocabulary"));
+  assert.equal(blocked.block, true);
+  assert.equal(blocked.terminate, true);
+  assert.match(blocked.reason, /list_key_vocabulary/);
+  assert.equal(guard.counts().list_key_vocabulary, limit + 1);
 });
 
 let failed = 0;

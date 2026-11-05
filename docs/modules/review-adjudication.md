@@ -6,76 +6,87 @@ Status: Implementation contract
 
 CrossDoc checks whether the key data in a set of documents lines up. It is not a text-diff tool and it does not compare sentence chunks.
 
-The pipeline used to work that way anyway. It split documents into sentences, paired the sentences that shared words, and scored each pair with a token-overlap ratio. That produced backwards results: two documents holding the *identical* sentence scored 1.0 and were reported as a verified conflict, while a real difference in a value was ranked no higher than two sentences that merely shared a clause. A contradiction expressed with entirely different wording was never even recalled, because recall required shared words.
+Two earlier designs got this wrong. The first split documents into sentences, paired the sentences that shared words, and scored each pair with a token-overlap ratio. That produced backwards results: two documents holding the *identical* sentence scored 1.0 and were reported as a verified conflict, while a real difference in a value was ranked no higher than two sentences that merely shared a clause. The second replaced that with a fixed pipeline — extract, align, adjudicate, verify, report — where every step, every prompt and every threshold lived in code.
 
-The pipeline now works on the thing the product is actually about: key data.
+The third design keeps what the second one got right (compare key data, not sentences) and moves the *procedure* out of the code.
 
-## Pipeline
+## Where the procedure lives
 
 ```text
-parse -> extract key data -> align by key -> adjudicate -> verify -> report
-                 (model)      (pure)        (model)      (pure)
+.agents/skills/consistency-review/SKILL.md      the review, end to end
+.agents/skills/key-data-alignment/SKILL.md     what to collect, and how to write it down
+.agents/skills/conflict-adjudication/SKILL.md  when two values really disagree
 ```
 
-## Stage 1 — Key data extraction (`src/tools/key-data.ts`)
+One agent loads `consistency-review`, which loads the other two in turn, and drives the tools itself. The skill is the procedure: the steps, the criteria for a conflict, the shape of a value, the requirement that a quote be copied verbatim. Changing what a review considers a conflict is a change to a Markdown file, not to a prompt constant in `src/`.
 
-The model reads one document and lists the key data points it asserts. One request per document, so the cost scales with the number of documents, not with the number of pairs.
+What stays in code is capability and guardrail:
 
-```json
-{ "key": "payment_term", "value": "45 days", "quote": "The Client shall pay all undisputed invoices within 45 days of receipt.", "page": 1 }
+| | Lives in | Why |
+|---|---|---|
+| Which documents to read | skill | procedure |
+| How to write a value | skill | procedure |
+| When two values conflict | skill | procedure |
+| Which keys exist | `src/core/key-data.ts` | one vocabulary, exposed to the skill by `list_key_vocabulary` |
+| Lining documents up by key | `src/tools/align.ts` | pure function, testable without a model |
+| Whether a finding is citable | `src/tools/verify.ts` | guardrail, not a step |
+| Whether a verdict is well-formed | `src/tools/verify.ts` | guardrail, not a step |
+
+The vocabulary lives in code so there is one copy of it. The skill reads it through a tool instead of restating it, so the two cannot drift apart.
+
+## The tools
+
+| Tool | Arguments | Returns |
+|---|---|---|
+| `list_key_vocabulary` | none | the fixed key vocabulary |
+| `align_key_data` | `items[]` — `{documentId, key, value, quote, page?}` | the groups, and the pairs whose values differ |
+| `verify_conflicts` | `judgments[]` — `{candidateId, conflict, severity, confidence, summary, rationale}` | the conflicts that survived verification |
+| `report_conflicts` | none | the Markdown report |
+
+Two of these take far less than they used to.
+
+`verify_conflicts` does not need the pairs: the pairs come from the last `align_key_data` call in the same run. `report_conflicts` takes nothing at all: it reports the key data and the conflicts the run has already produced.
+
+This is not a convenience. Asking a model to echo a large payload back into the next tool call is a reliability problem, not a capability one: the first live run of the agent loop fed an empty conflict list into `report_conflicts`, got an empty report back, and called it again — five times and counting, with the review never finishing. A tool that reads the previous step's output from the session has no way to get that wrong.
+
+## Guardrails
+
+These are checks, not steps. They are deterministic, they never ask a second opinion about wording, and they live in code.
+
+- **A quote that is not in the source text is dismissed.** The verdict can say whatever it likes; if the sentence it quotes cannot be found in the parsed document, the finding is dropped. An uncitable finding is worse than a missing one. (`src/tools/verify.ts`)
+- **A verdict is normalized before it is used.** Model output arrives as free-form JSON: `confidence` can come back as `"92%"`, `severity` as a word the pipeline does not know, `conflict` as `"yes"`. `normalizeJudgment()` turns all of it into a verdict the pipeline can reason about, and drops a verdict that names no pair. (`src/tools/verify.ts`)
+- **A tool cannot run past its limit.** `createToolCallGuard()` blocks a tool that is called more often than it can produce something new, and asks the run to end. Reading tools are allowed to repeat; `report_conflicts` is not. (`src/agent-guard.ts`)
+- **A run cannot hang.** The review is cut short after ten minutes and reported anyway, with a note saying so. (`src/review-run.ts`)
+
+## The run
+
+```text
+inspect_document × N -> parse_document × N -> render_scan_page × scan pages
+   -> list_key_vocabulary -> align_key_data -> verify_conflicts -> report_conflicts
 ```
 
-The key comes from a fixed vocabulary (`src/core/key-data.ts`). The model picks the closest key that fits, so two documents that assert the same kind of data land on the same key even when they share no wording. A key outside the vocabulary is kept and flagged as custom.
+Every scan-candidate page is read with the vision model before anything is compared. A page that was never read looks exactly like a page where the documents agree.
 
-The value is required to be the value itself, not the sentence around it. The prompt gives both the good and the bad form, because granularity is the main source of noise here: `90 days`, not `within 90 days of receipt`.
-
-Documents are chunked by page into requests of at most 12,000 characters. Documents are extracted in parallel.
-
-## Stage 2 — Alignment (`src/tools/key-data.ts`)
-
-Pure functions, no model.
-
-- One item per document per key. When a document states several values for a key, the most specific one is kept, so a group never crosses the same two documents twice.
-- Values are normalized before comparison: punctuation, thousands separators, trailing zeros and leading articles are ignored, so `USD 1,200.0` and `usd 1200` are the same value and `45 days` and `90 days` are not.
-- A group where every document states the same value produces nothing.
-- A group where the values differ produces one pair per differing value combination, and each pair carries the whole group so the verdict sees what every document said.
-
-Alignment is O(n) in key data points. There is no pairwise comparison of claims anywhere in the pipeline.
-
-## Stage 3 — Adjudication (`src/tools/adjudicate.ts`)
-
-The model reads the two values, both quotes, and the values the other documents state for the same key, and answers whether they cannot both be right.
-
-- Pairs are batched, eight by default.
-- The model answers with a JSON array of `{id, conflict, severity, confidence, summary, rationale}`. The parser tolerates prose and code fences around the array.
-- `severity` is constrained to `low | medium | high`; `confidence` is clamped to 0..1.
-- A pair the model omits is treated as consistent, never as a conflict.
-
-## Stage 4 — Verification (`src/tools/verify.ts`)
-
-Deterministic checks on the verdict, never a second opinion on the wording:
-
-- A conflict whose evidence is missing, empty, or points at another document is dismissed. An uncitable finding is worse than a missing one.
-- `status` is `verified` only when the adjudicator said conflict *and* the evidence survived the check.
-- `evidence` is exactly `[claims[0].evidence[0], claims[1].evidence[0]]`, so `evidence[i].id === claims[i].evidence[0].id` holds.
-- Each claim carries the source blocks of the page its quote came from, so a finding stays traceable in the Markdown report.
-
-## Fallback
-
-When no model is configured, or a model call fails, `src/tools/rule-key-data.ts` and `src/tools/rule-adjudicate.ts` take over. They recognise a fixed set of patterns (amounts, payment periods, dates, the parties, the governing law) and report every key whose value differs. They never claim to understand wording. The review still completes, and the response says which stage produced the result.
+`src/review-run.ts` does not decide anything. It scopes the documents, collects what the tools returned, re-verifies the verdicts against the parsed source, and renders the report. The pairs it uses are the ones `align_key_data` returned, not the ones the model typed into the next call.
 
 ## Contract
 
-The `/api/review` response body is unchanged apart from two additive fields.
+`/api/review` streams NDJSON. One `{"type":"progress","stage":"<tool>"}` line per tool the agent starts, then one `{"type":"result", ...}` line.
 
 ```ts
+type ReviewStage = "load_document_skill" | "inspect_document" | "parse_document"
+  | "render_scan_page" | "save_scan_page_text" | "search_document"
+  | "list_key_vocabulary" | "align_key_data" | "verify_conflicts" | "report_conflicts";
+
 ReviewResult = {
-  documents: { id: string; title: string; sourceUrl?: string }[];
+  reviewId: string;
+  documents: { id: string; title: string; pages: number; format: string; markdown: string; warnings: string[]; sourceUrl: string }[];
   claimCount: number;             // key data points extracted
   conflictCount: number;
   verifiedConflictCount: number;
-  judgeSource: "model" | "rule";   // which stage produced the verdicts
-  warning?: string;                // present when the review degraded
+  judgeSource: "model";           // which stage produced the verdicts
+  stages: ReviewStage[];          // the tools the agent actually called
+  warning?: string;               // present when the review degraded
   conflicts: Conflict[];
   reportMarkdown: string;
 };
@@ -93,24 +104,23 @@ Conflict = {
 };
 ```
 
-`claimCount` counts key data points rather than sentences. `score` is the adjudicator's confidence that the pair really contradicts.
-
-## Agent Path
-
-The agent judges contradictions itself. `extract_key_data` returns what a document states, `align_key_data` lines the documents up and returns the values that disagree, and the agent passes its own verdicts to `verify_conflicts` as `{candidateId, conflict, severity, confidence, summary, rationale}`. The system prompt states the rule: a different number, date, amount, party, or jurisdiction is a conflict, while the same value written differently, a more specific restatement, or two values about different subjects are not.
+The body only ever grew. `stages` and `judgeSource` were added; every field that existed before still means what it meant.
 
 ## Measured Behaviour
 
-Three example contracts, 22 key data points extracted, MiniMax-M3.1-Flash as the main model, 12.2s end to end:
+Three example contracts, MiniMax-M3.1-Flash as the main model, one live run per row:
 
-| | Before (rules over sentences) | After (key data alignment) |
-|---|---|---|
-| Reported candidates | 28 | 5 |
-| Reported as verified | 26 | 4 |
-| Verified conflicts with identical quotes on both sides | 21 | 0 |
-| Conflicts found | payment terms, contract value, effective date, counterparty | payment terms, contract value, effective date, counterparty |
-| Chinese negation contradiction | never recalled | recalled and judged `high` |
+| | Rules over sentences | Fixed pipeline | Skill-driven agent |
+|---|---|---|---|
+| Reported candidates | 28 | 5 | 4 |
+| Reported as verified | 26 | 4 | 4 |
+| Verified conflicts with identical quotes on both sides | 21 | 0 | 0 |
+| Conflicts found | payment terms, contract value, effective date, counterparty | the same four | the same four |
+| Chinese negation contradiction | never recalled | recalled and judged `high` | recalled and judged `high` |
+| End to end | — | 12.2s | 42s |
 
-The four real contradictions in the corpus are all found, and each is reported once per key rather than once per document pair. The one dismissed candidate is a confidentiality clause stated at two levels of detail, which the model correctly called compatible.
+The skill-driven run costs more wall-clock time, because the agent reads the documents itself and decides what to compare instead of a fixed script deciding it in advance. It is also the first design where the review can be changed without a release.
 
-`scripts/verify-review-semantics.mjs` locks the behaviour of all four stages with a stub adjudicator, so the assertions do not depend on a model.
+A live Chinese check through the same model found all three planted contradictions — 60 days against 90 days on payment, 人民币 100000 against 150000 on the contract value, 2026 年 3 月 1 日 against 2026 年 4 月 1 日 on the effective date — each with a Chinese rationale.
+
+`scripts/verify-review-semantics.mjs` locks this behaviour with a scripted model, so the assertions do not depend on a model being available.
