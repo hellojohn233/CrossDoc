@@ -4,23 +4,23 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CrossDoc — 一组文件的关键数据，是否对齐</title>
-<meta name="description" content="CrossDoc 逐份读取文档、抽取关键数据、按统一口径对齐，再交给模型逐条判定。每一条结论都能追回原文与页码。">
+<meta name="description" content="CrossDoc 逐份读取文档，抽取关键数据，按同一套口径对齐，再交给模型逐条判定。每一条结论都能追回原文与页码。">
 <link rel="icon" href="assets/crossdoc-logo.svg" type="image/svg+xml">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 
-<!-- 应用地址：本地运行时改成 http://localhost:5177/ -->
+<!-- 应用地址：本地运行时是 http://localhost:5177/ ，发布到公网后请改成实际地址 -->
 <header class="site-nav">
   <div class="nav-inner">
     <a class="brand" href="#top">
-      <img src="assets/crossdoc-logo.svg" alt="" width="28" height="24">
+      <img src="assets/crossdoc-logo.svg" alt="" width="26" height="22">
       <span>CrossDoc</span>
     </a>
     <nav class="nav-links" aria-label="主导航">
       <a href="#keys">关键数据</a>
-      <a href="#local">本地优先</a>
       <a href="#desk">审查台</a>
+      <a href="#how">工作原理</a>
     </nav>
     <div class="nav-actions">
       <a class="btn btn-ghost" href="https://github.com/hellojohn233/CrossDoc" target="_blank" rel="noreferrer">GitHub</a>
@@ -33,21 +33,18 @@
 
   <!-- ── Hero ─────────────────────────────────────────────── -->
   <section class="hero">
-    <div class="glow" aria-hidden="true"></div>
-    <p class="eyebrow eyebrow-center"><span class="spark">✦</span> 本地优先的文档核对工作台</p>
+    <p class="eyebrow eyebrow-center"><span class="mark">✦</span> 本地优先的文档核对工作台</p>
     <h1 class="hero-title">一组文件的关键数据<br>是否对齐，一眼看清。</h1>
     <p class="hero-sub">
-      CrossDoc 逐份读取文档，抽取它们各自声明的关键数据，按同一套口径对齐，
-      再交给模型逐条判定能不能同时成立。<br>
+      CrossDoc 逐份读取文档，抽出它们各自声明的关键数据，按同一套口径对齐，
+      再交给模型逐条判断能不能同时成立。<br>
       每一条结论都带着原文原话和页码。
     </p>
     <div class="hero-cta">
-      <a class="btn btn-primary btn-lg" href="http://localhost:5177/">
-        <svg viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path d="M4 5h16M4 12h10M4 19h7" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/></svg>
-        开始核对
-      </a>
-      <a class="link-arrow" href="#desk">看看工作台 <span aria-hidden="true">→</span></a>
+      <a class="btn btn-primary btn-lg" href="http://localhost:5177/">开始核对</a>
+      <a class="link-arrow" href="#desk">看看工作台 <span class="arrow" aria-hidden="true">→</span></a>
     </div>
+    <p class="hero-facts">本地运行<span>·</span>文档不出本机<span>·</span>MIT 开源<span>·</span>密钥只存本机</p>
 
     <ul class="chips" aria-label="支持核对的关键数据类型">
       <li><span class="chip-dot"></span>付款期限</li>
@@ -59,8 +56,8 @@
     <!-- 工作台预览 -->
     <div class="window" aria-label="审查台预览">
       <div class="window-bar">
-        <span class="dot dot-red"></span><span class="dot dot-amber"></span><span class="dot dot-green"></span>
-        <span class="window-title">CrossDoc — 冲突清单</span>
+        <h2>冲突清单</h2>
+        <span class="sub">合同甲 / 合同乙 / 合同丙</span>
       </div>
       <div class="window-body">
         <div class="mock-stats">
@@ -69,47 +66,95 @@
           <div><span class="mock-num accent">4</span><span class="mock-label">待处理</span></div>
           <div><span class="mock-num">1</span><span class="mock-label">已排除</span></div>
         </div>
+
         <div class="mock-list">
-          <article class="mock-entry high">
-            <div class="mock-rail"><span>01</span></div>
-            <div class="mock-main">
-              <header class="mock-head">
-                <h3>数值不一致：120000 ↔ 150000</h3>
+          <article class="entry">
+            <div class="entry-rail">01</div>
+            <div>
+              <header class="entry-head">
+                <h3 class="entry-title">数值不一致：120000 ↔ 150000</h3>
                 <span class="sev sev-high">高</span>
               </header>
-              <div class="mock-sides">
-                <p class="side"><span class="tag">A</span>The total contract value is USD <del>120000</del> including delivery and support.</p>
-                <p class="side"><span class="tag">B</span>The total contract value is USD <ins>150000</ins> including delivery and support.</p>
+              <div class="side">
+                <span class="side-tag">A</span>
+                <div>
+                  <p class="side-label"><span class="side-doc">合同甲.pdf</span><span class="side-page">P.1</span></p>
+                  <p class="side-quote">The total contract value is USD <del>120000</del> including delivery and support.</p>
+                </div>
               </div>
-              <p class="mock-reason">两份文件对同一合同总金额记载不同，金额无法同时成立。</p>
+              <div class="side">
+                <span class="side-tag">B</span>
+                <div>
+                  <p class="side-label"><span class="side-doc">合同乙.pdf</span><span class="side-page">P.1</span></p>
+                  <p class="side-quote">The total contract value is USD <ins>150000</ins> including delivery and support.</p>
+                </div>
+              </div>
+              <div class="entry-foot">
+                <span class="foot-label">判定</span>
+                <p class="entry-rationale">两份文件对同一合同总金额记载不同，金额无法同时成立。</p>
+                <span class="foot-label">证据</span>
+                <p class="evidence"><span><i class="ev">E1</i>合同甲.pdf P.1</span><span><i class="ev">E2</i>合同乙.pdf P.1</span></p>
+              </div>
             </div>
           </article>
-          <article class="mock-entry high">
-            <div class="mock-rail"><span>02</span></div>
-            <div class="mock-main">
-              <header class="mock-head">
-                <h3>付款期限不一致：45 天 ↔ 90 天</h3>
+
+          <article class="entry">
+            <div class="entry-rail">02</div>
+            <div>
+              <header class="entry-head">
+                <h3 class="entry-title">付款期限不一致：45 天 ↔ 90 天</h3>
                 <span class="sev sev-high">高</span>
               </header>
-              <div class="mock-sides">
-                <p class="side"><span class="tag">A</span>The Client shall pay all undisputed invoices within <del>45</del> days of receipt.</p>
-                <p class="side"><span class="tag">B</span>The Client shall pay all undisputed invoices within <ins>90</ins> days of receipt.</p>
+              <div class="side">
+                <span class="side-tag">A</span>
+                <div>
+                  <p class="side-label"><span class="side-doc">合同甲.pdf</span><span class="side-page">P.1</span></p>
+                  <p class="side-quote">The Client shall pay all undisputed invoices within <del>45</del> days of receipt.</p>
+                </div>
               </div>
-              <p class="mock-reason">两份协议约定的付款期限不同，不能同时适用于同一付款义务。</p>
+              <div class="side">
+                <span class="side-tag">B</span>
+                <div>
+                  <p class="side-label"><span class="side-doc">合同乙.pdf</span><span class="side-page">P.1</span></p>
+                  <p class="side-quote">The Client shall pay all undisputed invoices within <ins>90</ins> days of receipt.</p>
+                </div>
+              </div>
+              <div class="entry-foot">
+                <span class="foot-label">判定</span>
+                <p class="entry-rationale">两份协议约定的付款期限不同，不能同时适用于同一付款义务。</p>
+                <span class="foot-label">证据</span>
+                <p class="evidence"><span><i class="ev">E1</i>合同甲.pdf P.1</span><span><i class="ev">E2</i>合同乙.pdf P.1</span></p>
+              </div>
             </div>
           </article>
-          <article class="mock-entry medium">
-            <div class="mock-rail"><span>03</span></div>
-            <div class="mock-main">
-              <header class="mock-head">
-                <h3>生效日期不一致：March 1 ↔ April 1</h3>
+
+          <article class="entry">
+            <div class="entry-rail">03</div>
+            <div>
+              <header class="entry-head">
+                <h3 class="entry-title">生效日期不一致：March 1 ↔ April 1</h3>
                 <span class="sev sev-medium">中</span>
               </header>
-              <div class="mock-sides">
-                <p class="side"><span class="tag">A</span>This Agreement takes effect on <del>March 1, 2026</del> and continues for twelve months.</p>
-                <p class="side"><span class="tag">B</span>This Agreement takes effect on <ins>April 1, 2026</ins> and continues for twelve months.</p>
+              <div class="side">
+                <span class="side-tag">A</span>
+                <div>
+                  <p class="side-label"><span class="side-doc">合同甲.pdf</span><span class="side-page">P.1</span></p>
+                  <p class="side-quote">This Agreement takes effect on <del>March 1, 2026</del> and continues for twelve months.</p>
+                </div>
               </div>
-              <p class="mock-reason">同一份协议被写上了两个不同的生效日期。</p>
+              <div class="side">
+                <span class="side-tag">B</span>
+                <div>
+                  <p class="side-label"><span class="side-doc">合同乙.pdf</span><span class="side-page">P.1</span></p>
+                  <p class="side-quote">This Agreement takes effect on <ins>April 1, 2026</ins> and continues for twelve months.</p>
+                </div>
+              </div>
+              <div class="entry-foot">
+                <span class="foot-label">判定</span>
+                <p class="entry-rationale">同一份协议被写上了两个不同的生效日期。</p>
+                <span class="foot-label">证据</span>
+                <p class="evidence"><span><i class="ev">E1</i>合同甲.pdf P.1</span><span><i class="ev">E2</i>合同乙.pdf P.1</span></p>
+              </div>
             </div>
           </article>
         </div>
@@ -122,7 +167,7 @@
     <header class="section-head">
       <p class="eyebrow">关键数据</p>
       <h2 class="section-title">一套口径，核对每一份文件</h2>
-      <a class="link-arrow" href="http://localhost:5177/">打开工作台 <span aria-hidden="true">→</span></a>
+      <a class="link-arrow" href="http://localhost:5177/">打开工作台 <span class="arrow" aria-hidden="true">→</span></a>
     </header>
 
     <article class="feature-card">
@@ -179,50 +224,46 @@
     </div>
   </section>
 
-  <!-- ── 本地优先 ─────────────────────────────────────────── -->
-  <section class="section" id="local">
+<!-- ── 工作原理 ─────────────────────────────────────────── -->
+  <section class="section" id="how">
     <header class="section-head">
-      <p class="eyebrow">本地优先</p>
-      <h2 class="section-title">数据留在本机，模型用你自己的</h2>
-      <a class="link-arrow" href="https://github.com/hellojohn233/CrossDoc" target="_blank" rel="noreferrer">查看仓库 <span aria-hidden="true">→</span></a>
+      <p class="eyebrow">工作原理</p>
+      <h2 class="section-title">六步，从一堆文件到一张清单</h2>
+      <a class="link-arrow" href="http://localhost:5177/">打开工作台 <span class="arrow" aria-hidden="true">→</span></a>
     </header>
 
-    <div class="plan-grid">
-      <article class="plan">
-        <h3>开源运行</h3>
-        <p class="plan-figure">免费</p>
-        <ul class="plan-list">
-          <li>MIT 许可，克隆下来就能跑，不需要账号</li>
-          <li>文档、索引、密钥都存在你自己的机器上</li>
-          <li>没有遥测，也没有任何后端</li>
-        </ul>
-        <a class="btn btn-outline" href="https://github.com/hellojohn233/CrossDoc" target="_blank" rel="noreferrer">查看仓库</a>
-      </article>
-
-      <article class="plan plan-featured">
-        <span class="badge badge-float">最省心</span>
-        <h3>自带模型</h3>
-        <p class="plan-figure">自配</p>
-        <ul class="plan-list">
-          <li>填一个 OpenAI 兼容端点就能开工</li>
-          <li>密钥只写在本地 SQLite 里，不随文档上传</li>
-          <li>主模型和扫描页视觉模型可以分开配</li>
-        </ul>
-        <a class="btn btn-primary" href="http://localhost:5177/">配置模型</a>
-      </article>
-
-      <article class="plan">
-        <h3>结论可追溯</h3>
-        <p class="plan-figure">页码级</p>
-        <ul class="plan-list">
-          <li>每条结论都带原文原话，不给改写</li>
-          <li>点开就能跳到那一页，光标落在原句上</li>
-          <li>引文对不上的结论会被直接驳回</li>
-        </ul>
-        <a class="btn btn-outline" href="#desk">看审查台</a>
-      </article>
-    </div>
-    <p class="plan-footnote">审查本身不上传任何文档；只有你点下开始，抽取和判定才会调用你自己配置的模型端点。</p>
+    <ol class="steps">
+      <li>
+        <span class="step-index">01</span>
+        <h3>解析</h3>
+        <p>逐页判定文本页与扫描页，扫描页交给视觉模型转写。</p>
+      </li>
+      <li>
+        <span class="step-index">02</span>
+        <h3>抽取</h3>
+        <p>每份文档读一次，抽出它声明的关键数据、原文和页码。</p>
+      </li>
+      <li>
+        <span class="step-index">03</span>
+        <h3>对齐</h3>
+        <p>同一类数据落到同一个 key 上，取值一致的自动略过。</p>
+      </li>
+      <li>
+        <span class="step-index">04</span>
+        <h3>判定</h3>
+        <p>模型读原文，判断两个取值能不能同时成立。</p>
+      </li>
+      <li>
+        <span class="step-index">05</span>
+        <h3>校验</h3>
+        <p>引文对不上、证据指错文件，一律驳回，不进清单。</p>
+      </li>
+      <li>
+        <span class="step-index">06</span>
+        <h3>报告</h3>
+        <p>排成一张清单，逐条带 A / B 对照与证据链接。</p>
+      </li>
+    </ol>
   </section>
 
   <!-- ── 审查台 ───────────────────────────────────────────── -->
@@ -230,12 +271,12 @@
     <header class="section-head">
       <p class="eyebrow">审查台</p>
       <h2 class="section-title">每一条不一致，都带着原文</h2>
-      <a class="link-arrow" href="http://localhost:5177/">打开真实审查台 <span aria-hidden="true">→</span></a>
+      <a class="link-arrow" href="http://localhost:5177/">打开真实审查台 <span class="arrow" aria-hidden="true">→</span></a>
     </header>
 
     <div class="desk">
-      <div class="desk-side">
-        <p class="desk-kicker">冲突清单</p>
+      <div>
+        <p class="eyebrow">冲突清单</p>
         <h3 class="desk-title">合同金额<br>两份文件写了两个数</h3>
         <p class="desk-desc">
           清单按严重度排下来，每一条自带 A / B 对照：上面这份怎么写的，下面那份怎么写的，
@@ -246,28 +287,64 @@
           <li>取值一致的不进清单</li>
           <li>每条带严重度和一句话理由</li>
         </ul>
-        <a class="link-arrow" href="http://localhost:5177/">打开工作台 <span aria-hidden="true">→</span></a>
+        <a class="link-arrow" href="http://localhost:5177/">打开工作台 <span class="arrow" aria-hidden="true">→</span></a>
       </div>
 
       <div class="desk-panel">
-        <div class="desk-row high">
-          <span class="desk-index">01</span>
-          <div class="desk-body">
-            <div class="desk-row-head"><h4>数值不一致：120000 ↔ 150000</h4><span class="sev sev-high">高</span></div>
-            <p class="side"><span class="tag">A</span>The total contract value is USD <del>120000</del> including delivery and support.</p>
-            <p class="side"><span class="tag">B</span>The total contract value is USD <ins>150000</ins> including delivery and support.</p>
-            <p class="desk-evidence"><span class="ev">E1</span>合同甲.pdf · P.1 <span class="ev">E2</span>合同乙.pdf · P.1</p>
+        <article class="entry">
+          <div class="entry-rail">01</div>
+          <div>
+            <header class="entry-head">
+              <h3 class="entry-title">数值不一致：120000 ↔ 150000</h3>
+              <span class="sev sev-high">高</span>
+            </header>
+            <div class="side">
+              <span class="side-tag">A</span>
+              <div>
+                <p class="side-label"><span class="side-doc">合同甲.pdf</span><span class="side-page">P.1</span></p>
+                <p class="side-quote">The total contract value is USD <del>120000</del> including delivery and support.</p>
+              </div>
+            </div>
+            <div class="side">
+              <span class="side-tag">B</span>
+              <div>
+                <p class="side-label"><span class="side-doc">合同乙.pdf</span><span class="side-page">P.1</span></p>
+                <p class="side-quote">The total contract value is USD <ins>150000</ins> including delivery and support.</p>
+              </div>
+            </div>
+            <div class="entry-foot">
+              <span class="foot-label">证据</span>
+              <p class="evidence"><span><i class="ev">E1</i>合同甲.pdf P.1</span><span><i class="ev">E2</i>合同乙.pdf P.1</span></p>
+            </div>
           </div>
-        </div>
-        <div class="desk-row medium">
-          <span class="desk-index">02</span>
-          <div class="desk-body">
-            <div class="desk-row-head"><h4>生效日期不一致：March 1 ↔ April 1</h4><span class="sev sev-medium">中</span></div>
-            <p class="side"><span class="tag">A</span>This Agreement takes effect on <del>March 1, 2026</del> and continues for twelve months.</p>
-            <p class="side"><span class="tag">B</span>This Agreement takes effect on <ins>April 1, 2026</ins> and continues for twelve months.</p>
-            <p class="desk-evidence"><span class="ev">E1</span>合同甲.pdf · P.1 <span class="ev">E2</span>合同乙.pdf · P.1</p>
+        </article>
+        <article class="entry">
+          <div class="entry-rail">02</div>
+          <div>
+            <header class="entry-head">
+              <h3 class="entry-title">生效日期不一致：March 1 ↔ April 1</h3>
+              <span class="sev sev-medium">中</span>
+            </header>
+            <div class="side">
+              <span class="side-tag">A</span>
+              <div>
+                <p class="side-label"><span class="side-doc">合同甲.pdf</span><span class="side-page">P.1</span></p>
+                <p class="side-quote">This Agreement takes effect on <del>March 1, 2026</del> and continues for twelve months.</p>
+              </div>
+            </div>
+            <div class="side">
+              <span class="side-tag">B</span>
+              <div>
+                <p class="side-label"><span class="side-doc">合同乙.pdf</span><span class="side-page">P.1</span></p>
+                <p class="side-quote">This Agreement takes effect on <ins>April 1, 2026</ins> and continues for twelve months.</p>
+              </div>
+            </div>
+            <div class="entry-foot">
+              <span class="foot-label">证据</span>
+              <p class="evidence"><span><i class="ev">E1</i>合同甲.pdf P.1</span><span><i class="ev">E2</i>合同乙.pdf P.1</span></p>
+            </div>
           </div>
-        </div>
+        </article>
       </div>
     </div>
   </section>
@@ -275,7 +352,7 @@
 </main>
 
 <footer class="site-foot">
-  <p>© 2026 CrossDoc. 本地运行，文档不出本机。</p>
+  <p>© 2026 CrossDoc · 本地运行，文档不出本机。</p>
   <p class="foot-links">
     <a href="https://github.com/hellojohn233/CrossDoc" target="_blank" rel="noreferrer">GitHub</a>
     <span class="sep">|</span>
