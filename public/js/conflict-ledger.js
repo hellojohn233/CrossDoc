@@ -511,30 +511,37 @@ export function mountLedger(root, model, handlers = {}) {
   let activeGroup = model.groups[0]?.key ?? "pending";
   let selectedId = model.groups[0]?.items[0]?.id ?? null;
   let query = "";
+  let severity = "all";
+  let documentId = "all";
 
   const findItem = (id) =>
     model.groups.flatMap((group) => group.items).find((item) => item.id === id) ?? null;
 
   const matches = (item) => {
+    if (severity !== "all" && item.severity !== severity) return false;
+    if (documentId !== "all" && !item.sides.some((side) => side.documentId === documentId)) return false;
     if (!query) return true;
     const haystack = [
       item.title,
       item.id,
-      item.sides.map((side) => `${side.documentTitle} ${side.page ?? ""}`).join(" "),
+      item.rationale,
+      item.sides.map((side) => `${side.documentTitle} ${side.page ?? ""} ${side.quote ?? ""}`).join(" "),
     ]
       .join(" ")
       .toLowerCase();
     return haystack.includes(query);
   };
 
-  const paint = () => {
-    const group = model.groups.find((entry) => entry.key === activeGroup) ?? model.groups[0];
-    if (!group) return;
-    const visible = group.items.filter(matches);
-    if (!visible.some((item) => item.id === selectedId)) {
-      selectedId = visible[0]?.id ?? null;
-    }
+  // 工具条只渲染一次：搜索框和下拉框不会因为筛选而重建，
+  // 否则每次按键都会把输入框换掉，丢焦点也丢字符。
+  const renderToolbar = () => {
     const stats = model.stats;
+    const severityOptions = ["all", "high", "medium", "low"];
+    const severityLabels = { all: "全部严重度", high: "高", medium: "中", low: "低" };
+    const documentOptions = [
+      { id: "all", title: "全部文档" },
+      ...model.documents.map((doc) => ({ id: doc.id, title: doc.title ?? doc.id })),
+    ];
 
     root.innerHTML = `
       <header class="ledger-bar">
@@ -543,14 +550,32 @@ export function mountLedger(root, model, handlers = {}) {
           <h1>冲突清单</h1>
           <p class="ledger-bar-meta">
             ${escapeHtml(stats.documents)} 份文档 · ${escapeHtml(stats.claims)} claims ·
-            <b>${escapeHtml(stats.pending)}</b> 待处理 · ${escapeHtml(stats.dismissed)} 已排除
+            <b>${escapeHtml(stats.pending)}</b> 待处理 · ${escapeHtml(stats.dismissed)} 已排除<span id="ledger-match"></span>
           </p>
         </div>
         <div class="ledger-tools">
           <label class="ledger-search">
             <span class="search-icon" aria-hidden="true"></span>
-            <input id="ledger-search" type="search" placeholder="搜索冲突 / 文档 / 页码" value="${escapeHtml(query)}" />
+            <input id="ledger-search" type="search" placeholder="搜索冲突 / 理由 / 引文 / 页码" value="${escapeHtml(query)}" />
           </label>
+          <div class="ledger-filters">
+            <label class="ledger-filter">
+              <span>严重度</span>
+              <select id="ledger-severity">
+                ${severityOptions
+                  .map((value) => `<option value="${value}" ${value === severity ? "selected" : ""}>${severityLabels[value]}</option>`)
+                  .join("")}
+              </select>
+            </label>
+            <label class="ledger-filter">
+              <span>文档</span>
+              <select id="ledger-document">
+                ${documentOptions
+                  .map((option) => `<option value="${escapeHtml(option.id)}" ${option.id === documentId ? "selected" : ""}>${escapeHtml(option.title)}</option>`)
+                  .join("")}
+              </select>
+            </label>
+          </div>
           <div class="ledger-tabs" role="tablist" aria-label="冲突筛选">
             ${model.groups
               .map(
@@ -562,44 +587,51 @@ export function mountLedger(root, model, handlers = {}) {
         </div>
       </header>
 
-      <div class="ledger-entries">
-        ${
-          visible.length === 0
-            ? '<p class="empty">没有匹配的冲突。</p>'
-            : visible
-                .map((item, index) =>
-                  renderConflictEntry(item, { index, selected: item.id === selectedId }),
-                )
-                .join("")
-        }
-      </div>
+      <div class="ledger-entries" id="ledger-entries"></div>
     `;
+  };
 
-    const search = root.querySelector("#ledger-search");
-    search?.addEventListener("input", (event) => {
-      query = event.target.value.trim().toLowerCase();
-      const cursor = event.target.selectionStart;
-      paint();
-      const next = root.querySelector("#ledger-search");
-      next?.focus();
-      next?.setSelectionRange(cursor, cursor);
-    });
+  // 筛选只重画条目区和匹配计数，工具条保持原样。
+  const paintEntries = () => {
+    const group = model.groups.find((entry) => entry.key === activeGroup) ?? model.groups[0];
+    if (!group) return;
+    const visible = group.items.filter(matches);
+    if (!visible.some((item) => item.id === selectedId)) {
+      selectedId = visible[0]?.id ?? null;
+    }
+
+    const entries = root.querySelector("#ledger-entries");
+    if (entries) {
+      entries.innerHTML =
+        visible.length === 0
+          ? '<p class="empty">没有匹配的冲突。</p>'
+          : visible
+              .map((item, index) => renderConflictEntry(item, { index, selected: item.id === selectedId }))
+              .join("");
+    }
+
+    const match = root.querySelector("#ledger-match");
+    if (match) {
+      match.innerHTML =
+        visible.length !== group.items.length
+          ? ` · <b>${escapeHtml(visible.length)}</b>/${escapeHtml(group.items.length)} 匹配`
+          : "";
+    }
 
     root.querySelectorAll("[data-group]").forEach((button) => {
-      button.addEventListener("click", () => {
-        activeGroup = button.dataset.group;
-        paint();
-      });
+      const active = button.dataset.group === activeGroup;
+      button.classList.toggle("active", active);
+      button.setAttribute("aria-selected", String(active));
     });
 
-    root.querySelectorAll("[data-conflict-id]").forEach((entry) => {
+    entries?.querySelectorAll("[data-conflict-id]").forEach((entry) => {
       entry.addEventListener("click", () => {
         selectedId = entry.dataset.conflictId;
-        paint();
+        paintEntries();
       });
     });
 
-    root.querySelectorAll("[data-evidence-id]").forEach((button) => {
+    entries?.querySelectorAll("[data-evidence-id]").forEach((button) => {
       button.addEventListener("click", (event) => {
         event.stopPropagation();
         onOpenEvidence?.({
@@ -613,15 +645,39 @@ export function mountLedger(root, model, handlers = {}) {
     onSelect?.(findItem(selectedId));
   };
 
-  paint();
+  renderToolbar();
+
+  root.querySelector("#ledger-search")?.addEventListener("input", (event) => {
+    query = event.target.value.trim().toLowerCase();
+    paintEntries();
+  });
+
+  root.querySelector("#ledger-severity")?.addEventListener("change", (event) => {
+    severity = event.target.value;
+    paintEntries();
+  });
+
+  root.querySelector("#ledger-document")?.addEventListener("change", (event) => {
+    documentId = event.target.value;
+    paintEntries();
+  });
+
+  root.querySelectorAll("[data-group]").forEach((button) => {
+    button.addEventListener("click", () => {
+      activeGroup = button.dataset.group;
+      paintEntries();
+    });
+  });
+
+  paintEntries();
   return {
     getSelectedId: () => selectedId,
     getSelected: () => findItem(selectedId),
     getActiveGroup: () => activeGroup,
     setGroup: (key) => {
       activeGroup = key;
-      paint();
+      paintEntries();
     },
-    refresh: paint,
+    refresh: paintEntries,
   };
 }

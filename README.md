@@ -107,6 +107,14 @@ Web UI 的主要入口用于阅读：选择 PDF 后由 Pi Agent 按文件格式�
 
 上传源文件暂存于 `.crossdoc/uploads/`，解析成功后源 PDF、标准化结构化 JSON 和转换 Markdown 归档在本地 `data/library/<资料 ID>/`。SQLite 保存资料索引与两个模型角色的设置，并在启动时幂等导入已有 `metadata.json` 条目。临时上传在读取任务结束后清理。`data/` 已加入 `.gitignore`，不会进入 Git 提交。资料库页只列出归档文档，不在上传页预览库内文档。
 
+审查台现在是一张「工作台」而不只是一次结果：
+
+- 资料库页可以勾选已归档文档直接发起审查（`POST /api/review/from-library`），不必重新上传。
+- 每次审查都会存成产物，资料库页下方列出审查记录，`打开` 即用同一份 body 回填审查台（`GET /api/reviews`、`GET /api/reviews/:id`）。
+- 冲突清单可按严重度、文档筛选，关键词搜索覆盖标题、理由和引文原文。
+- 审查台带「文档对照」面板，两份文档的 Markdown 左右并排。
+- 模型配置页的「测试连接」只验连通性，不写库、不污染已保存的配置。
+
 ## Pi 版本纪律
 
 本项目通过 npm 依赖使用 Pi，不 fork Pi 源码。
@@ -177,6 +185,7 @@ CrossDoc/
 - `storage/` 在展示报告前保存 JSON 和 Markdown。
 - PDF 扫描页由配置的 Pi 视觉模型读取;Word 和 Excel 解析器还未接入。
 - 一致性审查由 agent 读 `.agents/skills/` 里的 skill 驱动,代码只提供对齐、校验、渲染这些纯函数能力。
+- 审查产物会留存:资料库页可以列出并重新打开历史审查,也可以直接用库里已归档的文档发起一次新审查。
 - 审查不再有基于规则的降级路径:skill 需要一个 agent 去读它,所以没有主模型时 `/api/review` 直接返回 503。
 - Pi 接入仍隔离在 `src/agent.ts`,格式解析和报告生成不依赖 Pi。
 

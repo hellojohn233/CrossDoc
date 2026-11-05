@@ -50,6 +50,21 @@ Any entry state
 
 The selection view stays free of any model notice; the `模型配置` tab is the only way in.
 
+## Connection Test
+
+`POST /api/settings/models/test` answers one question: would a request to this endpoint work? It is a diagnostic, not a save.
+
+| Request | Response | Behavior |
+|---|---|---|
+| `POST /api/settings/models/test` JSON `{ role, protocol, baseUrl, modelId, apiKey? }` | `{ ok: true, modelId, latencyMs, reply }` or `{ ok: false, error }` | Resolves the profile the same way a real request would, then sends one short prompt and reports the round trip. An omitted `apiKey` falls back to the stored key for that role, so a saved configuration can be tested without typing the key again. |
+
+Two rules keep the test honest:
+
+- **It never writes.** The test resolves the model against a throwaway catalog, not the shared one, so a test's Base URL or key cannot overwrite a saved profile.
+- **It checks reachability, not capability.** The prompt asks for a single word, so the answer proves the endpoint, the protocol, the model id, and the key all line up. It does not prove image input works; the vision panel says so in the result's tooltip instead of implying more than was checked.
+
+A missing role, an unsupported protocol, a missing model id, or an invalid Base URL is rejected with 400 and an actionable message, before any network call is made.
+
 ## Interactions
 
 | Input | Scope | Behavior |
@@ -57,6 +72,7 @@ The selection view stays free of any model notice; the `模型配置` tab is the
 | Base URL, protocol, API Key | One role | Supplies credentials and API shape for model discovery and inference. |
 | `加载模型` | One role | Calls `POST /api/settings/models/discover`; displays model IDs returned for that connection. Does not save the profile or key. |
 | Model name field | One role | Selects a discovered ID or accepts a manually entered ID if discovery is unavailable. |
+| `测试连接` | One role | Calls `POST /api/settings/models/test` with the values currently in the form and reports whether the endpoint answered. Does not save the profile or key. |
 | `保存主模型` / `保存视觉模型` | One role | Saves that role's Base URL, protocol, model ID, and key to SQLite. The other role remains independent. |
 | `模型配置` header tab | Global | Switches to the configuration view from any other view; the active tab carries `aria-current="page"`. |
 | Reload / direct visit | App entry | Fetches settings, then always opens document selection. Saved profiles only decide the per-role status shown inside the configuration view. |
@@ -68,6 +84,9 @@ The selection view stays free of any model notice; the `模型配置` tab is the
 - **Incomplete vision model:** the configuration view shows the missing status on that role; only scanned pages are affected at read time.
 - **Model discovery busy:** disable that panel's load action and show progress; the other panel remains usable.
 - **Model discovery empty/error:** show a concise error and preserve manual model ID entry.
+- **Connection test busy:** disable that panel's test action and show `正在测试…`; the other panel remains usable.
+- **Connection test ok:** show the round-trip time and the model's reply next to the button.
+- **Connection test failed:** show the actionable error next to the button and keep the entered values.
 - **Saving:** disable the active panel's save action while the server persists settings.
 - **Save error:** retain entered values and show the actionable error.
 - **Complete:** hide the incomplete-main-model notice; later visits skip it as well.

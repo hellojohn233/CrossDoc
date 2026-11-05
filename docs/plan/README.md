@@ -21,6 +21,7 @@ pdf-001 classify pages and normalize native text
                                   -> review-003 key data alignment
                                       -> review-004 skill-driven review
                                           -> review-005 Pi skill mechanism
+                                              -> ui-003 review desk gaps
 ```
 
 The scan-reading engine is Pi vision, as selected by the user. Task paths may overlap; work serially unless an isolated worktree is deliberately used. Current task status is listed below.
@@ -46,6 +47,7 @@ The scan-reading engine is Pi vision, as selected by the user. Task paths may ov
 | `review-003` | Key data alignment | Review key data instead of sentence chunks: the model extracts key data per document, the documents are lined up by a fixed key vocabulary, and only differing values are judged | `review-002` | done |
 | `review-004` | Skill-driven review | Move the review procedure out of the code and into skills, and let one agent read the skills and drive the tools | `review-003` | done |
 | `review-005` | Skill mechanism | Discover the skills instead of listing them, advertise them for progressive disclosure, validate them, and invoke the review procedure deterministically | `review-004` | done |
+| `ui-003` | Web UI | Close the review desk gaps: reopen a stored review, test a model connection, filter the ledger, start a review from the Library, and compare two documents side by side | `ui-002`, `review-003` | done |
 
 ## Acceptance Slice
 
@@ -57,5 +59,5 @@ Select a native PDF, a scan, or a mixed PDF. CrossDoc classifies each page, extr
 - [Skills](../modules/skills.md)
 - [Review adjudication](../modules/review-adjudication.md)
 - [Agent-first reading analysis](./analysis/agent-first-reading.md)
-- Tasks: [`pdf-001`](./tasks/pdf-001-page-classification.md), [`ingest-001`](./tasks/ingest-001-line-blocks.md), [`pdf-002`](./tasks/pdf-002-scan-ocr.md), [`skill-001`](./tasks/skill-001-overview-qa.md), [`agent-001`](./tasks/agent-001-dynamic-loop.md), [`agent-002`](./tasks/agent-002-parallel-reading.md), [`web-001`](./tasks/web-001-agent-entry.md), [`storage-001`](./tasks/storage-001-local-db-and-model-roles.md), [`setup-001`](./tasks/setup-001-custom-model-setup.md), [`ui-001`](./tasks/ui-001-navigation-and-visual-hierarchy.md), [`ui-002`](./tasks/ui-002-conflict-ledger.md), [`e2e-001`](./tasks/e2e-001-reading-flow.md), [`review-001`](./tasks/review-001-optional-review.md), [`review-002`](./tasks/review-002-semantic-adjudication.md), [`review-003`](./tasks/review-003-key-data-alignment.md), [`review-004`](./tasks/review-004-skill-driven-review.md), [`review-005`](./tasks/review-005-pi-skills-mechanism.md)
+- Tasks: [`pdf-001`](./tasks/pdf-001-page-classification.md), [`ingest-001`](./tasks/ingest-001-line-blocks.md), [`pdf-002`](./tasks/pdf-002-scan-ocr.md), [`skill-001`](./tasks/skill-001-overview-qa.md), [`agent-001`](./tasks/agent-001-dynamic-loop.md), [`agent-002`](./tasks/agent-002-parallel-reading.md), [`web-001`](./tasks/web-001-agent-entry.md), [`storage-001`](./tasks/storage-001-local-db-and-model-roles.md), [`setup-001`](./tasks/setup-001-custom-model-setup.md), [`ui-001`](./tasks/ui-001-navigation-and-visual-hierarchy.md), [`ui-002`](./tasks/ui-002-conflict-ledger.md), [`e2e-001`](./tasks/e2e-001-reading-flow.md), [`review-001`](./tasks/review-001-optional-review.md), [`review-002`](./tasks/review-002-semantic-adjudication.md), [`review-003`](./tasks/review-003-key-data-alignment.md), [`review-004`](./tasks/review-004-skill-driven-review.md), [`review-005`](./tasks/review-005-pi-skills-mechanism.md), [`ui-003`](./tasks/ui-003-review-desk-gaps.md)
 - [Backlog](./backlog.md)

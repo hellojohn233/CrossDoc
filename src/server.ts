@@ -4,14 +4,16 @@ import { basename, dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 import type { Agent, AgentEvent } from "@earendil-works/pi-agent-core";
+import type { MutableModels } from "@earendil-works/pi-ai";
 import express, { type Express, type Request, type Response } from "express";
 import multer from "multer";
 
-import { createBuiltinModels, createCrossDocAgent, CrossDocVisionModelConfigError, type CrossDocAgentOptions, type ScopedDocument } from "./agent.js";
+import { createBuiltinModels, createCrossDocAgent, CrossDocVisionModelConfigError, profileRequestOptions, resolveModelProfile, type CrossDocAgentOptions, type ScopedDocument } from "./agent.js";
 import { runConsistencyReview } from "./review-run.js";
 import { getLibraryDocument, listLibraryDocuments, saveLibraryDocument } from "./storage/library-store.js";
 import { LocalDatabase, type ModelProfile, type ModelProtocol, type ModelRole } from "./storage/database.js";
-import { writeReviewArtifacts } from "./storage/review-store.js";
+import { listReviewArtifacts, readReviewArtifact, writeReviewArtifacts } from "./storage/review-store.js";
+import type { ReviewResult } from "./core/types.js";
 
 const port = Number(process.env.PORT ?? 5177);
 export const LOCAL_BIND_HOST = "127.0.0.1";
@@ -34,6 +36,36 @@ const customModelProtocols = new Set<ModelProtocol>(["openai-completions", "anth
 
 export function isUploadSelectionWithinLimit(files: readonly { size: number }[], maximumBytes = MAX_TOTAL_UPLOAD_SIZE): boolean {
   return files.reduce((total, file) => total + file.size, 0) <= maximumBytes;
+}
+
+/**
+ * The body the review console reads.
+ *
+ * A live review and a stored review produce the same shape, so opening a past
+ * review from the library shows exactly what it showed when it ran.
+ */
+export function reviewResponseBody(result: ReviewResult & { stages?: string[] }, reviewId: string): Record<string, unknown> {
+  return {
+    type: "result",
+    reviewId,
+    documents: result.documents.map((document) => ({
+      id: document.id,
+      title: document.title,
+      pages: document.pages.length,
+      format: document.format,
+      markdown: document.markdown,
+      warnings: document.warnings,
+      sourceUrl: `/api/library/${document.id}/source`,
+    })),
+    claimCount: result.claims.length,
+    conflictCount: result.conflicts.length,
+    verifiedConflictCount: result.conflicts.filter((conflict) => conflict.status === "verified").length,
+    judgeSource: result.judgeSource ?? "model",
+    stages: result.stages ?? [],
+    ...(result.warning ? { warning: result.warning } : {}),
+    conflicts: result.conflicts,
+    reportMarkdown: result.reportMarkdown,
+  };
 }
 
 type ReadDocumentState = "waiting" | "reading" | "ready" | "failed";
@@ -97,6 +129,8 @@ export interface WebAppOptions {
   modelDiscoveryFetch?: typeof fetch;
   modelDiscoveryTimeoutMs?: number;
   modelDiscoveryMaxBytes?: number;
+  /** Test seam: lets an integration test drive the review with a scripted catalog. */
+  models?: MutableModels;
   agentFactory?: (options: CrossDocAgentOptions) => Promise<Agent>;
 }
 
@@ -211,7 +245,7 @@ export function createWebApp(options: WebAppOptions = {}) {
   const libraryDirectory = resolve(options.libraryDirectory ?? "data/library");
   const dataDirectory = resolve(options.dataDirectory ?? dirname(libraryDirectory));
   const database = new LocalDatabase(dataDirectory);
-  const modelCatalog = createBuiltinModels();
+  const modelCatalog = options.models ?? createBuiltinModels();
   const reviewDirectory = resolve(options.reviewDirectory ?? ".crossdoc/reviews");
   const pdfjsDirectory = resolve(options.pdfjsDirectory ?? "node_modules/pdfjs-dist/build");
   const maxTotalUploadBytes = options.maxTotalUploadBytes ?? MAX_TOTAL_UPLOAD_SIZE;
@@ -362,6 +396,82 @@ export function createWebApp(options: WebAppOptions = {}) {
       response.json({ model: await publicModelProfile(role) });
     } catch (error) {
       response.status(400).json({ error: error instanceof Error ? error.message : "Unable to save model settings." });
+    }
+  });
+
+  /**
+   * Checks that a model endpoint answers, before it is relied on.
+   *
+   * The test runs against its own model catalog, so testing a draft endpoint
+   * never replaces the profile the rest of the app uses.
+   */
+  app.post("/api/settings/models/test", async (request, response) => {
+    const body = request.body as Record<string, unknown>;
+    const role = body.role;
+    if (role !== "main" && role !== "vision") {
+      response.status(400).json({ error: "Choose a model role to test." });
+      return;
+    }
+    const protocolValue = body.protocol;
+    const protocol: ModelProtocol = protocolValue === undefined ? "catalog" : protocolValue as ModelProtocol;
+    if (protocol !== "catalog" && !customModelProtocols.has(protocol)) {
+      response.status(400).json({ error: "Choose one of the supported custom model protocols." });
+      return;
+    }
+    const modelId = typeof body.modelId === "string" ? body.modelId.trim() : "";
+    if (!modelId) {
+      response.status(400).json({ error: "Enter a model ID before testing." });
+      return;
+    }
+    const baseUrl = typeof body.baseUrl === "string" ? validateCustomBaseUrl(body.baseUrl.trim()) : undefined;
+    if (protocol !== "catalog" && !baseUrl) {
+      response.status(400).json({ error: "Enter a valid HTTP or HTTPS Base URL without credentials, query, or fragment." });
+      return;
+    }
+    const typedKey = typeof body.apiKey === "string" ? body.apiKey.trim() : "";
+    const apiKey = typedKey || database.getModelProfile(role)?.apiKey || "";
+
+    const testModels = createBuiltinModels();
+    const profile: ModelProfile = {
+      role,
+      protocol,
+      modelId,
+      provider: protocol === "catalog" ? (typeof body.provider === "string" ? body.provider.trim() : "") : "crossdoc-custom",
+      ...(baseUrl ? { baseUrl } : {}),
+      ...(apiKey ? { apiKey } : {}),
+      options: {},
+    };
+
+    const started = Date.now();
+    try {
+      const resolved = await resolveModelProfile(testModels, profile, role);
+      const reply = await testModels.completeSimple(resolved.model, {
+        messages: [{
+          role: "user",
+          content: [{ type: "text", text: "Reply with the single word: ok" }],
+          timestamp: Date.now(),
+        }],
+      }, {
+        ...profileRequestOptions(resolved.profile),
+        ...(resolved.profile.apiKey ? { apiKey: resolved.profile.apiKey } : {}),
+      });
+      const text = reply.content
+        .filter((item): item is { type: "text"; text: string } => item.type === "text")
+        .map((item) => item.text ?? "")
+        .join("")
+        .trim();
+      response.json({
+        ok: true,
+        modelId: resolved.profile.modelId,
+        latencyMs: Date.now() - started,
+        reply: text.slice(0, 120),
+        ...(role === "vision" ? { note: "Connectivity only. Image input is exercised when a scanned page is read." } : {}),
+      });
+    } catch (error) {
+      response.status(502).json({
+        error: error instanceof Error ? error.message : "The model endpoint did not answer.",
+        latencyMs: Date.now() - started,
+      });
     }
   });
 
@@ -824,6 +934,52 @@ export function createWebApp(options: WebAppOptions = {}) {
     response.json({ cancelled: true });
   });
 
+  /**
+   * Runs one review and streams the agent's progress and the result as NDJSON.
+   *
+   * Both ways into a review — uploaded files and library documents — end here,
+   * so they produce the same stream.
+   */
+  async function streamReview(sources: ScopedDocument[], response: Response): Promise<void> {
+    const reviewId = randomUUID();
+    const mainProfile = database.getModelProfile("main");
+    const visionProfile = database.getModelProfile("vision");
+    if (!mainProfile) {
+      response.status(503).json({ error: "Configure the main model in Settings before running a consistency review." });
+      return;
+    }
+
+    response.status(200);
+    response.set({ "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-cache" });
+    const write = (payload: Record<string, unknown>) => {
+      if (!response.writableEnded) response.write(`${JSON.stringify(payload)}\n`);
+    };
+
+    try {
+      const result = await runConsistencyReview({
+        documents: sources,
+        ...(options.agentFactory ? { agentFactory: options.agentFactory } : {}),
+        models: modelCatalog,
+        mainProfile,
+        ...(visionProfile ? { visionProfile } : {}),
+        onStage: (tool) => write({ type: "progress", stage: tool }),
+        onDocumentUpdated: async (document, source) => {
+          await saveLibraryDocument(document, source.path, source.sourceName ?? source.title, libraryDirectory, database);
+        },
+        onDocumentRejected: async (documentId, _source, reason) => {
+          await rm(resolve(libraryDirectory, documentId), { recursive: true, force: true });
+        },
+      });
+
+      await writeReviewArtifacts(result, resolve(reviewDirectory, reviewId));
+      write(reviewResponseBody(result, reviewId));
+    } catch (error) {
+      write({ type: "error", error: error instanceof Error ? error.message : "Review failed." });
+    } finally {
+      if (!response.writableEnded) response.end();
+    }
+  }
+
   app.post("/api/review", (request, response, next) => {
     upload.array("documents", MAX_UPLOADS)(request, response, async (uploadError) => {
       const files = Array.isArray(request.files) ? request.files : [];
@@ -837,9 +993,7 @@ export function createWebApp(options: WebAppOptions = {}) {
         return;
       }
       try {
-        const reviewId = randomUUID();
         const mainProfile = database.getModelProfile("main");
-        const visionProfile = database.getModelProfile("vision");
         if (!mainProfile) {
           response.status(503).json({ error: "Configure the main model in Settings before running a consistency review." });
           return;
@@ -855,53 +1009,64 @@ export function createWebApp(options: WebAppOptions = {}) {
           path: file.path,
         }));
 
-        response.status(200);
-        response.set({ "Content-Type": "application/x-ndjson; charset=utf-8", "Cache-Control": "no-cache" });
-        const write = (payload: Record<string, unknown>) => {
-          if (!response.writableEnded) response.write(`${JSON.stringify(payload)}\n`);
-        };
-
-        try {
-          const result = await runConsistencyReview({
-            documents: sources,
-            ...(options.agentFactory ? { agentFactory: options.agentFactory } : {}),
-            models: modelCatalog,
-            mainProfile,
-            ...(visionProfile ? { visionProfile } : {}),
-            onStage: (tool) => write({ type: "progress", stage: tool }),
-            onDocumentUpdated: async (document, source) => {
-              await saveLibraryDocument(document, source.path, source.sourceName ?? source.title, libraryDirectory, database);
-            },
-            onDocumentRejected: async (documentId, _source, reason) => {
-              await rm(resolve(libraryDirectory, documentId), { recursive: true, force: true });
-            },
-          });
-
-          await writeReviewArtifacts(result, resolve(reviewDirectory, reviewId));
-          write({
-            type: "result",
-            reviewId,
-            documents: result.documents.map((document) => ({ id: document.id, title: document.title, pages: document.pages.length, format: document.format, markdown: document.markdown, warnings: document.warnings, sourceUrl: `/api/library/${document.id}/source` })),
-            claimCount: result.claims.length,
-            conflictCount: result.conflicts.length,
-            verifiedConflictCount: result.conflicts.filter((conflict) => conflict.status === "verified").length,
-            judgeSource: result.judgeSource ?? "model",
-            stages: result.stages,
-            ...(result.warning ? { warning: result.warning } : {}),
-            conflicts: result.conflicts,
-            reportMarkdown: result.reportMarkdown,
-          });
-        } catch (error) {
-          write({ type: "error", error: error instanceof Error ? error.message : "Review failed." });
-        } finally {
-          if (!response.writableEnded) response.end();
-        }
+        await streamReview(sources, response);
       } catch (error) {
         response.status(500).json({ error: error instanceof Error ? error.message : "Review failed." });
       } finally {
         await Promise.all(files.map((file) => rm(file.path, { force: true }).catch(() => undefined)));
       }
     });
+  });
+
+  // A review started from the library reuses the archived source files, so the
+  // documents do not have to be uploaded again.
+  app.post("/api/review/from-library", async (request, response) => {
+    const body = request.body as { documentIds?: unknown };
+    const ids = Array.isArray(body.documentIds)
+      ? body.documentIds.filter((value): value is string => typeof value === "string" && value.length > 0)
+      : [];
+    if (ids.length === 0) {
+      response.status(400).json({ error: "Select at least one document from the library." });
+      return;
+    }
+    const sources: ScopedDocument[] = [];
+    for (const id of ids) {
+      const stored = getLibraryDocument(id, database);
+      if (!stored) {
+        response.status(404).json({ error: `Document ${id} is not in the library.` });
+        return;
+      }
+      sources.push({
+        id: stored.entry.id,
+        title: stored.entry.title,
+        sourceName: stored.entry.sourceName,
+        path: stored.sourcePath,
+      });
+    }
+    const mainProfile = database.getModelProfile("main");
+    if (!mainProfile) {
+      response.status(503).json({ error: "Configure the main model in Settings before running a consistency review." });
+      return;
+    }
+    try {
+      await streamReview(sources, response);
+    } catch (error) {
+      response.status(500).json({ error: error instanceof Error ? error.message : "Review failed." });
+    }
+  });
+
+  app.get("/api/reviews", async (_request, response) => {
+    const reviews = await listReviewArtifacts(reviewDirectory);
+    response.json({ reviews });
+  });
+
+  app.get("/api/reviews/:id", async (request, response) => {
+    const result = await readReviewArtifact(reviewDirectory, request.params.id);
+    if (!result) {
+      response.status(404).json({ error: "That review is no longer stored." });
+      return;
+    }
+    response.json(reviewResponseBody(result, request.params.id));
   });
 
   app.use((error: unknown, _request: Request, response: Response, _next: express.NextFunction) => {

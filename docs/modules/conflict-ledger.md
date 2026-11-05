@@ -90,3 +90,39 @@ Integration points in `public/index.html`:
 - `applyReviewResult(data)` is the single entry point for a finished review.
 - `window.crossdocApplyReviewResult(data)` is exposed for automated checks and for injecting a result from outside the app.
 - `onOpenEvidence({ evidenceId })` resolves the evidence and opens the existing PDF page preview with the source blocks highlighted.
+
+## Filtering
+
+Three filters sit in the ledger toolbar, next to the search field: severity, document, and the free-text query. The group tabs (`待处理` / `已排除`) are the status filter and stay as they are.
+
+| Filter | Scope | Behavior |
+|---|---|---|
+| Severity | One ledger | `全部严重度` / `高` / `中` / `低`. Matches `conflict.severity` exactly. |
+| Document | One ledger | `全部文档` plus one entry per document in the review. A conflict matches when either of its two sides cites that document. |
+| Search | One ledger | Substring match, case-insensitive, over the conflict title, the conflict id, the rationale, and both sides' document title, page, and quote. |
+
+A filter that removes the current selection moves the selection to the first visible entry, or to none when nothing is visible. The header line reports the match count (`3/4 匹配`) whenever the visible set is smaller than the group it belongs to.
+
+The toolbar is rendered once per mount. Filtering repaints the entry list and the match count only, so the search field keeps focus and no keystroke is lost. This matters: rebuilding the whole ledger on every keypress replaced the input the user was typing into.
+
+## Document Comparison
+
+The review console carries a folded `文档对照` panel. It is not part of the ledger: it answers a different question, and it needs two documents rather than a finding.
+
+- Each side has a document selector, listing every document of the review.
+- Each side renders the document's archived Markdown as preformatted text.
+- The left side starts on the first document and the right side on the second, so the panel opens on a real comparison.
+- The panel stays hidden when the review has fewer than two documents.
+
+The Markdown comes from the review response's `documents[].markdown`. No extra endpoint is needed to show it.
+
+## Stored Reviews
+
+A review is a durable artifact, and the console can reopen one. The ledger therefore consumes two bodies that are shaped identically:
+
+- the live body, streamed as the last NDJSON event of `POST /api/review` and `POST /api/review/from-library`;
+- the stored body, returned by `GET /api/reviews/:id`.
+
+Both are produced by the same `reviewResponseBody()` on the server, so a reopened review shows exactly what the original run showed — the same documents, the same conflicts, the same report.
+
+`GET /api/reviews` lists what was run before, newest first. Each entry carries the review id, the creation time, the document titles, and the counts. The Library view renders that list next to the archived documents, and `打开` loads the stored body into the console.

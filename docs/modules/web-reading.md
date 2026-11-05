@@ -47,11 +47,20 @@ Library
 │ 资料库                                                 │
 │ 源文件与转换后的 Markdown                              │
 ├───────────────────────────────────────────────────────┤
-│ 已归档源文件和 Markdown 的列表                         │
+│ ☐ 合同.pdf   PDF · 1 页 · 2026/11/4   打开源文件↗ …   │
+│ ☐ 合同.pdf   PDF · 1 页 · 2026/11/4   打开源文件↗ …   │
+├───────────────────────────────────────────────────────┤
+│ 已选 2 份文档                    [用选中文件审查]      │
+├───────────────────────────────────────────────────────┤
+│ 审查记录                                               │
+│ 合同a.pdf、合同b.pdf · 3 份文档 · 4/4 条冲突已确认      │
+│                                        2026/11/5 [打开]│
 └───────────────────────────────────────────────────────┘
 ```
 
 The reading file list is ordered by the original browser selection. It shows file name and one compact state: waiting, reading, ready, or failed. The right side shows the overview first and appends Q&A turns below it. Page citations use an inline linked marker such as `[第 3 页]`.
+
+The Library holds two blocks. The first lists the archived documents; each row carries a checkbox that picks the document for a review. The second lists the reviews that were run before, newest first. A review that is picked up in the Library does not need to be uploaded again — the archived source file is what the review reads.
 
 ## API Contract
 
@@ -63,6 +72,14 @@ All endpoints are local to the Web server. The session map is in memory; the dur
 | `GET /api/read/:sessionId/events` | Server-Sent Events | Replays events after `Last-Event-ID`, then streams progress, per-document results, overview/answers, errors, and completion. If the requested cursor predates retained events, it emits a replay notice and a current document/overview/recent-answer snapshot. |
 | `POST /api/read/:sessionId/questions` JSON `{ question }` | `202 { accepted: true }` | Starts one follow-up prompt on the same agent and parsed-document scope. Rejects empty input, an unknown or cancelled session, a concurrent question while the agent is busy, or a session that reached 30 accepted questions. |
 | `POST /api/read/:sessionId/cancel` | `{ cancelled: true }` | Aborts active model/tool work. Cancelling a follow-up emits a question error, cancelled answer progress, and a terminal `done` event with `operation: "question"`; the UI unlocks and disables the cancelled session. |
+
+The review desk adds three endpoints of its own. They are listed here because the Library is where they are used.
+
+| Request | Response | Behavior |
+|---|---|---|
+| `POST /api/review/from-library` JSON `{ documentIds }` | NDJSON stream | Starts one consistency review over documents that are already archived. Resolves each id against the library and reads the archived source file, so nothing is uploaded again. Rejects an empty selection with 400 and an unknown document id with 404. The stream is the same one `POST /api/review` produces. |
+| `GET /api/reviews` | `{ reviews: [...] }` | Lists the stored reviews, newest first. Each entry carries the id, the creation time, the document titles, the document count, the claim count, the conflict count, and the verified conflict count. |
+| `GET /api/reviews/:id` | review body | Returns one stored review in exactly the shape the live stream ends with, so the console renders a reopened review the same way it renders a fresh one. An unknown or malformed id returns 404. |
 
 The selected PDFs receive opaque UUID document IDs on the server. No model argument accepts a path. Agent tool events are translated into progress phases: `inspect_document` → detection, `parse_document` → extraction, `render_scan_page` / `save_scan_page_text` → scan reading, and `load_document_skill(document-overview)` / final assistant response → overview or answer. A document is ready only after parsing completed and its source/Markdown persistence callback succeeded; selected files skipped by the Agent remain failed and have no archive links.
 
@@ -100,6 +117,9 @@ The agent marks sources using `[[cite:<document-id>:<page-number>]]`. The client
 | `返回选择文件` | Reading | Leaves the session view and returns to file selection; the Library remains unchanged. |
 | `上传` / `资料库` / `模型配置` | Header tabs | Switches between the selection, Library, and model configuration views; the active tab carries `aria-current="page"`. |
 | `返回阅读` | Review console | Returns to the reading view of the active session and re-attaches the event stream. |
+| Document checkbox | Library | Picks an archived document for a review. The selection bar reports the count and enables the review action from two documents up. |
+| `用选中文件审查` | Library | Starts a review over the picked documents and switches to the review console. The documents are read from the library, not uploaded. |
+| `打开` on a review record | Library | Loads a stored review into the review console. |
 
 ## State Variants
 
@@ -138,8 +158,14 @@ App
 │       ├── AnswerTurns
 │       └── QuestionComposer
 ├── LibraryView
+│   ├── LibraryDocumentList
+│   │   └── LibraryReviewPicker
+│   ├── LibrarySelectionBar
+│   └── ReviewHistoryList
 ├── ModelSetupView
 └── ReviewConsole
+    ├── ConflictLedger
+    └── DocumentComparison
 ```
 
 ## Page Entry Points
@@ -149,3 +175,4 @@ App
 - Model configuration opens through the `模型配置` header tab.
 - Source citations use `/api/library/:id/source#page=:page`.
 - Agent session operations use `/api/read` and `/api/read/:sessionId/*`.
+- Review history uses `/api/reviews` and `/api/reviews/:id`; a review over archived documents uses `/api/review/from-library`.
