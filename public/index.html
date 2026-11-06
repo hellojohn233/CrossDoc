@@ -241,6 +241,7 @@
 
     <script type="module">
       import { buildLedgerModel, mountLedger } from "/js/conflict-ledger.js";
+      import { renderLibraryGroups } from "/js/library-groups.js";
 
       const form = document.querySelector("#review-form");
       const startupState = document.querySelector("#startup-state");
@@ -418,36 +419,26 @@
           const data = await response.json().catch(() => ({}));
           if (!response.ok) throw new Error(data.error || "资料库读取失败。");
           const documents = Array.isArray(data.documents) ? data.documents : [];
-          if (documents.length === 0) {
-            libraryList.innerHTML = '<div class="library-empty">资料库还是空的</div>';
-            return;
-          }
-          libraryList.innerHTML = documents.map((document) => {
-            const details = [document.format?.toUpperCase(), `${document.pages} 页`, formatLibraryDate(document.uploadedAt)]
-              .filter(Boolean).join(" · ");
-            return `
-              <article class="library-item">
-                <label class="library-pick">
-                  <input type="checkbox" data-review-pick value="${escapeHtml(document.id)}" ${libraryPicked.has(document.id) ? "checked" : ""} />
-                  <span class="visually-hidden">加入审查</span>
-                </label>
-                <div>
-                  <h3 class="library-item-title" title="${escapeHtml(document.title)}">${escapeHtml(document.title)}</h3>
-                  <p class="library-item-meta">${escapeHtml(details)}</p>
-                </div>
-                <div class="library-item-actions">
-                  <a href="${escapeHtml(document.sourceUrl)}" target="_blank" rel="noreferrer">打开源文件 ↗</a>
-                  <a href="${escapeHtml(document.markdownUrl)}" target="_blank" rel="noreferrer">查看 Markdown ↗</a>
-                </div>
-              </article>
-            `;
-          }).join("");
+          libraryList.innerHTML = renderLibraryGroups(documents, {
+            picked: (id) => libraryPicked.has(id),
+          });
           libraryList.querySelectorAll("[data-review-pick]").forEach((box) => {
             box.addEventListener("change", (event) => {
               const id = event.target.value;
               if (event.target.checked) libraryPicked.add(id);
               else libraryPicked.delete(id);
               updateLibrarySelection();
+            });
+          });
+          libraryList.querySelectorAll("[data-library-group]").forEach((button) => {
+            button.addEventListener("click", () => {
+              const copies = libraryList.querySelector(`[data-library-copies="${button.dataset.libraryGroup}"]`);
+              if (!copies) return;
+              const open = copies.hidden;
+              copies.hidden = !open;
+              button.setAttribute("aria-expanded", String(open));
+              const count = button.dataset.libraryCount ?? "";
+              button.textContent = open ? `收起相同内容 ▴` : `另有 ${count} 份相同内容 ▾`;
             });
           });
           updateLibrarySelection();
@@ -770,6 +761,7 @@
             <div><div class="reading-file-name">${escapeHtml(item.title)}</div>
               <div class="reading-file-state">${escapeHtml(labels[item.state] || item.state)}${item.pages ? ` · ${escapeHtml(item.pages)} 页` : ""}</div>
               ${item.error ? `<p class="reading-file-error">${escapeHtml(item.error)}</p>` : ""}
+              ${item.duplicateOf ? `<p class="reading-file-duplicate">这份内容已在资料库里（${escapeHtml(item.duplicateOf.title)}，${escapeHtml(formatLibraryDate(item.duplicateOf.uploadedAt))}），会作为一份新的归档保存。</p>` : ""}
             </div>
           </div>`).join("");
       }

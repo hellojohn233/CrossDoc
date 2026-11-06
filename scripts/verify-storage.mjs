@@ -27,7 +27,7 @@ async function main() {
   `);
   v1.close();
   const migrated = new LocalDatabase(v1DataDirectory);
-  assert.equal(Number(migrated.db.pragma("user_version", { simple: true })), 2);
+  assert.equal(Number(migrated.db.pragma("user_version", { simple: true })), 3);
   assert.deepEqual(migrated.getModelProfile("main"), {
     role: "main", provider: "openai", protocol: "catalog", modelId: "gpt-4",
     baseUrl: "https://api.openai.com/v1", apiKey: "legacy-secret", options: {},
@@ -92,6 +92,20 @@ async function main() {
   assert.equal(JSON.parse(await readFile(join(libraryDirectory, parsed.id, "document.json"), "utf8")).text, "Hello");
   assert.equal(reopened.getDocument(parsed.id)?.fileSize, Buffer.byteLength("%PDF-new-document"));
   assert.equal(reopened.getDocument(parsed.id)?.sha256.length, 64);
+
+  // A document is identified by its content, so archiving it again updates
+  // the same row: the name and the first-archived moment stay, the
+  // last-used moment moves.
+  const firstArchive = reopened.getDocument(parsed.id);
+  const documentCount = reopened.listDocuments().length;
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  await saveLibraryDocument(parsed, sourcePath, "new.pdf", libraryDirectory, reopened);
+  const secondArchive = reopened.getDocument(parsed.id);
+  assert.equal(secondArchive.uploadedAt, firstArchive.uploadedAt, "首次归档时间不变");
+  assert.notEqual(secondArchive.lastUsedAt, firstArchive.lastUsedAt, "最近使用时间刷新");
+  assert.equal(reopened.listDocuments().length, documentCount, "同一条目被更新，而不是多出一行");
+  assert.equal(reopened.findDocumentBySha256(secondArchive.sha256)?.id, parsed.id, "可以按内容找到归档的文档");
+  assert.equal(reopened.findDocumentBySha256(""), undefined, "空内容哈希不匹配任何文档");
 
   const discoveryCalls = [];
   const app = createWebApp({

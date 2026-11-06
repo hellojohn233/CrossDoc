@@ -20,6 +20,8 @@
     "verify:skills": "tsx scripts/verify-skills.mjs",
     "verify:web-read": "tsx scripts/verify-web-read.mjs",
     "verify:review-library": "tsx scripts/verify-review-library.mjs",
+    "verify:library-identity": "tsx scripts/verify-library-identity.mjs",
+    "verify:library-groups": "tsx scripts/verify-library-groups.mjs",
     "verify:pdf-page-render": "tsx scripts/verify-pdf-page-render.mjs",
     "verify:pdf-vector-classification": "tsx scripts/verify-pdf-vector-classification.mjs",
     "verify:document-search": "tsx scripts/verify-document-search.mjs",

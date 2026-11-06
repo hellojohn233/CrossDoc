@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { access, mkdir, readFile, rm } from "node:fs/promises";
 import { basename, dirname, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -36,6 +36,21 @@ const customModelProtocols = new Set<ModelProtocol>(["openai-completions", "anth
 
 export function isUploadSelectionWithinLimit(files: readonly { size: number }[], maximumBytes = MAX_TOTAL_UPLOAD_SIZE): boolean {
   return files.reduce((total, file) => total + file.size, 0) <= maximumBytes;
+}
+
+/**
+ * The content hash of a file, or an empty string when it cannot be read.
+ *
+ * The hash is what says two documents have the same content. It is an index,
+ * not a decision: the library keeps every upload.
+ */
+export async function contentHashOf(path: string): Promise<string> {
+  try {
+    const bytes = await readFile(path);
+    return createHash("sha256").update(bytes).digest("hex");
+  } catch {
+    return "";
+  }
 }
 
 /**
@@ -81,6 +96,15 @@ interface ReadDocument {
   error?: string;
   sourceUrl?: string;
   markdownUrl?: string;
+  /** Set when this file's content is already in the library. */
+  duplicateOf?: DuplicateOf;
+}
+
+/** An archived document that has the same content as a newly uploaded file. */
+export interface DuplicateOf {
+  id: string;
+  title: string;
+  uploadedAt: string;
 }
 
 interface ReadEvent {
@@ -256,6 +280,20 @@ export function createWebApp(options: WebAppOptions = {}) {
   const sessions = new Map<string, ReadSession>();
   let pendingSessionSlots = 0;
   let totalEventBytes = 0;
+
+  /**
+   * Finds the archived document whose content matches an uploaded file.
+   *
+   * The library keeps every upload, so this is a marker rather than a
+   * decision: the caller tells the user that this content is already there.
+   */
+  async function findDuplicateOf(file: Express.Multer.File): Promise<DuplicateOf | undefined> {
+    const sha256 = await contentHashOf(file.path);
+    if (!sha256) return undefined;
+    const existing = database.findDocumentBySha256(sha256);
+    if (!existing) return undefined;
+    return { id: existing.id, title: existing.title, uploadedAt: existing.uploadedAt };
+  }
 
   const upload = multer({
     storage: multer.diskStorage({
@@ -764,24 +802,43 @@ export function createWebApp(options: WebAppOptions = {}) {
         await reserveSessionSlot();
         hasSessionReservation = true;
         const sources: ScopedDocument[] = [];
+        const seenContent = new Set<string>();
+        const duplicateByPath = new Map<string, DuplicateOf>();
+        const rejectedByPath = new Map<string, string>();
         for (const file of files) {
           const signature = (await readFile(file.path)).subarray(0, 5).toString("ascii");
+          if (signature !== "%PDF-") {
+            // Invalid signatures stay in the visible session as per-file failures.
+            rejectedByPath.set(file.path, "File does not have a valid PDF signature.");
+            continue;
+          }
           const title = cleanDisplayName(file.originalname);
-          const source = { id: randomUUID(), title, sourceName: title, path: file.path };
-          if (signature === "%PDF-") sources.push(source);
-          // Invalid signatures stay in the visible session as per-file failures.
+          const sha256 = await contentHashOf(file.path);
+          // The same file twice in one selection is one document, not two.
+          if (sha256 && seenContent.has(sha256)) {
+            rejectedByPath.set(file.path, "这份文件与本次选择中的另一份内容相同。");
+            continue;
+          }
+          if (sha256) seenContent.add(sha256);
+          const duplicate = await findDuplicateOf(file);
+          if (duplicate) duplicateByPath.set(file.path, duplicate);
+          sources.push({ id: randomUUID(), title, sourceName: title, path: file.path });
         }
         if (sources.length === 0) throw new Error("No valid PDF files were selected.");
 
         // Keep the UI order from multipart selection; rejected files are visible as per-file failures.
         const sourceByPath = new Map(sources.map((source) => [source.path, source]));
-        const rejectedByPath = new Map(files
-          .filter((file) => !sourceByPath.has(file.path))
-          .map((file) => [file.path, "File does not have a valid PDF signature."]));
         const documents: ReadDocument[] = files.map((file) => {
           const source = sourceByPath.get(file.path) ?? { id: randomUUID(), title: cleanDisplayName(file.originalname) };
           const error = rejectedByPath.get(file.path);
-          return { id: source.id, title: source.title, state: error ? "failed" : "waiting", ...(error ? { error } : {}) };
+          const duplicate = duplicateByPath.get(file.path);
+          return {
+            id: source.id,
+            title: source.title,
+            state: error ? "failed" : "waiting",
+            ...(error ? { error } : {}),
+            ...(duplicate ? { duplicateOf: duplicate } : {}),
+          };
         });
         let session: ReadSession | undefined;
         const agent = await agentFactory({
@@ -1002,12 +1059,20 @@ export function createWebApp(options: WebAppOptions = {}) {
         // The review procedure lives in .agents/skills/consistency-review. The agent
         // reads it and drives the tools; this route only collects what the tools returned
         // and streams the agent's real progress.
-        const sources: ScopedDocument[] = files.map((file) => ({
-          id: randomUUID(),
-          title: cleanDisplayName(file.originalname),
-          sourceName: cleanDisplayName(file.originalname),
-          path: file.path,
-        }));
+        const sources: ScopedDocument[] = [];
+        const seenContent = new Set<string>();
+        for (const file of files) {
+          const title = cleanDisplayName(file.originalname);
+          const sha256 = await contentHashOf(file.path);
+          // The same file twice in one selection is one document, not two.
+          if (sha256 && seenContent.has(sha256)) continue;
+          if (sha256) seenContent.add(sha256);
+          sources.push({ id: randomUUID(), title, sourceName: title, path: file.path });
+        }
+        if (sources.length === 0) {
+          response.status(400).json({ error: "The selected files are identical; upload at least two different documents." });
+          return;
+        }
 
         await streamReview(sources, response);
       } catch (error) {

@@ -559,6 +559,55 @@
         border-bottom: 0;
       }
 
+      .library-notice {
+        margin: 0;
+        padding: 12px 18px;
+        border-bottom: 1px solid var(--line);
+        background: var(--panel-soft);
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .library-group {
+        border-bottom: 1px solid var(--line);
+      }
+
+      .library-group > .library-item {
+        border-bottom: 0;
+      }
+
+      .library-duplicates {
+        display: block;
+        margin: -6px 0 12px 34px;
+        padding: 4px 0;
+        border: 0;
+        background: none;
+        color: var(--blue);
+        font: inherit;
+        font-size: 12px;
+        font-weight: 700;
+        cursor: pointer;
+      }
+
+      .library-duplicates:hover {
+        text-decoration: underline;
+      }
+
+      .library-copies {
+        margin-left: 34px;
+        border-left: 1px solid var(--line);
+      }
+
+      .library-copies .library-item {
+        padding-top: 14px;
+        padding-bottom: 14px;
+      }
+
+      .library-copy .library-item-title {
+        color: var(--muted);
+        font-size: 14px;
+      }
+
       .library-item-title {
         overflow: hidden;
         margin: 0;
@@ -634,6 +683,7 @@
       .reading-file-name { overflow-wrap: anywhere; font-size: 13px; font-weight: 700; }
       .reading-file-state { margin-top: 4px; color: var(--muted); font-size: 12px; }
       .reading-file-error { margin: 5px 0 0; color: var(--red); font-size: 12px; overflow-wrap: anywhere; }
+      .reading-file-duplicate { margin: 5px 0 0; color: var(--amber); font-size: 12px; overflow-wrap: anywhere; }
       .reading-cancel { margin-top: 22px; color: var(--muted); }
       .reading-conversation { display: grid; min-width: 0; grid-template-rows: auto minmax(0, 1fr) auto; }
       .reading-overview { padding: 22px 28px; border-bottom: 1px solid var(--line); }

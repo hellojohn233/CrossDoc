@@ -10,7 +10,10 @@ export interface LibraryEntry {
   sourceName: string;
   format: ParsedDocument["format"];
   pages: number;
+  /** When the document was first archived. */
   uploadedAt: string;
+  /** When the document was last archived or reviewed. */
+  lastUsedAt: string;
   fileSize?: number;
   sha256?: string;
   sourcePath?: string;
@@ -39,6 +42,7 @@ function entryFromStored(document: StoredDocument): LibraryEntry {
     format: document.format as ParsedDocument["format"],
     pages: document.pages,
     uploadedAt: document.uploadedAt,
+    lastUsedAt: document.lastUsedAt,
     fileSize: document.fileSize,
     sha256: document.sha256,
     sourcePath: document.sourcePath,
@@ -72,7 +76,6 @@ export async function saveLibraryDocument(
     sourceName,
     format: document.format,
     pages: document.pages.length,
-    uploadedAt: new Date().toISOString(),
   }, sourceTarget, jsonTarget, markdownTarget);
   const entry: LibraryEntry = entryFromStored(record);
   await writeFile(resolve(entryDirectory, "metadata.json"), `${JSON.stringify(entry, null, 2)}\n`, "utf8");

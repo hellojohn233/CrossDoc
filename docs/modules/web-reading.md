@@ -47,8 +47,13 @@ Library
 │ 资料库                                                 │
 │ 源文件与转换后的 Markdown                              │
 ├───────────────────────────────────────────────────────┤
-│ ☐ 合同.pdf   PDF · 1 页 · 2026/11/4   打开源文件↗ …   │
-│ ☐ 合同.pdf   PDF · 1 页 · 2026/11/4   打开源文件↗ …   │
+│ 3 组内容相同，共 30 份归档。展开可以看到每一次归档。    │
+├───────────────────────────────────────────────────────┤
+│ ☑ 合同a.pdf   PDF · 1 页 · 2026/10/27   打开源文件↗ …  │
+│                  另有 9 份相同内容 ▾                   │
+│   （收起时副本不可见）                                 │
+├───────────────────────────────────────────────────────┤
+│ ☐ 合同b.pdf   PDF · 1 页 · 2026/10/27   打开源文件↗ …  │
 ├───────────────────────────────────────────────────────┤
 │ 已选 2 份文档                    [用选中文件审查]      │
 ├───────────────────────────────────────────────────────┤
@@ -58,9 +63,11 @@ Library
 └───────────────────────────────────────────────────────┘
 ```
 
-The reading file list is ordered by the original browser selection. It shows file name and one compact state: waiting, reading, ready, or failed. The right side shows the overview first and appends Q&A turns below it. Page citations use an inline linked marker such as `[第 3 页]`.
+The reading file list is ordered by the original browser selection. It shows file name and one compact state: waiting, reading, ready, or failed. A file whose content is already in the Library also says so: *这份内容已在资料库里（title，date），会作为一份新的归档保存。* The right side shows the overview first and appends Q&A turns below it. Page citations use an inline linked marker such as `[第 3 页]`.
 
 The Library holds two blocks. The first lists the archived documents; each row carries a checkbox that picks the document for a review. The second lists the reviews that were run before, newest first. A review that is picked up in the Library does not need to be uploaded again — the archived source file is what the review reads.
+
+The document list is grouped by content. A document's identity is its content, and every upload is still archived, so the same contract uploaded three times is one row with two copies underneath it. The oldest copy in a group is the primary row and carries the checkbox; the copies carry none, because they are the same content and picking one would mean picking the others. The copies are collapsed behind a control that reads `另有 N 份相同内容 ▾` and toggles to `收起相同内容 ▴`. A notice above the list reports how many groups repeat and how many archives that is in total. The row metadata shows the first-archived date, and the last-used date as well when it differs — reviewing a document does not make it newly archived.
 
 ## API Contract
 
@@ -68,7 +75,7 @@ All endpoints are local to the Web server. The session map is in memory; the dur
 
 | Request | Response | Behavior |
 |---|---|---|
-| `POST /api/read` multipart `documents[]` | `202 { sessionId, documents[] }` | Validates and stores selected PDFs under `.crossdoc/uploads/`, creates a scoped Pi Agent, and starts the first read prompt. Model/provider configuration errors return a setup message before the response is accepted. |
+| `POST /api/read` multipart `documents[]` | `202 { sessionId, documents[] }` | Validates and stores selected PDFs under `.crossdoc/uploads/`, creates a scoped Pi Agent, and starts the first read prompt. Model/provider configuration errors return a setup message before the response is accepted. A file whose content is already in the Library carries `duplicateOf` — the archived document's id, title, and first-archived date — so the reading list can say the content is already there while still archiving it again. Two identical files in one selection count as one document; the second stays visible in the session as a per-file failure. |
 | `GET /api/read/:sessionId/events` | Server-Sent Events | Replays events after `Last-Event-ID`, then streams progress, per-document results, overview/answers, errors, and completion. If the requested cursor predates retained events, it emits a replay notice and a current document/overview/recent-answer snapshot. |
 | `POST /api/read/:sessionId/questions` JSON `{ question }` | `202 { accepted: true }` | Starts one follow-up prompt on the same agent and parsed-document scope. Rejects empty input, an unknown or cancelled session, a concurrent question while the agent is busy, or a session that reached 30 accepted questions. |
 | `POST /api/read/:sessionId/cancel` | `{ cancelled: true }` | Aborts active model/tool work. Cancelling a follow-up emits a question error, cancelled answer progress, and a terminal `done` event with `operation: "question"`; the UI unlocks and disables the cancelled session. |
@@ -117,7 +124,8 @@ The agent marks sources using `[[cite:<document-id>:<page-number>]]`. The client
 | `返回选择文件` | Reading | Leaves the session view and returns to file selection; the Library remains unchanged. |
 | `上传` / `资料库` / `模型配置` | Header tabs | Switches between the selection, Library, and model configuration views; the active tab carries `aria-current="page"`. |
 | `返回阅读` | Review console | Returns to the reading view of the active session and re-attaches the event stream. |
-| Document checkbox | Library | Picks an archived document for a review. The selection bar reports the count and enables the review action from two documents up. |
+| Document checkbox | Library | Picks an archived document for a review. The selection bar reports the count and enables the review action from two documents up. Only the primary row of a content group carries a checkbox; the copies are the same content. |
+| `另有 N 份相同内容` | Library | Expands or collapses the copies archived under a document. The control's label and `aria-expanded` follow the state. |
 | `用选中文件审查` | Library | Starts a review over the picked documents and switches to the review console. The documents are read from the library, not uploaded. |
 | `打开` on a review record | Library | Loads a stored review into the review console. |
 
@@ -132,6 +140,7 @@ The agent marks sources using `[[cite:<document-id>:<page-number>]]`. The client
 - **Network/session error:** show a retry action where safe. Do not create a duplicate read session on an SSE reconnect; reconnect to the same session event stream.
 - **Completed:** show the concise overview, follow-up question composer, and per-file final state.
 - **Library loading/empty/error:** retain the current Library screen's loading, empty, and error states.
+- **Library with repeated content:** one row per document, the copies collapsed behind a control, and a notice naming how many groups repeat. The list says how many documents there are, not how many times they arrived.
 - **Constrained:** below 820px, stack file list above overview and questions; preserve readable full-width citation controls.
 
 ## Responsive / Size Constraints
@@ -158,8 +167,10 @@ App
 │       ├── AnswerTurns
 │       └── QuestionComposer
 ├── LibraryView
-│   ├── LibraryDocumentList
-│   │   └── LibraryReviewPicker
+│   ├── LibraryContentGroups
+│   │   ├── LibraryDocumentList
+│   │   │   └── LibraryReviewPicker
+│   │   └── LibraryCopyList (collapsed)
 │   ├── LibrarySelectionBar
 │   └── ReviewHistoryList
 ├── ModelSetupView

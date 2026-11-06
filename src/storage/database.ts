@@ -23,7 +23,10 @@ export interface StoredDocument {
   sourceName: string;
   format: string;
   pages: number;
+  /** When the document was first archived. Never moves once the row exists. */
   uploadedAt: string;
+  /** When the document was last archived or reviewed. Moves on every reuse. */
+  lastUsedAt: string;
   fileSize: number;
   sha256: string;
   sourcePath: string;
@@ -40,7 +43,7 @@ export interface LegacyLibraryMetadata {
   uploadedAt: string;
 }
 
-const schemaVersion = 2;
+const schemaVersion = 3;
 
 function relativePath(dataDirectory: string, absolutePath: string): string {
   const path = relative(dataDirectory, absolutePath).split(sep).join("/");
@@ -115,6 +118,23 @@ export class LocalDatabase {
         PRAGMA user_version = 2;
       `);
     }
+    const afterV2 = Number(this.db.pragma("user_version", { simple: true }));
+    if (afterV2 < 3) {
+      // "Uploaded" and "last used" are different questions. A document that is
+      // reviewed again was not uploaded again, so the two timestamps are kept
+      // apart from here on.
+      //
+      // A database that only ever held settings has no documents table, and
+      // there is nothing to split there.
+      const hasDocuments = this.db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'documents'").get();
+      if (hasDocuments) {
+        this.db.exec(`
+          ALTER TABLE documents ADD COLUMN last_used_at TEXT NOT NULL DEFAULT '';
+          UPDATE documents SET last_used_at = uploaded_at WHERE last_used_at = '';
+        `);
+      }
+      this.db.pragma("user_version = 3");
+    }
   }
 
   private importLegacyMetadata() {
@@ -122,8 +142,8 @@ export class LocalDatabase {
     if (!existsSync(libraryDirectory)) return;
     const insert = this.db.prepare(`
       INSERT OR IGNORE INTO documents
-        (id, title, source_name, format, pages, uploaded_at, file_size, sha256, source_path, document_json_path, markdown_path)
-      VALUES (@id, @title, @sourceName, @format, @pages, @uploadedAt, @fileSize, @sha256, @sourcePath, @documentJsonPath, @markdownPath)
+        (id, title, source_name, format, pages, uploaded_at, last_used_at, file_size, sha256, source_path, document_json_path, markdown_path)
+      VALUES (@id, @title, @sourceName, @format, @pages, @uploadedAt, @lastUsedAt, @fileSize, @sha256, @sourcePath, @documentJsonPath, @markdownPath)
     `);
     const transaction = this.db.transaction(() => {
       for (const entry of readdirSync(libraryDirectory, { withFileTypes: true })) {
@@ -139,13 +159,15 @@ export class LocalDatabase {
           const jsonPath = resolve(entryDirectory, "document.json");
           const fileSize = existsSync(sourcePath) ? statSync(sourcePath).size : 0;
           const sha256 = fileSize ? createHash("sha256").update(readFileSync(sourcePath)).digest("hex") : "";
+          const uploadedAt = typeof metadata.uploadedAt === "string" ? metadata.uploadedAt : new Date(0).toISOString();
           insert.run({
             id: metadata.id,
             title: metadata.title,
             sourceName: metadata.sourceName,
             format: metadata.format,
             pages: Number.isInteger(metadata.pages) ? metadata.pages : 0,
-            uploadedAt: typeof metadata.uploadedAt === "string" ? metadata.uploadedAt : new Date(0).toISOString(),
+            uploadedAt,
+            lastUsedAt: uploadedAt,
             fileSize,
             sha256,
             sourcePath: relativePath(this.dataDirectory, sourcePath),
@@ -160,10 +182,26 @@ export class LocalDatabase {
     transaction();
   }
 
-  saveDocument(input: Omit<StoredDocument, "fileSize" | "sha256" | "sourcePath" | "documentJsonPath" | "markdownPath">, sourceAbsolutePath: string, jsonAbsolutePath: string, markdownAbsolutePath: string) {
+  /**
+   * Archives one document.
+   *
+   * The row is keyed by id, so re-archiving a document that is already in the
+   * library updates it in place. The name it was first archived under and the
+   * moment it arrived both stay; `last_used_at` moves to now. A document's
+   * identity is its content, so its name is part of that identity too.
+   */
+  saveDocument(
+    input: Omit<StoredDocument, "fileSize" | "sha256" | "sourcePath" | "documentJsonPath" | "markdownPath" | "uploadedAt" | "lastUsedAt">,
+    sourceAbsolutePath: string,
+    jsonAbsolutePath: string,
+    markdownAbsolutePath: string,
+  ) {
     const bytes = readFileSync(sourceAbsolutePath);
+    const now = new Date().toISOString();
     const record: StoredDocument = {
       ...input,
+      uploadedAt: now,
+      lastUsedAt: now,
       fileSize: bytes.byteLength,
       sha256: createHash("sha256").update(bytes).digest("hex"),
       sourcePath: relativePath(this.dataDirectory, sourceAbsolutePath),
@@ -172,25 +210,43 @@ export class LocalDatabase {
     };
     this.db.prepare(`
       INSERT INTO documents
-        (id, title, source_name, format, pages, uploaded_at, file_size, sha256, source_path, document_json_path, markdown_path)
-      VALUES (@id, @title, @sourceName, @format, @pages, @uploadedAt, @fileSize, @sha256, @sourcePath, @documentJsonPath, @markdownPath)
-      ON CONFLICT(id) DO UPDATE SET title=excluded.title, source_name=excluded.source_name, format=excluded.format,
-        pages=excluded.pages, uploaded_at=excluded.uploaded_at, file_size=excluded.file_size, sha256=excluded.sha256,
+        (id, title, source_name, format, pages, uploaded_at, last_used_at, file_size, sha256, source_path, document_json_path, markdown_path)
+      VALUES (@id, @title, @sourceName, @format, @pages, @uploadedAt, @lastUsedAt, @fileSize, @sha256, @sourcePath, @documentJsonPath, @markdownPath)
+      ON CONFLICT(id) DO UPDATE SET format=excluded.format, pages=excluded.pages,
+        last_used_at=excluded.last_used_at, file_size=excluded.file_size, sha256=excluded.sha256,
         source_path=excluded.source_path, document_json_path=excluded.document_json_path, markdown_path=excluded.markdown_path
     `).run(record);
-    return record;
+    // The row that is now in the table is the truth: an existing document kept
+    // the name and the timestamp it was first archived with.
+    return this.getDocument(record.id) ?? record;
+  }
+
+  /**
+   * Finds an archived document by its content.
+   *
+   * The oldest match wins, so a document keeps the identity it was first
+   * given even if an identical copy was archived earlier.
+   */
+  findDocumentBySha256(sha256: string): StoredDocument | undefined {
+    if (!sha256) return undefined;
+    return this.db.prepare(`SELECT id, title, source_name AS sourceName, format, pages, uploaded_at AS uploadedAt,
+      last_used_at AS lastUsedAt, file_size AS fileSize, sha256, source_path AS sourcePath,
+      document_json_path AS documentJsonPath, markdown_path AS markdownPath
+      FROM documents WHERE sha256 = ? ORDER BY uploaded_at ASC LIMIT 1`).get(sha256) as StoredDocument | undefined;
   }
 
   listDocuments(): StoredDocument[] {
     return this.db.prepare(`SELECT id, title, source_name AS sourceName, format, pages, uploaded_at AS uploadedAt,
-      file_size AS fileSize, sha256, source_path AS sourcePath, document_json_path AS documentJsonPath,
-      markdown_path AS markdownPath FROM documents ORDER BY uploaded_at DESC`).all() as StoredDocument[];
+      last_used_at AS lastUsedAt, file_size AS fileSize, sha256, source_path AS sourcePath,
+      document_json_path AS documentJsonPath, markdown_path AS markdownPath
+      FROM documents ORDER BY uploaded_at DESC`).all() as StoredDocument[];
   }
 
   getDocument(id: string): StoredDocument | undefined {
     return this.db.prepare(`SELECT id, title, source_name AS sourceName, format, pages, uploaded_at AS uploadedAt,
-      file_size AS fileSize, sha256, source_path AS sourcePath, document_json_path AS documentJsonPath,
-      markdown_path AS markdownPath FROM documents WHERE id = ?`).get(id) as StoredDocument | undefined;
+      last_used_at AS lastUsedAt, file_size AS fileSize, sha256, source_path AS sourcePath,
+      document_json_path AS documentJsonPath, markdown_path AS markdownPath
+      FROM documents WHERE id = ?`).get(id) as StoredDocument | undefined;
   }
 
   getModelProfile(role: ModelRole): ModelProfile | undefined {

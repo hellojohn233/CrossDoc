@@ -19,13 +19,32 @@ The database stores paths relative to `data/`, never machine-specific absolute l
 
 ## SQLite schema
 
-- `documents`: stable ID, display/source name, format, page count, file size/hash, imported timestamp, and relative paths to source, structured JSON, and Markdown.
+- `documents`: stable ID, display/source name, format, page count, file size/hash, the first-archived timestamp, the last-used timestamp, and relative paths to source, structured JSON, and Markdown. The content hash is indexed, not unique: the library keeps every upload.
 - `model_configs`: one row for each `role` (`main` or `vision`), with the legacy provider ID, protocol/API ID, model ID, base URL, plaintext API key, and provider options JSON. Upsert by role so each role has one active profile. Migration v2 adds the protocol column and preserves v1 catalog-based profiles.
 - `app_settings`: small user preferences stored as key/value JSON, with schema evolution tracked by `PRAGMA user_version` migrations.
 
 The app is intentionally single-user/local and the production HTTP server binds only to `127.0.0.1`; it is not exposed on LAN interfaces. API keys are stored as plaintext in SQLite, as requested. The database stays under ignored `data/` and is never added to Git. The settings API relies on this loopback-only deployment boundary and does not provide user authentication.
 
 At database initialization, import existing `data/library/*/metadata.json` records idempotently so the current filesystem library remains visible after the index moves to SQLite. New imports write the source, `document.json`, and `document.md`, then upsert the document row. Library list and read routes use the SQLite index and resolve each relative path under `data/`.
+
+## Document identity and timestamps
+
+A document's identity is its content. Every upload is still archived, so two uploads of the same bytes are two archived copies of one document. Nothing is merged and nothing is deleted; the content hash is an index used to mark and to group, and it is not a unique constraint.
+
+This follows the mature precedent. Paperless-ngx keeps `checksum` as an indexed, non-unique field, stopped rejecting duplicate documents in v3, and offers a Duplicates tab on the document page, a Duplicates filter on the list, and a `has_duplicates=true` API query. Papermerge, Mayan, and SeedDMS each keep every upload as a new version.
+
+- **Every upload mints a new document id.** Reuse of an id across uploads is not done; the archive count and the document count are allowed to differ.
+- **`uploaded_at` is written once.** It is when the document was first archived, and it never moves.
+- **`last_used_at` moves.** It is when the document was last archived or last reviewed.
+- **The upsert on the document id updates** format, page count, file size, content hash, the artifact paths, and `last_used_at`. It does **not** update `uploaded_at`, `title`, or `source_name`: the name the user gave a document is part of that document's identity, so the first name stands.
+- **`findDocumentBySha256()` returns the oldest match**, so the document the Library points at is the one first archived under that name.
+- **Migration v3 adds `last_used_at`** with `DEFAULT ''` and backfills it from `uploaded_at`. A database that only ever held settings has no `documents` table; the migration checks `sqlite_master` and skips the DDL in that case.
+
+A document reviewed from the Library refreshes `last_used_at` and leaves `uploaded_at` alone. Before these were split, a from-Library review refreshed `uploaded_at` and reordered the whole Library, making "recently archived" and "recently reviewed" indistinguishable.
+
+An upload whose content is already archived is marked, not refused. The upload routes compute the content hash, look it up, and report the existing document with its title and first-archived date; the reading list tells the user that the content is already in the Library and that a new archive will be saved.
+
+Within one selection, identical files are one document. The second is dropped from the agent's scope — running the model twice over identical bytes wastes the user's tokens and would compare a document against itself. In `/api/read` the dropped file stays visible in the session as a per-file failure. In `/api/review`, a selection that collapses to nothing is a 400.
 
 ## Model roles
 
@@ -44,6 +63,7 @@ The settings UI can request the endpoint's model list after Base URL, protocol, 
 - On app entry, the UI loads settings before showing document selection. A legacy catalog profile is complete when its provider and model ID exist and either a key is saved or Pi reports ambient auth; a custom profile needs its protocol, Base URL, model ID, and saved key. Setup is a peer view reached from the header, not a gate: an incomplete profile never blocks the selection view. No model keys are rendered into page content after save.
 - The setup form has no provider selector. Each role shows Base URL, protocol type, model selection with a `加载模型` action, and API Key. A model ID may also be entered manually.
 - Reading and library endpoints use the stored profile and SQLite metadata. Existing PDF citation/source URLs remain stable.
+- `GET /api/library` returns every archived document, including repeated content, each with its `sha256`, `uploadedAt`, and `lastUsedAt`. The grouping into one row per document is a client-side rendering rule, not a server-side filter, so no archive is hidden from the API.
 
 ## Boundaries
 
