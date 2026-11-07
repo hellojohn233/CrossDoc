@@ -175,6 +175,7 @@ Current data flow:
 - A scanned page's vision transcript is split into line blocks as well, but keeps page-level location and never claims a line box.
 - `markdown/` renders per-document Markdown and the final review report separately; source notes are keyed by source position, so a native line gets its own note and a scanned page is cited once.
 - `storage/` writes JSON and Markdown before the UI presents the results. A document is identified by its content: every upload is archived, repeated content is marked and folded into one Library row rather than rejected or merged, and "first archived" is tracked separately from "last used".
+- The review policy for a domain is the user's. The `我的技能` view writes a skill under `data/skills/`, which the loader reads after the built-in skills and the agent loads when the documents belong to that domain. The built-in procedure and guard rails cannot be replaced, and the repository ships no domain skill.
 - Scanned PDF pages are read by the configured Pi vision model; DOCX/XLSX loaders are not connected yet.
 - A consistency review is driven by an agent reading the skills under `.agents/skills/`; the code only supplies the pure capabilities those skills call into — alignment, citable-finding checks, rendering.
 - There is no rule fallback any more: a skill needs an agent to read it, so `/api/review` returns 503 when no main model is configured.

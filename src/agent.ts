@@ -83,6 +83,8 @@ export interface CrossDocAgentOptions {
   documents: readonly ScopedDocument[];
   /** The skills this agent may load. Discovered from `.agents/skills/` when absent. */
   skills?: Skill[];
+  /** The user's own skills directory, loaded after the built-in ones. */
+  userSkillsRoot?: string;
   onDocumentUpdated?: (document: ParsedDocument, source: ScopedDocument) => Promise<void> | void;
   onDocumentRejected?: (documentId: string, source: ScopedDocument, reason: string) => Promise<void> | void;
   /** Injected model collection and stream function are intended for deterministic integration tests. */
@@ -717,7 +719,7 @@ export function createCrossDocTools(options: CrossDocAgentOptions): AgentTool<an
   const listVocabulary = {
     name: "list_key_vocabulary",
     label: "List key vocabulary",
-    description: "List the fixed key vocabulary a consistency review uses, so two documents that state the same kind of data carry the same key.",
+    description: "List the built-in key vocabulary a consistency review uses, so two documents that state the same kind of data carry the same key. Use it only when no domain skill is in use; a domain skill's vocabulary replaces it.",
     parameters: Type.Object({}),
     executionMode: "parallel",
     async execute() {
@@ -815,7 +817,9 @@ export async function createCrossDocAgent(options: CrossDocAgentOptions): Promis
   }));
   // The skills are discovered, not listed. A skill is a directory under
   // `.agents/skills/`, so adding one is a new directory and not a code change.
-  const skills = options.skills ?? loadSkills().skills;
+  // The user's own skills are read after the built-in ones.
+  const skills = options.skills
+    ?? loadSkills(options.userSkillsRoot ? { userRoot: options.userSkillsRoot } : {}).skills;
   // A guard, not a workflow: it only stops a tool from running more often than
   // it can produce something new.
   const guard = createToolCallGuard();

@@ -64,6 +64,14 @@ export function defaultSkillsRoot(): string {
 export interface LoadSkillsOptions {
   /** Directory to scan. Defaults to the project's `.agents/skills`. */
   root?: string;
+  /**
+   * The user's own skills directory, scanned after the built-in one.
+   *
+   * A user skill carries domain knowledge; it never replaces a built-in
+   * skill. When the two carry the same name the built-in one wins, because
+   * the built-in skills hold the review procedure and the guard rails.
+   */
+  userRoot?: string;
 }
 
 /**
@@ -88,6 +96,30 @@ export function loadSkills(options: LoadSkillsOptions = {}): LoadSkillsResult {
 
   const found: Skill[] = [];
   collect(root, found, diagnostics);
+
+  // The user's own skills are read after the built-in ones. A built-in name
+  // is not up for replacement: the built-in skills carry the procedure and
+  // the guard rails, and they are versioned in the repository while a user
+  // skill is not.
+  if (options.userRoot) {
+    const userRoot = resolve(options.userRoot);
+    if (existsSync(userRoot)) {
+      const userFound: Skill[] = [];
+      collect(userRoot, userFound, diagnostics);
+      const builtinNames = new Set(found.map((skill) => skill.name));
+      for (const skill of userFound) {
+        if (builtinNames.has(skill.name)) {
+          diagnostics.push({
+            type: "warning",
+            message: `user skill "${skill.name}" conflicts with a built-in skill`,
+            path: skill.filePath,
+          });
+          continue;
+        }
+        found.push(skill);
+      }
+    }
+  }
 
   for (const skill of found) {
     const key = realPath(skill.filePath);

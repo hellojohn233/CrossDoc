@@ -9,13 +9,16 @@ Keep the single-user installation's library index, user settings, and model prof
 ```text
 data/
 ├── crossdoc.sqlite
-└── library/<document-id>/
-    ├── source.pdf
-    ├── document.json
-    └── document.md
+├── library/<document-id>/
+│   ├── source.pdf
+│   ├── document.json
+│   └── document.md
+└── skills/<skill-name>/SKILL.md
 ```
 
 The database stores paths relative to `data/`, never machine-specific absolute library paths. `document.json` is the canonical structured `ParsedDocument`, including page and block source locations. `document.md` is the readable/rendered artifact. The source file remains unchanged. Document bytes do not go into SQLite.
+
+`data/skills/` holds the user's own skills. It is the user's asset, not the product's: it is ignored by Git, it is never shipped with a build, and it is written by the application rather than by hand. The built-in skills stay in `.agents/skills/` and are versioned in the repository. See [the skills contract](./skills.md).
 
 ## SQLite schema
 

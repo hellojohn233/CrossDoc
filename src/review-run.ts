@@ -24,6 +24,8 @@ export interface ReviewRunOptions {
   documents: ScopedDocument[];
   /** The skills this run may load. Discovered from `.agents/skills/` when absent. */
   skills?: Skill[];
+  /** The user's own skills directory, loaded after the built-in ones. */
+  userSkillsRoot?: string;
   agentFactory?: (options: CrossDocAgentOptions) => Promise<Agent>;
   models?: MutableModels;
   mainProfile?: ModelProfile;
@@ -64,7 +66,7 @@ export async function runConsistencyReview(options: ReviewRunOptions): Promise<R
   // The skills are discovered, not listed. The review procedure is injected
   // into the first turn rather than left to the model to remember to load, so
   // a review can never run without its procedure.
-  const loaded = loadSkills();
+  const loaded = loadSkills(options.userSkillsRoot ? { userRoot: options.userSkillsRoot } : {});
   const skills = options.skills ?? loaded.skills;
   const reviewSkill = skills.find((skill) => skill.name === REVIEW_SKILL_NAME);
   if (!reviewSkill) {

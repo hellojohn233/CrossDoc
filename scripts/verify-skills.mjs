@@ -185,6 +185,60 @@ await check("K13 read_skill_file 不能读到 skill 目录之外", () => {
   assert.ok(resolveInsideSkill(skill, "SKILL.md").endsWith("SKILL.md"));
 });
 
+await check("K14 两个 root 一起扫，只给 root 时不碰使用者目录", async () => {
+  const builtin = await mkdtemp(resolve(tmpdir(), "crossdoc-skills-builtin-"));
+  const user = await mkdtemp(resolve(tmpdir(), "crossdoc-skills-user-"));
+  try {
+    await mkdir(resolve(builtin, "built-in-skill"), { recursive: true });
+    await writeFile(
+      resolve(builtin, "built-in-skill", "SKILL.md"),
+      "---\nname: built-in-skill\ndescription: A built-in skill.\n---\n\n# Built in\n",
+      "utf8",
+    );
+    await mkdir(resolve(user, "user-skill"), { recursive: true });
+    await writeFile(
+      resolve(user, "user-skill", "SKILL.md"),
+      "---\nname: user-skill\ndescription: A user skill.\n---\n\n# User\n",
+      "utf8",
+    );
+    const both = loadSkills({ root: builtin, userRoot: user });
+    const names = both.skills.map((skill) => skill.name).sort();
+    assert.deepEqual(names, ["built-in-skill", "user-skill"], "两个目录的 skill 都该被发现");
+
+    const onlyBuiltin = loadSkills({ root: builtin });
+    assert.deepEqual(onlyBuiltin.skills.map((skill) => skill.name), ["built-in-skill"], "不给 userRoot 就不该扫使用者目录");
+  } finally {
+    await rm(builtin, { recursive: true, force: true });
+    await rm(user, { recursive: true, force: true });
+  }
+});
+
+await check("K15 内置 skill 优先于同名使用者 skill", async () => {
+  const builtin = await mkdtemp(resolve(tmpdir(), "crossdoc-skills-builtin-"));
+  const user = await mkdtemp(resolve(tmpdir(), "crossdoc-skills-user-"));
+  try {
+    for (const [root, label] of [[builtin, "built-in"], [user, "user"]]) {
+      await mkdir(resolve(root, "shared-name"), { recursive: true });
+      await writeFile(
+        resolve(root, "shared-name", "SKILL.md"),
+        `---\nname: shared-name\ndescription: The ${label} one.\n---\n\n# ${label}\n`,
+        "utf8",
+      );
+    }
+    const loaded = loadSkills({ root: builtin, userRoot: user });
+    const shared = loaded.skills.find((skill) => skill.name === "shared-name");
+    assert.ok(shared, "同名 skill 应该还在");
+    assert.equal(shared.description, "The built-in one.", "内置 skill 应该赢");
+    assert.ok(
+      loaded.diagnostics.some((diagnostic) => /conflicts with a built-in skill/.test(diagnostic.message)),
+      "同名冲突应该有诊断",
+    );
+  } finally {
+    await rm(builtin, { recursive: true, force: true });
+    await rm(user, { recursive: true, force: true });
+  }
+});
+
 let failed = 0;
 for (const result of checks) {
   if (result.ok) {

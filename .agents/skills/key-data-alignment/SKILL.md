@@ -10,7 +10,7 @@ A key is one thing a document states about itself. Two documents that state the 
 
 This skill is loaded by `consistency-review`, in that order. Load it when the review procedure says so.
 
-1. Call `list_key_vocabulary` and use exactly those keys. When the document states something material that no key covers, use a short custom key in the same style rather than forcing a wrong key onto it.
+1. Decide which vocabulary to use. If a domain skill is loaded, use that skill's keys — they are the vocabulary for this review, so do not call `list_key_vocabulary`. If no domain skill is loaded, call `list_key_vocabulary` and use exactly those keys. When the document states something material that no key of the chosen vocabulary covers, use a short custom key in the same style rather than forcing a wrong key onto it.
 2. For each parsed document, list the key data that document states. One item per key per document:
    - `value` is only the value. `90 days`, not `within 90 days of receipt`. `USD 150000`, not `USD 150000 including delivery and support`. `Northwind Analytics and Bright Harbor Ltd.`, not `Agreement between Northwind Analytics and Bright Harbor Ltd.`
    - `quote` is the exact sentence that states the value, copied verbatim from the document you parsed.

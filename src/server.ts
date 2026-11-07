@@ -10,6 +10,14 @@ import multer from "multer";
 
 import { createBuiltinModels, createCrossDocAgent, CrossDocVisionModelConfigError, profileRequestOptions, resolveModelProfile, type CrossDocAgentOptions, type ScopedDocument } from "./agent.js";
 import { runConsistencyReview } from "./review-run.js";
+import { loadSkills } from "./skills/loader.js";
+import {
+  deleteUserSkill,
+  importUserSkill,
+  listUserSkills,
+  validateUserSkill,
+  writeUserSkill,
+} from "./skills/user-store.js";
 import { getLibraryDocument, listLibraryDocuments, saveLibraryDocument } from "./storage/library-store.js";
 import { LocalDatabase, type ModelProfile, type ModelProtocol, type ModelRole } from "./storage/database.js";
 import { listReviewArtifacts, readReviewArtifact, writeReviewArtifacts } from "./storage/review-store.js";
@@ -271,6 +279,7 @@ export function createWebApp(options: WebAppOptions = {}) {
   const database = new LocalDatabase(dataDirectory);
   const modelCatalog = options.models ?? createBuiltinModels();
   const reviewDirectory = resolve(options.reviewDirectory ?? ".crossdoc/reviews");
+  const userSkillsDirectory = resolve(dataDirectory, "skills");
   const pdfjsDirectory = resolve(options.pdfjsDirectory ?? "node_modules/pdfjs-dist/build");
   const maxTotalUploadBytes = options.maxTotalUploadBytes ?? MAX_TOTAL_UPLOAD_SIZE;
   const discoveryFetch = options.modelDiscoveryFetch ?? fetch;
@@ -720,6 +729,90 @@ export function createWebApp(options: WebAppOptions = {}) {
     }
   }
 
+  /**
+   * The names the built-in skills already use.
+   *
+   * A user skill never replaces a built-in one: the built-in skills carry the
+   * review procedure and the guard rails, and they are versioned in the
+   * repository while a user skill is not. The list is read from what is
+   * actually loaded, so a new built-in skill reserves its own name.
+   */
+  function builtinSkillNames(): Set<string> {
+    return new Set(loadSkills().skills.map((skill) => skill.name));
+  }
+
+  app.get("/api/skills", async (_request, response) => {
+    try {
+      response.json({ skills: await listUserSkills(userSkillsDirectory) });
+    } catch (error) {
+      response.status(500).json({ error: error instanceof Error ? error.message : "Unable to read the skills." });
+    }
+  });
+
+  app.post("/api/skills/import", (request, response) => {
+    const body = request.body as { content?: unknown };
+    if (typeof body.content !== "string" || !body.content.trim()) {
+      response.status(400).json({ error: "Paste the contents of a SKILL.md file." });
+      return;
+    }
+    const imported = importUserSkill(body.content);
+    if (!imported.ok) {
+      response.status(400).json({ error: imported.error });
+      return;
+    }
+    // The imported skill is parsed, not stored. It changes what the next
+    // review does, so the user sees it in the editor first.
+    response.json({ skill: imported.skill });
+  });
+
+  app.put("/api/skills/:name", async (request, response) => {
+    const name = request.params.name;
+    if (!name) {
+      response.status(400).json({ error: "A skill needs a name." });
+      return;
+    }
+    const body = request.body as { description?: unknown; body?: unknown };
+    const description = typeof body.description === "string" ? body.description : "";
+    const skillBody = typeof body.body === "string" ? body.body : "";
+    const validation = validateUserSkill(
+      { name, description, body: skillBody },
+      builtinSkillNames(),
+      { root: userSkillsDirectory },
+    );
+    if (!validation.ok) {
+      response.status(validation.errors.some((error) => error.includes("内置 skill")) ? 409 : 400).json({
+        error: validation.errors.join(" "),
+        errors: validation.errors,
+        warnings: validation.warnings,
+      });
+      return;
+    }
+    try {
+      const skill = await writeUserSkill(userSkillsDirectory, name, { description, body: skillBody });
+      response.json({ skill, warnings: validation.warnings });
+    } catch (error) {
+      response.status(500).json({ error: error instanceof Error ? error.message : "Unable to save the skill." });
+    }
+  });
+
+  app.delete("/api/skills/:name", async (request, response) => {
+    const name = request.params.name;
+    if (!name) {
+      response.status(400).json({ error: "A skill needs a name." });
+      return;
+    }
+    try {
+      const deleted = await deleteUserSkill(userSkillsDirectory, name);
+      if (!deleted) {
+        response.status(404).json({ error: `No skill named ${name}.` });
+        return;
+      }
+      response.json({ deleted: true });
+    } catch (error) {
+      response.status(500).json({ error: error instanceof Error ? error.message : "Unable to delete the skill." });
+    }
+  });
+
   app.get("/api/library", async (_request, response) => {
     try {
       const documents = await listLibraryDocuments(libraryDirectory, database);
@@ -843,6 +936,7 @@ export function createWebApp(options: WebAppOptions = {}) {
         let session: ReadSession | undefined;
         const agent = await agentFactory({
           documents: sources,
+          userSkillsRoot: userSkillsDirectory,
           ...(mainProfile ? { mainProfile } : {}),
           ...(visionProfile ? { visionProfile } : {}),
           onDocumentUpdated: async (document, source) => {
@@ -1015,6 +1109,7 @@ export function createWebApp(options: WebAppOptions = {}) {
     try {
       const result = await runConsistencyReview({
         documents: sources,
+        userSkillsRoot: userSkillsDirectory,
         ...(options.agentFactory ? { agentFactory: options.agentFactory } : {}),
         models: modelCatalog,
         mainProfile,

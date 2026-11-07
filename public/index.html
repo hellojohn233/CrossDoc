@@ -21,6 +21,7 @@
           <button class="nav-tab" type="button" data-view="selection">上传</button>
           <button class="nav-tab" type="button" data-view="library">资料库</button>
           <button class="nav-tab" type="button" data-view="models">模型配置</button>
+          <button class="nav-tab" type="button" data-view="skills">我的技能</button>
         </nav>
         <div class="top-actions">
           <button id="back-to-reading" type="button" hidden>返回阅读</button>
@@ -82,6 +83,33 @@
       </div>
       <p class="model-setup-status" id="model-setup-status" aria-live="polite"></p>
       <p class="model-setup-note">API Key 以明文保存在本机 <code>data/crossdoc.sqlite</code>,不会随文档上传。</p>
+    </main>
+
+    <main class="skills-screen" id="skills-screen" hidden>
+      <div class="skills-heading">
+        <div>
+          <h2>我的技能</h2>
+          <p>你自己的领域审查口径。领域技能只补充两件事：这个领域该抽哪些关键数据、什么差异算严重。审查流程由内置 skill 决定，不受这里影响。</p>
+        </div>
+        <div class="skills-heading-actions">
+          <button class="ghost" id="skill-new" type="button">新建</button>
+          <button class="ghost" id="skill-import" type="button">导入 .md</button>
+          <input id="skill-import-file" type="file" accept=".md,text/markdown" hidden />
+        </div>
+      </div>
+      <div class="skills-layout">
+        <section class="skills-list" id="skill-list" aria-live="polite"></section>
+        <section class="skills-editor">
+          <label>名称<input id="skill-name" autocomplete="off" placeholder="prospectus-review" /></label>
+          <label>描述<input id="skill-description" autocomplete="off" placeholder="用于审查证券招股说明书。agent 靠这句话判断什么时候加载它。" /></label>
+          <label>正文<textarea id="skill-body" rows="14" placeholder="本领域该抽哪些关键数据：&#10;revenue / gross_margin / net_income / audit_opinion"></textarea></label>
+          <div class="skills-editor-actions">
+            <button class="primary" id="skill-save" type="button">保存</button>
+            <button class="ghost" id="skill-delete" type="button" disabled>删除</button>
+          </div>
+          <p class="skills-status" id="skill-status" aria-live="polite"></p>
+        </section>
+      </div>
     </main>
 
     <main class="ingest-screen" id="ingest-screen" hidden>
@@ -250,6 +278,17 @@
       const modelSetupScreen = document.querySelector("#model-setup-screen");
       const modelSetupStatus = document.querySelector("#model-setup-status");
       const modelSetupProfiles = { main: null, vision: null };
+      const skillsScreen = document.querySelector("#skills-screen");
+      const skillList = document.querySelector("#skill-list");
+      const skillName = document.querySelector("#skill-name");
+      const skillDescription = document.querySelector("#skill-description");
+      const skillBody = document.querySelector("#skill-body");
+      const skillStatus = document.querySelector("#skill-status");
+      const skillNew = document.querySelector("#skill-new");
+      const skillImport = document.querySelector("#skill-import");
+      const skillImportFile = document.querySelector("#skill-import-file");
+      const skillSave = document.querySelector("#skill-save");
+      const skillDelete = document.querySelector("#skill-delete");
       const fileInput = document.querySelector("#documents");
       const folderInput = document.querySelector("#folders");
       const dropzone = document.querySelector("#dropzone");
@@ -347,6 +386,7 @@
         review: ["review"],
         library: ["library"],
         models: ["models"],
+        skills: ["skills"],
       };
 
       const VIEW_TAB = {
@@ -355,6 +395,7 @@
         review: "selection",
         library: "library",
         models: "models",
+        skills: "skills",
       };
 
       function escapeHtml(value) {
@@ -385,8 +426,9 @@
         reviewScreen.hidden = !screens.includes("review");
         libraryScreen.hidden = !screens.includes("library");
         modelSetupScreen.hidden = !screens.includes("models");
+        skillsScreen.hidden = !screens.includes("skills");
         startupState.hidden = true;
-        document.body.classList.remove("booting", "selection-open", "reading-open", "review-open", "library-open", "model-setup-open");
+        document.body.classList.remove("booting", "selection-open", "reading-open", "review-open", "library-open", "model-setup-open", "skills-open");
         document.body.classList.add(`${view}-open`);
         const activeTab = VIEW_TAB[view];
         navTabs.forEach((tab) => {
@@ -398,6 +440,7 @@
           void loadLibraryContent();
           void loadReviewHistory();
         }
+        if (view === "skills") void loadUserSkills();
       }
 
       function setPipeline(activeIndex) {
@@ -491,6 +534,137 @@
           });
         } catch (error) {
           reviewHistoryList.innerHTML = `<div class="library-empty library-error">${escapeHtml(error instanceof Error ? error.message : "审查记录读取失败。")}</div>`;
+        }
+      }
+
+      // ── 我的技能 ────────────────────────────────────────────
+      // 使用者自己的领域 skill。列表是平的：一份 skill 一个文件，没有分类和标签。
+      let userSkills = [];
+      let selectedSkillName = null;
+
+      function setSkillStatus(message, tone = "") {
+        skillStatus.textContent = message;
+        skillStatus.className = `skills-status${tone ? ` skills-status-${tone}` : ""}`;
+      }
+
+      function renderUserSkillList() {
+        if (userSkills.length === 0) {
+          skillList.innerHTML = '<div class="library-empty">还没有自己的 skill</div>';
+          return;
+        }
+        skillList.innerHTML = userSkills.map((skill) => `
+          <button class="skill-entry${skill.name === selectedSkillName ? " skill-entry-active" : ""}" type="button" data-skill-name="${escapeHtml(skill.name)}">
+            <span class="skill-entry-name">${escapeHtml(skill.name)}</span>
+            <span class="skill-entry-description">${escapeHtml(skill.description)}</span>
+          </button>
+        `).join("");
+        skillList.querySelectorAll("[data-skill-name]").forEach((button) => {
+          button.addEventListener("click", () => selectUserSkill(button.dataset.skillName));
+        });
+      }
+
+      async function loadUserSkills() {
+        try {
+          const response = await fetch("/api/skills");
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(data.error || "技能读取失败。");
+          userSkills = Array.isArray(data.skills) ? data.skills : [];
+          if (selectedSkillName && !userSkills.some((skill) => skill.name === selectedSkillName)) {
+            selectedSkillName = null;
+          }
+          renderUserSkillList();
+        } catch (error) {
+          skillList.innerHTML = `<div class="library-empty library-error">${escapeHtml(error instanceof Error ? error.message : "技能读取失败。")}</div>`;
+        }
+      }
+
+      function selectUserSkill(name) {
+        const skill = userSkills.find((item) => item.name === name);
+        if (!skill) return;
+        selectedSkillName = skill.name;
+        skillName.value = skill.name;
+        skillDescription.value = skill.description;
+        skillBody.value = skill.body;
+        skillDelete.disabled = false;
+        setSkillStatus("");
+        renderUserSkillList();
+      }
+
+      function clearSkillEditor() {
+        selectedSkillName = null;
+        skillName.value = "";
+        skillDescription.value = "";
+        skillBody.value = "";
+        skillDelete.disabled = true;
+        setSkillStatus("");
+        renderUserSkillList();
+        skillName.focus();
+      }
+
+      async function saveUserSkill() {
+        const name = skillName.value.trim();
+        if (!name) {
+          setSkillStatus("先给这份 skill 起个名字。", "error");
+          return;
+        }
+        try {
+          const response = await fetch(`/api/skills/${encodeURIComponent(name)}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ description: skillDescription.value, body: skillBody.value }),
+          });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(data.error || "保存失败。");
+          selectedSkillName = name;
+          await loadUserSkills();
+          selectUserSkill(name);
+          const warnings = Array.isArray(data.warnings) ? data.warnings : [];
+          setSkillStatus(
+            ["已保存。下一次审查开始时才会加载它。", ...warnings].join(" "),
+            warnings.length > 0 ? "warn" : "ok",
+          );
+        } catch (error) {
+          setSkillStatus(error instanceof Error ? error.message : "保存失败。", "error");
+        }
+      }
+
+      async function removeUserSkill() {
+        const name = selectedSkillName;
+        if (!name) return;
+        if (!window.confirm(`删除「${name}」？下次审查就不会再加载它。`)) return;
+        try {
+          const response = await fetch(`/api/skills/${encodeURIComponent(name)}`, { method: "DELETE" });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(data.error || "删除失败。");
+          clearSkillEditor();
+          await loadUserSkills();
+          setSkillStatus("已删除。", "ok");
+        } catch (error) {
+          setSkillStatus(error instanceof Error ? error.message : "删除失败。", "error");
+        }
+      }
+
+      async function importUserSkillFile(file) {
+        if (!file) return;
+        try {
+          const content = await file.text();
+          const response = await fetch("/api/skills/import", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ content }),
+          });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(data.error || "导入失败。");
+          const skill = data.skill ?? {};
+          selectedSkillName = null;
+          skillName.value = skill.name ?? "";
+          skillDescription.value = skill.description ?? "";
+          skillBody.value = skill.body ?? "";
+          skillDelete.disabled = true;
+          renderUserSkillList();
+          setSkillStatus("已读入这份文件，确认无误后点保存。", "ok");
+        } catch (error) {
+          setSkillStatus(error instanceof Error ? error.message : "导入失败。", "error");
         }
       }
 
@@ -1288,6 +1462,15 @@
       });
       navTabs.forEach((tab) => {
         tab.addEventListener("click", () => setView(tab.dataset.view));
+      });
+      skillNew.addEventListener("click", clearSkillEditor);
+      skillSave.addEventListener("click", () => void saveUserSkill());
+      skillDelete.addEventListener("click", () => void removeUserSkill());
+      skillImport.addEventListener("click", () => skillImportFile.click());
+      skillImportFile.addEventListener("change", () => {
+        const file = skillImportFile.files?.[0];
+        skillImportFile.value = "";
+        void importUserSkillFile(file);
       });
       modelSetupScreen.querySelectorAll(".load-models").forEach((button) => button.addEventListener("click", () => loadModelsForSection(button.closest(".model-setup-card"))));
       modelSetupScreen.querySelectorAll(".save-profile").forEach((button) => button.addEventListener("click", () => saveModelSettings(button.closest(".model-setup-card"))));

@@ -16,6 +16,7 @@ The third design keeps what the second one got right (compare key data, not sent
 .agents/skills/consistency-review/SKILL.md      the review, end to end
 .agents/skills/key-data-alignment/SKILL.md     what to collect, and how to write it down
 .agents/skills/conflict-adjudication/SKILL.md  when two values really disagree
+data/skills/<name>/SKILL.md                     the user's own domain skills
 ```
 
 One agent loads `consistency-review`, which loads the other two in turn, and drives the tools itself. The skill is the procedure: the steps, the criteria for a conflict, the shape of a value, the requirement that a quote be copied verbatim. Changing what a review considers a conflict is a change to a Markdown file, not to a prompt constant in `src/`.
@@ -36,6 +37,19 @@ What stays in code is capability and guardrail:
 | Which skills exist | `src/skills/loader.ts` | discovered from the disk, not listed in code |
 
 The vocabulary lives in code so there is one copy of it. The skill reads it through a tool instead of restating it, so the two cannot drift apart.
+
+## Where a domain skill enters
+
+Between parsing the documents and collecting the key data, the procedure asks whether these documents belong to a particular domain and loads the matching domain skill if one does. The domain skill adds two things and nothing else:
+
+- which key data that domain states, and
+- what a difference in that domain means.
+
+It does not change the procedure. A review with no domain skill runs the general way, on the built-in vocabulary — a missing domain skill is not a downgrade.
+
+When a domain skill is loaded, its key list is the vocabulary the agent collects against: it does not ask `list_key_vocabulary` for the built-in list, and it collects the domain's own keys plus whatever else the documents state that no key covers, as a custom key in the same style. A domain skill therefore only has to add the keys it cares about — it does not have to enumerate every key the documents state.
+
+This is a rule in the wording of `key-data-alignment` and of the `list_key_vocabulary` tool, not a branch in the code: `alignKeyData()` groups by the key string and never checks it against the built-in vocabulary, so a custom key aligns exactly like a built-in one.
 
 The skills themselves are discovered rather than listed, and the review procedure is injected into the first turn rather than left to the model to load. See [the skills contract](./skills.md).
 

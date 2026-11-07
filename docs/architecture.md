@@ -10,6 +10,8 @@ Skills are instructions for choosing and using document capabilities. Loaders ar
 
 CrossDoc implements the [Agent Skills specification](https://agentskills.io/specification), the format Pi uses. The skills live in `.agents/skills/<name>/SKILL.md` and are discovered, not listed in code: `src/skills/loader.ts` walks the directory, validates each skill against the specification, and raises a diagnostic for one it cannot use. Only the name, description, and location of each visible skill go into the system prompt; the bodies are loaded on demand. The review procedure is injected into the first turn rather than left to the model to load, so a review cannot run without it. See [the skills contract](./modules/skills.md).
 
+The user owns a second set of skills, under `data/skills/`. They carry domain knowledge — which key data a domain states, and what a difference in that domain means — and never change the procedure. `loadSkills()` reads the built-in root first, so a user skill cannot replace a built-in one; the reserved names are computed from what is loaded rather than written down. The built-in repository ships no domain skill of its own.
+
 ## Agent-Directed Data Flow
 
 ```text
@@ -29,7 +31,9 @@ User task + selected files
 
 There is no required `parse -> extract -> compare -> verify -> report` chain. The agent selects tools based on the user task. Consistency review is an optional capability, not the only way to use the documents.
 
-A consistency review is itself a skill, not a code path. `consistency-review` states the review end to end and loads `key-data-alignment` and `conflict-adjudication` in turn; the agent reads them and calls the tools itself. The code owns only the capability the skills call into — the key vocabulary, alignment by key, and the check that a finding is citable. See [the review adjudication contract](./modules/review-adjudication.md).
+- A consistency review is itself a skill, not a code path. `consistency-review` states the review end to end and loads `key-data-alignment` and `conflict-adjudication` in turn; the agent reads them and calls the tools itself. The code owns only the capability the skills call into — the key vocabulary, alignment by key, and the check that a finding is citable. See [the review adjudication contract](./modules/review-adjudication.md).
+
+Between parsing and collecting, the procedure asks whether the documents belong to a particular domain and loads the matching domain skill if one does. The domain skill adds the key data that domain states and the severity that domain implies, and nothing else. A review with no domain skill runs the general way on the built-in vocabulary, which is why a missing domain skill is not a downgrade. The vocabulary does not have to become a data file for this to work: `alignKeyData()` groups by the key string and never checks it against the built-in list, so a custom key aligns like a built-in one.
 
 ## Agent and Tool Responsibilities
 
@@ -109,5 +113,6 @@ The current connected format is PDF, so its source is saved as `source.pdf`. `da
 - The review desk keeps its runs. A stored review can be listed and reopened, the ledger can be filtered by severity and document, two documents can be read side by side, a model configuration can be tested without being saved, and a review can be started over documents that are already in the Library.
 - The agent adapter's source-bounded persistence callback is wired to the local Library. Web sessions retain the Pi transcript and parsed scope only in memory; a server restart ends active sessions while archived files remain.
 - Local library storage saves source PDFs, canonical parsed JSON, and Markdown under `data/library/`; versioned SQLite migrations store the relative-path index and model/settings configuration, and import existing metadata records idempotently. A document is identified by its content: every upload is archived, repeated content is marked and folded into one row in the Library, and "first archived" is tracked separately from "last used".
+- The user owns the review policy for a domain. `我的技能` in the Web UI writes a skill under `data/skills/`, which the loader reads after the built-in skills and the agent loads when the documents belong to that domain. The built-in procedure and guard rails cannot be replaced, and the repository ships no domain skill.
 
 The delivery plan under `docs/plan/` first completed the PDF text/scan reading path, overview, and cited Q&A, and then replaced the fixed review entry point with the agent-directed path: the review procedure now lives in skills under `.agents/skills/`.

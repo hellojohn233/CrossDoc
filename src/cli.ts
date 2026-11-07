@@ -6,6 +6,7 @@ import { basename, resolve } from "node:path";
 
 import { createBuiltinModels } from "./agent.js";
 import { runConsistencyReview } from "./review-run.js";
+import { defaultUserSkillsRoot } from "./skills/user-store.js";
 import { LocalDatabase } from "./storage/database.js";
 import { writeReviewArtifacts } from "./storage/review-store.js";
 
@@ -50,6 +51,7 @@ async function review(patterns: string[]): Promise<void> {
       path,
     })),
     models: createBuiltinModels(),
+    userSkillsRoot: defaultUserSkillsRoot(),
     mainProfile,
     ...(visionProfile ? { visionProfile } : {}),
   });
