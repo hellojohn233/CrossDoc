@@ -33,20 +33,33 @@ Any entry state
 │                    模型配置                                   │
 │      配置不阻塞浏览，但开始读取前需要主模型可用                 │
 │                                                               │
-│  ┌────────────────────────┐  ┌────────────────────────────┐  │
-│  │ 主模型                 │  │ 扫描页视觉模型             │  │
-│  │ Base URL               │  │ Base URL                   │  │
-│  │ 模型协议               │  │ 模型协议                   │  │
-│  │ 模型 ID [加载模型]     │  │ 模型 ID [加载模型]         │  │
-│  │ API Key                │  │ API Key                    │  │
-│  │ 尚未配置完整            │  │ 尚未配置完整               │  │
-│  │ [保存主模型]           │  │ [保存视觉模型]             │  │
-│  └────────────────────────┘  └────────────────────────────┘  │
+│  ┌─────────────────────────────────────────────────────────┐  │
+│  │ 主模型                                      ● 已配置    │  │
+│  │ 概述、追问和审查编排都走它。开始读取前必须配好。         │  │
+│  │ ─────────────────────────────────────────────────────── │  │
+│  │ Base URL     [https://api.example.com/v1              ] │  │
+│  │ 模型协议     [OpenAI 兼容 ▾]                           │  │
+│  │ 模型 ID      [MiniMax-M3.1-Flash]  [加载模型]          │  │
+│  │ API Key      [••••••••••]  ☐ 清除已保存的 Key           │  │
+│  │ ─────────────────────────────────────────────────────── │  │
+│  │ [测试连接]                              [保存主模型]    │  │
+│  └─────────────────────────────────────────────────────────┘  │
+│  ┌─────────────────────────────────────────────────────────┐  │
+│  │ 扫描页视觉模型 (可选)                      ● 已配置    │  │
+│  │ 只用来读扫描页图片。不配，扫描页就读不出来。             │  │
+│  │ ─────────────────────────────────────────────────────── │  │
+│  │ …                                                  │  │
+│  │ [测试连接]                              [保存视觉模型]  │  │
+│  └─────────────────────────────────────────────────────────┘  │
 │                                                               │
 │  API Key 以明文保存在本机 data/crossdoc.sqlite，不随文档上传    │
 └───────────────────────────────────────────────────────────────┘
 
 ```
+
+The two roles are stacked, not side by side. A role is a block of settings, not a column in a comparison, so each one gets the full width and carries its own hierarchy: the role name is the heading, a line under it says what the role is for, and a status badge on the right says whether it is configured. The fields are a label on the left and the control on the right, so the four values line up and can be scanned. The status badge is a quiet pill with a dot, not a line of text under the last field.
+
+The main model comes first and is what the page is for. The vision model is marked `可选`, because a review without a vision profile still works on text pages. The page width is capped so the settings read as a form rather than a stretched table.
 
 The selection view stays free of any model notice; the `模型配置` tab is the only way in.
 

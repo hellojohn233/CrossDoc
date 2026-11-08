@@ -43,39 +43,85 @@
       </div>
       <div class="model-setup-grid">
         <section class="model-setup-card" data-role="main">
-          <h3>主模型</h3>
-          <label>Base URL<input name="baseUrl" autocomplete="url" placeholder="https://api.example.com/v1" /></label>
-          <label>模型协议<select name="protocol"><option value="openai-completions">OpenAI 兼容</option><option value="anthropic-messages">Anthropic Messages</option><option value="google-generative-ai">Google Gemini API</option></select></label>
-          <div class="model-protocol-row">
-            <label>Model ID<input name="modelId" list="setup-main-models" autocomplete="off" placeholder="输入或加载模型 ID" /></label>
-            <button class="load-models" type="button">加载模型</button>
+          <header class="model-card-head">
+            <div>
+              <h3>主模型</h3>
+              <p>概述、追问和审查编排都走它。开始读取前必须配好。</p>
+            </div>
+            <span class="model-setup-role-status" aria-live="polite">尚未配置</span>
+          </header>
+          <div class="model-fields">
+            <label class="model-field">
+              <span class="model-field-label">Base URL</span>
+              <input name="baseUrl" autocomplete="url" placeholder="https://api.example.com/v1" />
+            </label>
+            <label class="model-field">
+              <span class="model-field-label">模型协议</span>
+              <select name="protocol"><option value="openai-completions">OpenAI 兼容</option><option value="anthropic-messages">Anthropic Messages</option><option value="google-generative-ai">Google Gemini API</option></select>
+            </label>
+            <div class="model-field">
+              <span class="model-field-label" id="main-model-id-label">Model ID</span>
+              <span class="model-field-control">
+                <input name="modelId" list="setup-main-models" autocomplete="off" aria-labelledby="main-model-id-label" placeholder="输入或加载模型 ID" />
+                <button class="ghost load-models" type="button">加载模型</button>
+              </span>
+            </div>
+            <datalist id="setup-main-models"></datalist>
+            <div class="model-field">
+              <span class="model-field-label" id="main-api-key-label">API Key</span>
+              <span class="model-field-control">
+                <input name="apiKey" type="password" autocomplete="new-password" aria-labelledby="main-api-key-label" placeholder="留空保留已保存的 Key" />
+                <label class="clear-key-option"><input name="clearApiKey" type="checkbox" /> 清除已保存的 Key</label>
+              </span>
+            </div>
           </div>
-          <datalist id="setup-main-models"></datalist>
-          <span class="model-load-status" aria-live="polite"></span>
-          <label>API Key<input name="apiKey" type="password" autocomplete="new-password" placeholder="留空保留已保存的 Key" /></label>
-          <label class="clear-key-option"><span><input name="clearApiKey" type="checkbox" /> 清除已保存的 Key</span></label>
-          <span class="model-setup-role-status" aria-live="polite">尚未配置</span>
-          <span class="model-test-status" data-role="main" aria-live="polite"></span>
           <div class="model-setup-buttons">
+            <span class="model-status-row">
+              <span class="model-load-status" aria-live="polite"></span>
+              <span class="model-test-status" data-role="main" aria-live="polite"></span>
+            </span>
             <button class="ghost test-profile" type="button" data-role="main">测试连接</button>
             <button class="primary save-profile" type="button">保存主模型</button>
           </div>
         </section>
         <section class="model-setup-card" data-role="vision">
-          <h3>扫描页视觉模型</h3>
-          <label>Base URL<input name="baseUrl" autocomplete="url" placeholder="https://generativelanguage.googleapis.com/v1beta" /></label>
-          <label>模型协议<select name="protocol"><option value="openai-completions">OpenAI 兼容</option><option value="anthropic-messages">Anthropic Messages</option><option value="google-generative-ai">Google Gemini API</option></select></label>
-          <div class="model-protocol-row">
-            <label>Model ID<input name="modelId" list="setup-vision-models" autocomplete="off" placeholder="输入或加载模型 ID" /></label>
-            <button class="load-models" type="button">加载模型</button>
+          <header class="model-card-head">
+            <div>
+              <h3>扫描页视觉模型<span class="model-optional">可选</span></h3>
+              <p>只用来读扫描页图片。不配，扫描页就读不出来。</p>
+            </div>
+            <span class="model-setup-role-status" aria-live="polite">尚未配置</span>
+          </header>
+          <div class="model-fields">
+            <label class="model-field">
+              <span class="model-field-label">Base URL</span>
+              <input name="baseUrl" autocomplete="url" placeholder="https://generativelanguage.googleapis.com/v1beta" />
+            </label>
+            <label class="model-field">
+              <span class="model-field-label">模型协议</span>
+              <select name="protocol"><option value="openai-completions">OpenAI 兼容</option><option value="anthropic-messages">Anthropic Messages</option><option value="google-generative-ai">Google Gemini API</option></select>
+            </label>
+            <div class="model-field">
+              <span class="model-field-label" id="vision-model-id-label">Model ID</span>
+              <span class="model-field-control">
+                <input name="modelId" list="setup-vision-models" autocomplete="off" aria-labelledby="vision-model-id-label" placeholder="输入或加载模型 ID" />
+                <button class="ghost load-models" type="button">加载模型</button>
+              </span>
+            </div>
+            <datalist id="setup-vision-models"></datalist>
+            <div class="model-field">
+              <span class="model-field-label" id="vision-api-key-label">API Key</span>
+              <span class="model-field-control">
+                <input name="apiKey" type="password" autocomplete="new-password" aria-labelledby="vision-api-key-label" placeholder="留空保留已保存的 Key" />
+                <label class="clear-key-option"><input name="clearApiKey" type="checkbox" /> 清除已保存的 Key</label>
+              </span>
+            </div>
           </div>
-          <datalist id="setup-vision-models"></datalist>
-          <span class="model-load-status" aria-live="polite"></span>
-          <label>API Key<input name="apiKey" type="password" autocomplete="new-password" placeholder="留空保留已保存的 Key" /></label>
-          <label class="clear-key-option"><span><input name="clearApiKey" type="checkbox" /> 清除已保存的 Key</span></label>
-          <span class="model-setup-role-status" aria-live="polite">尚未配置</span>
-          <span class="model-test-status" data-role="vision" aria-live="polite"></span>
           <div class="model-setup-buttons">
+            <span class="model-status-row">
+              <span class="model-load-status" aria-live="polite"></span>
+              <span class="model-test-status" data-role="vision" aria-live="polite"></span>
+            </span>
             <button class="ghost test-profile" type="button" data-role="vision">测试连接</button>
             <button class="primary save-profile" type="button">保存视觉模型</button>
           </div>
