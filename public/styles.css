@@ -355,20 +355,31 @@
       .model-setup-status { min-height: 20px; margin: 12px 0 0; color: var(--muted); font-size: 13px; }
       .model-setup-status.error { color: var(--red); }
 
-      /* 我的技能：使用者的领域 skill。列表是一条横向的 chip 条，编辑器整块铺开。 */
-      .skills-screen { width: min(calc(100% - 2 * var(--gutter)), var(--page-width)); margin-inline: auto; padding: 40px 0 64px; }
+      /* 我的技能：列表页和编辑页分开。列表只负责列出来，编辑是另一屏。 */
+      .skills-screen,
+      .skill-editor-screen { width: min(calc(100% - 2 * var(--gutter)), var(--page-width)); margin-inline: auto; padding: 40px 0 64px; }
       .skills-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 18px; padding-bottom: 16px; border-bottom: 2px solid var(--ink); }
       .skills-heading h2 { margin: 0; font-size: clamp(24px, 3vw, 30px); letter-spacing: 0; }
       .skills-heading p { margin: 8px 0 0; max-width: 60ch; color: var(--muted); font-size: 13px; }
       .skills-heading-actions { display: flex; flex-shrink: 0; gap: 8px; }
-      .skills-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
-      .skill-tab { display: grid; gap: 1px; max-width: 320px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
-      .skill-tab:hover { border-color: var(--line-dark); }
-      .skill-tab-name { font-size: 13px; font-weight: 700; }
-      .skill-tab-description { overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-      .skill-tab-active { border-color: var(--ink); background: var(--ink); color: var(--paper); }
-      .skill-tab-active .skill-tab-description { color: rgba(242, 238, 229, 0.7); }
-      .skills-tabs-empty { padding: 10px 0; color: var(--muted); font-size: 13px; }
+      .skills-summary { margin: 0 0 12px; color: var(--muted); font-size: 13px; }
+      .skills-list-panel { overflow: hidden; border: 1px solid var(--line-dark); border-radius: var(--radius); background: var(--panel); box-shadow: var(--shadow-sm); }
+      .skills-list-header,
+      .skill-row { display: grid; grid-template-columns: minmax(140px, 190px) minmax(0, 1fr) 148px 72px; gap: 18px; align-items: center; padding: 0 20px; }
+      .skills-list-header { min-height: 42px; border-bottom: 1px solid var(--line-dark); background: var(--panel-soft); color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+      .skill-row { min-height: 62px; border-bottom: 1px solid var(--line); }
+      .skill-row:last-child { border-bottom: 0; }
+      .skill-row:hover { background: var(--panel-soft); }
+      .skill-row-name { font-size: 14px; font-weight: 700; }
+      .skill-row-description { overflow: hidden; color: var(--muted); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+      .skill-row-time { color: var(--faint); font-size: 12px; font-variant-numeric: tabular-nums; }
+      .skill-row-edit { justify-self: end; }
+      .skills-empty { margin: 0; padding: 34px 20px; color: var(--muted); font-size: 13px; text-align: center; }
+      .skills-list-panel-empty .skills-list-header { display: none; }
+      #skill-list-status:not(:empty) { margin-bottom: 12px; }
+      #skill-list-status:empty { display: none; }
+      .skill-editor-title { display: grid; gap: 12px; justify-items: start; }
+      .skill-back { padding: 5px 10px; font-size: 12px; }
       .skills-editor { display: grid; gap: 14px; padding: 22px; border: 1px solid var(--line-dark); border-radius: var(--radius); background: var(--panel); box-shadow: var(--shadow-sm); }
       .skills-editor label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
       .skills-editor input, .skills-editor textarea { width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: #fff; color: var(--ink); font: inherit; font-size: 13px; }

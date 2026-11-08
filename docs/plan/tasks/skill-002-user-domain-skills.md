@@ -55,7 +55,7 @@ The user's skill is three fields — name, description, body — and the server 
 
 ### The entry point is a page, not a tool
 
-`我的技能` is the fourth header tab: a flat list on the left, an editor on the right, and `新建` / `导入 .md` / `保存` / `删除`. There is no categorization, no tagging, no inheritance, no template library, and no `write_skill` tool — the user asked for something small and simple, and the user writes the file themselves.
+`我的技能` is the fourth header tab. It opens a list page: one row per skill with its name, description, and last change, plus `新建` / `导入 .md`. Picking a row opens a second screen with the editor and `保存` / `删除`, and a `← 返回列表` control goes back. There is no categorization, no tagging, no inheritance, no template library, and no `write_skill` tool — the user asked for something small and simple, and the user writes the file themselves.
 
 Importing parses a `SKILL.md` the user already has and fills the editor. It does not save it: an imported skill changes what the next review does, so the user sees it first.
 
