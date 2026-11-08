@@ -89,7 +89,7 @@
       <div class="skills-heading">
         <div>
           <h2>我的技能</h2>
-          <p>你自己的领域审查口径。领域技能只补充两件事：这个领域该抽哪些关键数据、什么差异算严重。审查流程由内置 skill 决定，不受这里影响。</p>
+          <p>只补充「这个领域抽什么、什么差异算严重」，审查流程不变。</p>
         </div>
         <div class="skills-heading-actions">
           <button class="ghost" id="skill-new" type="button">新建</button>
@@ -97,19 +97,17 @@
           <input id="skill-import-file" type="file" accept=".md,text/markdown" hidden />
         </div>
       </div>
-      <div class="skills-layout">
-        <section class="skills-list" id="skill-list" aria-live="polite"></section>
-        <section class="skills-editor">
-          <label>名称<input id="skill-name" autocomplete="off" placeholder="prospectus-review" /></label>
-          <label>描述<input id="skill-description" autocomplete="off" placeholder="用于审查证券招股说明书。agent 靠这句话判断什么时候加载它。" /></label>
-          <label>正文<textarea id="skill-body" rows="14" placeholder="本领域该抽哪些关键数据：&#10;revenue / gross_margin / net_income / audit_opinion"></textarea></label>
-          <div class="skills-editor-actions">
-            <button class="primary" id="skill-save" type="button">保存</button>
-            <button class="ghost" id="skill-delete" type="button" disabled>删除</button>
-          </div>
+      <nav class="skills-tabs" id="skill-list" aria-label="我的技能"></nav>
+      <section class="skills-editor">
+        <label>名称<input id="skill-name" autocomplete="off" placeholder="prospectus-review" /></label>
+        <label>描述<input id="skill-description" autocomplete="off" placeholder="用于审查证券招股说明书。agent 靠这句话判断什么时候加载它。" /></label>
+        <label>正文<textarea id="skill-body" rows="16" placeholder="本领域该抽哪些关键数据：&#10;revenue / gross_margin / net_income / audit_opinion"></textarea></label>
+        <div class="skills-editor-actions">
+          <button class="primary" id="skill-save" type="button">保存</button>
+          <button class="ghost" id="skill-delete" type="button" disabled>删除</button>
           <p class="skills-status" id="skill-status" aria-live="polite"></p>
-        </section>
-      </div>
+        </div>
+      </section>
     </main>
 
     <main class="ingest-screen" id="ingest-screen" hidden>
@@ -549,13 +547,13 @@
 
       function renderUserSkillList() {
         if (userSkills.length === 0) {
-          skillList.innerHTML = '<div class="library-empty">还没有自己的 skill</div>';
+          skillList.innerHTML = '<p class="skills-tabs-empty">还没有自己的 skill。点「新建」写一份，或者「导入 .md」读一份现成的。</p>';
           return;
         }
         skillList.innerHTML = userSkills.map((skill) => `
-          <button class="skill-entry${skill.name === selectedSkillName ? " skill-entry-active" : ""}" type="button" data-skill-name="${escapeHtml(skill.name)}">
-            <span class="skill-entry-name">${escapeHtml(skill.name)}</span>
-            <span class="skill-entry-description">${escapeHtml(skill.description)}</span>
+          <button class="skill-tab${skill.name === selectedSkillName ? " skill-tab-active" : ""}" type="button" data-skill-name="${escapeHtml(skill.name)}">
+            <span class="skill-tab-name">${escapeHtml(skill.name)}</span>
+            <span class="skill-tab-description">${escapeHtml(skill.description)}</span>
           </button>
         `).join("");
         skillList.querySelectorAll("[data-skill-name]").forEach((button) => {
@@ -573,6 +571,8 @@
             selectedSkillName = null;
           }
           renderUserSkillList();
+          // 还没有选中任何一份时，打开第一份，省得每次都要点一下。
+          if (!selectedSkillName && userSkills.length > 0) selectUserSkill(userSkills[0].name);
         } catch (error) {
           skillList.innerHTML = `<div class="library-empty library-error">${escapeHtml(error instanceof Error ? error.message : "技能读取失败。")}</div>`;
         }

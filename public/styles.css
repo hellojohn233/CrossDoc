@@ -355,25 +355,26 @@
       .model-setup-status { min-height: 20px; margin: 12px 0 0; color: var(--muted); font-size: 13px; }
       .model-setup-status.error { color: var(--red); }
 
-      /* 我的技能：使用者的领域 skill。列表是平的，一份 skill 一个文件。 */
+      /* 我的技能：使用者的领域 skill。列表是一条横向的 chip 条，编辑器整块铺开。 */
       .skills-screen { width: min(calc(100% - 2 * var(--gutter)), var(--page-width)); margin-inline: auto; padding: 40px 0 64px; }
-      .skills-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 22px; padding-bottom: 18px; border-bottom: 2px solid var(--ink); }
+      .skills-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; margin-bottom: 18px; padding-bottom: 16px; border-bottom: 2px solid var(--ink); }
       .skills-heading h2 { margin: 0; font-size: clamp(24px, 3vw, 30px); letter-spacing: 0; }
-      .skills-heading p { margin: 9px 0 0; max-width: 62ch; color: var(--muted); font-size: 13px; }
+      .skills-heading p { margin: 8px 0 0; max-width: 60ch; color: var(--muted); font-size: 13px; }
       .skills-heading-actions { display: flex; flex-shrink: 0; gap: 8px; }
-      .skills-layout { display: grid; grid-template-columns: minmax(200px, 260px) 1fr; gap: 18px; align-items: start; }
-      .skills-list { display: grid; gap: 6px; }
-      .skill-entry { display: grid; gap: 3px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--panel); color: var(--ink); font: inherit; text-align: left; cursor: pointer; box-shadow: var(--shadow-sm); }
-      .skill-entry:hover { border-color: var(--line-dark); }
-      .skill-entry-active { border-color: var(--blue); background: var(--blue-soft); }
-      .skill-entry-name { font-size: 13px; font-weight: 700; }
-      .skill-entry-description { overflow: hidden; color: var(--muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-      .skills-editor { display: grid; gap: 12px; padding: 20px; border: 1px solid var(--line-dark); border-radius: var(--radius); background: var(--panel); box-shadow: var(--shadow-sm); }
+      .skills-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+      .skill-tab { display: grid; gap: 1px; max-width: 320px; padding: 8px 14px; border: 1px solid var(--line); border-radius: 999px; background: var(--panel); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+      .skill-tab:hover { border-color: var(--line-dark); }
+      .skill-tab-name { font-size: 13px; font-weight: 700; }
+      .skill-tab-description { overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+      .skill-tab-active { border-color: var(--ink); background: var(--ink); color: var(--paper); }
+      .skill-tab-active .skill-tab-description { color: rgba(242, 238, 229, 0.7); }
+      .skills-tabs-empty { padding: 10px 0; color: var(--muted); font-size: 13px; }
+      .skills-editor { display: grid; gap: 14px; padding: 22px; border: 1px solid var(--line-dark); border-radius: var(--radius); background: var(--panel); box-shadow: var(--shadow-sm); }
       .skills-editor label { display: grid; gap: 5px; color: var(--muted); font-size: 12px; }
-      .skills-editor input, .skills-editor textarea { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: #fff; color: var(--ink); font: inherit; font-size: 13px; }
-      .skills-editor textarea { min-height: 220px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.6; }
-      .skills-editor-actions { display: flex; gap: 8px; }
-      .skills-status { min-height: 20px; margin: 4px 0 0; color: var(--muted); font-size: 13px; }
+      .skills-editor input, .skills-editor textarea { width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: #fff; color: var(--ink); font: inherit; font-size: 13px; }
+      .skills-editor textarea { min-height: 320px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.7; }
+      .skills-editor-actions { display: flex; align-items: center; gap: 8px; }
+      .skills-status { flex: 1 1 auto; margin: 0; color: var(--muted); font-size: 13px; }
       .skills-status-ok { color: var(--teal); }
       .skills-status-warn { color: var(--amber); }
       .skills-status-error { color: var(--red); }
