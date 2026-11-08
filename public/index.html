@@ -100,12 +100,6 @@
       <p class="skills-summary" id="skill-summary"></p>
       <p class="skills-status" id="skill-list-status" aria-live="polite"></p>
       <section class="skills-list-panel">
-        <div class="skills-list-header">
-          <span>名称</span>
-          <span>描述</span>
-          <span>更新于</span>
-          <span></span>
-        </div>
         <div class="skills-list" id="skill-list" aria-live="polite"></div>
       </section>
     </main>
@@ -585,6 +579,11 @@
         return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
       }
 
+      function skillMark(name) {
+        const first = String(name ?? "").trim().match(/[a-z0-9]/i);
+        return first ? first[0].toUpperCase() : "?";
+      }
+
       function renderUserSkillList() {
         skillListPanel.classList.toggle("skills-list-panel-empty", userSkills.length === 0);
         if (userSkills.length === 0) {
@@ -595,9 +594,12 @@
         skillSummary.textContent = `共 ${userSkills.length} 份领域 skill。内置的流程 skill 不在这里，它们跟着代码走。`;
         skillList.innerHTML = userSkills.map((skill) => `
           <div class="skill-row">
-            <span class="skill-row-name">${escapeHtml(skill.name)}</span>
-            <span class="skill-row-description">${escapeHtml(skill.description || "（没有写描述）")}</span>
-            <span class="skill-row-time">${escapeHtml(formatSkillTime(skill.updatedAt))}</span>
+            <span class="skill-row-mark" aria-hidden="true">${escapeHtml(skillMark(skill.name))}</span>
+            <div class="skill-row-body">
+              <span class="skill-row-name">${escapeHtml(skill.name)}</span>
+              <p class="skill-row-description">${escapeHtml(skill.description || "（没有写描述）")}</p>
+              <span class="skill-row-meta">更新于 ${escapeHtml(formatSkillTime(skill.updatedAt))}</span>
+            </div>
             <button class="ghost skill-row-edit" type="button" data-edit-skill="${escapeHtml(skill.name)}">编辑</button>
           </div>
         `).join("");

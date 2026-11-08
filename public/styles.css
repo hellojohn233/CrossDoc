@@ -364,18 +364,17 @@
       .skills-heading-actions { display: flex; flex-shrink: 0; gap: 8px; }
       .skills-summary { margin: 0 0 12px; color: var(--muted); font-size: 13px; }
       .skills-list-panel { overflow: hidden; border: 1px solid var(--line-dark); border-radius: var(--radius); background: var(--panel); box-shadow: var(--shadow-sm); }
-      .skills-list-header,
-      .skill-row { display: grid; grid-template-columns: minmax(140px, 190px) minmax(0, 1fr) 148px 72px; gap: 18px; align-items: center; padding: 0 20px; }
-      .skills-list-header { min-height: 42px; border-bottom: 1px solid var(--line-dark); background: var(--panel-soft); color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
-      .skill-row { min-height: 62px; border-bottom: 1px solid var(--line); }
+      .skills-list { display: grid; }
+      .skill-row { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 14px; align-items: start; padding: 16px 20px; border-bottom: 1px solid var(--line); }
       .skill-row:last-child { border-bottom: 0; }
       .skill-row:hover { background: var(--panel-soft); }
-      .skill-row-name { font-size: 14px; font-weight: 700; }
-      .skill-row-description { overflow: hidden; color: var(--muted); font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
-      .skill-row-time { color: var(--faint); font-size: 12px; font-variant-numeric: tabular-nums; }
-      .skill-row-edit { justify-self: end; }
+      .skill-row-mark { display: grid; place-items: center; width: 34px; height: 34px; border-radius: var(--radius-sm); background: var(--paper-2); color: var(--ink-2); font-size: 13px; font-weight: 700; }
+      .skill-row-body { display: grid; gap: 4px; }
+      .skill-row-name { font-size: 15px; font-weight: 700; }
+      .skill-row-description { display: -webkit-box; overflow: hidden; margin: 0; color: var(--muted); font-size: 13px; line-height: 1.6; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+      .skill-row-meta { margin-top: 2px; color: var(--faint); font-size: 12px; }
+      .skill-row-edit { align-self: center; }
       .skills-empty { margin: 0; padding: 34px 20px; color: var(--muted); font-size: 13px; text-align: center; }
-      .skills-list-panel-empty .skills-list-header { display: none; }
       #skill-list-status:not(:empty) { margin-bottom: 12px; }
       #skill-list-status:empty { display: none; }
       .skill-editor-title { display: grid; gap: 12px; justify-items: start; }

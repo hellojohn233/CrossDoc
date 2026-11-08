@@ -70,10 +70,9 @@ My skills
 │ 只补充「这个领域抽什么、什么差异算严重」，审查流程不变。 │
 │ 共 1 份领域 skill。内置的流程 skill 不在这里…          │
 ├───────────────────────────────────────────────────────┤
-│ 名称          │ 描述                    │ 更新于   │[编辑]│
-├───────────────────────────────────────────────────────┤
-│ prospectus-   │ 用于审查证券招股说明书…   │ 2026-11-│[编辑]│
-│ review        │                         │ 08 00:46│     │
+│ ┌──┐  prospectus-review                     [编辑]    │
+│ │ P │  用于审查证券招股说明书。当这批文档是招股书…      │
+│ └──┘  更新于 2026-11-08 00:46                         │
 └───────────────────────────────────────────────────────┘
 
 My skills, editor
@@ -89,6 +88,8 @@ My skills, editor
 │ [保存]  [删除]                                        │
 └───────────────────────────────────────────────────────┘
 ```
+
+The skill list is not a table. One skill is one row, and the row carries its own hierarchy: the name is the heading, the description is the second line, and the last change is a quiet note under it. Nothing is sorted into equal-weight columns, because a skill is not a record — it is a document with a name and a body.
 
 The reading file list is ordered by the original browser selection. It shows file name and one compact state: waiting, reading, ready, or failed. A file whose content is already in the Library also says so: *这份内容已在资料库里（title，date），会作为一份新的归档保存。* The right side shows the overview first and appends Q&A turns below it. Page citations use an inline linked marker such as `[第 3 页]`.
 
