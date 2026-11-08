@@ -365,6 +365,24 @@
       .model-setup-status { min-height: 20px; margin: 12px 0 0; color: var(--muted); font-size: 13px; }
       .model-setup-status.error { color: var(--red); }
 
+      /* 审查记录：跑过的审查是这个产品的主产出物，单独一页。 */
+      .reviews-screen { width: min(calc(100% - 2 * var(--gutter)), var(--page-width)); margin-inline: auto; padding: 40px 0 64px; }
+      .reviews-header { margin-bottom: 18px; padding-bottom: 16px; border-bottom: 2px solid var(--ink); }
+      .reviews-header h2 { margin: 0; font-size: clamp(24px, 3vw, 30px); letter-spacing: 0; }
+      .reviews-header p { margin: 8px 0 0; color: var(--muted); font-size: 13px; }
+      .reviews-summary { margin: 0 0 12px; color: var(--muted); font-size: 13px; }
+      .reviews-list-panel { overflow: hidden; border: 1px solid var(--line-dark); border-radius: var(--radius); background: var(--panel); box-shadow: var(--shadow-sm); }
+      .reviews-list { display: grid; }
+      .review-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 18px; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+      .review-row:last-child { border-bottom: 0; }
+      .review-row:hover { background: var(--panel-soft); }
+      .review-row-body { display: grid; gap: 4px; min-width: 0; }
+      .review-row-title { overflow: hidden; font-size: 15px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
+      .review-row-meta { color: var(--muted); font-size: 13px; }
+      .review-row-open { flex: 0 0 auto; }
+      .reviews-empty { margin: 0; padding: 34px 20px; color: var(--muted); font-size: 13px; text-align: center; }
+      .reviews-error { color: var(--red); }
+
       /* 我的技能：列表页和编辑页分开。列表只负责列出来，编辑是另一屏。 */
       .skills-screen,
       .skill-editor-screen { width: min(calc(100% - 2 * var(--gutter)), var(--page-width)); margin-inline: auto; padding: 40px 0 64px; }

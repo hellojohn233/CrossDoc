@@ -19,7 +19,7 @@ The page has four states: selection, reading, the Library, and the review consol
 ```text
 Selection
 ┌───────────────────────────────────────────────────────┐
-│ CrossDoc   [上传][资料库][模型配置]                     │
+│ CrossDoc   [上传][资料库][审查记录][模型配置]            │
 ├───────────────────────────────────────────────────────┤
 │                                                       │
 │                 拖放文件或文件夹                       │
@@ -30,7 +30,7 @@ Selection
 
 Reading
 ┌───────────────────────────────────────────────────────┐
-│ CrossDoc   [上传][资料库][模型配置]   当前阅读  [返回] │
+│ CrossDoc   [上传][资料库][审查记录]   当前阅读  [返回] │
 ├────────────────────────┬──────────────────────────────┤
 │ 已选文件                │ 概述                         │
 │ ● 合同.pdf  已完成       │ Agent 的简短概述及页码引用    │
@@ -42,7 +42,7 @@ Reading
 
 Library
 ┌───────────────────────────────────────────────────────┐
-│ CrossDoc   [上传][资料库][模型配置][我的技能]            │
+│ CrossDoc  [上传][资料库][审查记录][模型配置][我的技能]    │
 ├───────────────────────────────────────────────────────┤
 │ 资料库                                                 │
 │ 源文件与转换后的 Markdown                              │
@@ -56,15 +56,23 @@ Library
 │ ☐ 合同b.pdf   PDF · 1 页 · 2026/10/27   打开源文件↗ …  │
 ├───────────────────────────────────────────────────────┤
 │ 已选 2 份文档                    [用选中文件审查]      │
+└───────────────────────────────────────────────────────┘
+
+Review history
+┌───────────────────────────────────────────────────────┐
+│ CrossDoc  [上传][资料库][审查记录][模型配置][我的技能]    │
 ├───────────────────────────────────────────────────────┤
 │ 审查记录                                               │
-│ 合同a.pdf、合同b.pdf · 3 份文档 · 4/4 条冲突已确认      │
-│                                        2026/11/5 [打开]│
+│ 跑过的审查与报告。点「打开」回到当时的冲突清单。         │
+│ 共 20 次审查。                                         │
+├───────────────────────────────────────────────────────┤
+│ 合同a.pdf、合同b.pdf                       [打开]      │
+│ 3 份文档 · 12 条关键数据 · 4/4 条冲突已确认 · 2026/11/5│
 └───────────────────────────────────────────────────────┘
 
 My skills
 ┌───────────────────────────────────────────────────────┐
-│ CrossDoc   [上传][资料库][模型配置][我的技能]            │
+│ CrossDoc  [上传][资料库][审查记录][模型配置][我的技能]    │
 ├───────────────────────────────────────────────────────┤
 │ 我的技能                                  [新建][导入]  │
 │ 只补充「这个领域抽什么、什么差异算严重」，审查流程不变。 │
@@ -77,7 +85,7 @@ My skills
 
 My skills, editor
 ┌───────────────────────────────────────────────────────┐
-│ CrossDoc   [上传][资料库][模型配置][我的技能]            │
+│ CrossDoc  [上传][资料库][审查记录][模型配置][我的技能]    │
 ├───────────────────────────────────────────────────────┤
 │ [← 返回列表]                                        │
 │ 编辑 prospectus-review                               │
@@ -93,7 +101,9 @@ The skill list is not a table. One skill is one row, and the row carries its own
 
 The reading file list is ordered by the original browser selection. It shows file name and one compact state: waiting, reading, ready, or failed. A file whose content is already in the Library also says so: *这份内容已在资料库里（title，date），会作为一份新的归档保存。* The right side shows the overview first and appends Q&A turns below it. Page citations use an inline linked marker such as `[第 3 页]`.
 
-The Library holds two blocks. The first lists the archived documents; each row carries a checkbox that picks the document for a review. The second lists the reviews that were run before, newest first. A review that is picked up in the Library does not need to be uploaded again — the archived source file is what the review reads.
+The Library holds the archived documents. Each row carries a checkbox that picks the document for a review. A review that is picked up in the Library does not need to be uploaded again — the archived source file is what the review reads.
+
+The review history has a page of its own, under `审查记录`. The Library keeps the inputs; the history keeps the results, and a review result is this product's main output, so it does not sit under the document list. Each row carries the document titles, the counts, and the time, and `打开` loads the stored body into the console.
 
 The document list is grouped by content. A document's identity is its content, and every upload is still archived, so the same contract uploaded three times is one row with two copies underneath it. The oldest copy in a group is the primary row and carries the checkbox; the copies carry none, because they are the same content and picking one would mean picking the others. The copies are collapsed behind a control that reads `另有 N 份相同内容 ▾` and toggles to `收起相同内容 ▴`. A notice above the list reports how many groups repeat and how many archives that is in total. The row metadata shows the first-archived date, and the last-used date as well when it differs — reviewing a document does not make it newly archived.
 
@@ -159,12 +169,12 @@ The agent marks sources using `[[cite:<document-id>:<page-number>]]`. The client
 | Citation link | Overview or answer | Opens the archived PDF at the cited page in a new tab. |
 | `取消读取` | Active read | Cancels the active Pi Agent run and preserves already archived documents. |
 | `返回选择文件` | Reading | Leaves the session view and returns to file selection; the Library remains unchanged. |
-| `上传` / `资料库` / `模型配置` / `我的技能` | Header tabs | Switches between the selection, Library, model configuration, and skills views; the active tab carries `aria-current="page"`. |
+| `上传` / `资料库` / `审查记录` / `模型配置` / `我的技能` | Header tabs | Switches between the selection, Library, review history, model configuration, and skills views; the active tab carries `aria-current="page"`. |
 | `返回阅读` | Review console | Returns to the reading view of the active session and re-attaches the event stream. |
 | Document checkbox | Library | Picks an archived document for a review. The selection bar reports the count and enables the review action from two documents up. Only the primary row of a content group carries a checkbox; the copies are the same content. |
 | `另有 N 份相同内容` | Library | Expands or collapses the copies archived under a document. The control's label and `aria-expanded` follow the state. |
 | `用选中文件审查` | Library | Starts a review over the picked documents and switches to the review console. The documents are read from the library, not uploaded. |
-| `打开` on a review record | Library | Loads a stored review into the review console. |
+| `打开` on a review record | Review history | Loads a stored review into the review console. The `审查记录` tab stays marked as the current one, and `返回阅读` is hidden because the console does not belong to the running read. |
 | `新建` | My skills | Clears the editor so a new skill can be written. |
 | `导入 .md` | My skills | Reads a `SKILL.md` the user brought along and fills the editor with it. It does not save it. |
 | `保存` | My skills | Writes the skill. The message says it takes effect on the next review. |
@@ -194,7 +204,7 @@ At desktop widths, keep the source list at approximately 300px and let the readi
 App
 ├── Header
 │   ├── Brand
-│   └── TopNav (上传 / 资料库 / 模型配置)
+│   └── TopNav (上传 / 资料库 / 审查记录 / 模型配置 / 我的技能)
 ├── SelectionView
 │   ├── FilePicker
 │   ├── FolderPicker
@@ -227,6 +237,7 @@ App
 
 - Selection and Reading share `/` and switch state client-side.
 - Library opens through the `资料库` header tab and `/api/library`.
+- The review history opens through the `审查记录` header tab and `/api/reviews`.
 - Model configuration opens through the `模型配置` header tab.
 - The user's own skills open through the `我的技能` header tab and use `/api/skills`.
 - Source citations use `/api/library/:id/source#page=:page`.

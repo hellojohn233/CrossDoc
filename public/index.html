@@ -20,6 +20,7 @@
         <nav class="top-nav" aria-label="主导航">
           <button class="nav-tab" type="button" data-view="selection">上传</button>
           <button class="nav-tab" type="button" data-view="library">资料库</button>
+          <button class="nav-tab" type="button" data-view="reviews">审查记录</button>
           <button class="nav-tab" type="button" data-view="models">模型配置</button>
           <button class="nav-tab" type="button" data-view="skills">我的技能</button>
         </nav>
@@ -248,15 +249,18 @@
         <span id="library-selection-count">未选择文档</span>
         <button class="primary" id="review-library-selection" type="button" disabled>用选中文件审查</button>
       </div>
+    </main>
 
-      <header class="library-header library-header-sub">
+    <main class="reviews-screen" id="reviews-screen" hidden>
+      <header class="reviews-header">
         <div>
           <h2>审查记录</h2>
-          <p>跑过的审查与报告</p>
+          <p>跑过的审查与报告。点「打开」回到当时的冲突清单。</p>
         </div>
       </header>
-      <section class="library-list" id="review-history-list" aria-live="polite">
-        <div class="library-empty">正在读取审查记录…</div>
+      <p class="reviews-summary" id="reviews-summary"></p>
+      <section class="reviews-list-panel">
+        <div class="reviews-list" id="reviews-list" aria-live="polite"></div>
       </section>
     </main>
 
@@ -363,11 +367,13 @@
       const submit = document.querySelector("#submit");
       const ingestScreen = document.querySelector("#ingest-screen");
       const libraryScreen = document.querySelector("#library-screen");
+      const reviewsScreen = document.querySelector("#reviews-screen");
+      const reviewsList = document.querySelector("#reviews-list");
+      const reviewsSummary = document.querySelector("#reviews-summary");
       const libraryList = document.querySelector("#library-list");
       const libraryActions = document.querySelector("#library-actions");
       const librarySelectionCount = document.querySelector("#library-selection-count");
       const reviewLibrarySelection = document.querySelector("#review-library-selection");
-      const reviewHistoryList = document.querySelector("#review-history-list");
       const compareFold = document.querySelector("#compare-fold");
       const compareLeft = document.querySelector("#compare-left");
       const compareRight = document.querySelector("#compare-right");
@@ -438,6 +444,8 @@
       let readingEvents = null;
       let readDocuments = [];
       let readingDone = false;
+      // 打开历史审查时，审查台不属于当前这次读取，「返回阅读」没有意义。
+      let reviewOpenedFromHistory = false;
       let questionBusy = false;
       let lastReadEventId = 0;
       let currentRunState = "Idle";
@@ -448,6 +456,7 @@
         reading: ["reading"],
         review: ["review"],
         library: ["library"],
+        reviews: ["reviews"],
         models: ["models"],
         skills: ["skills"],
         skillEditor: ["skill-editor"],
@@ -458,6 +467,7 @@
         reading: "selection",
         review: "selection",
         library: "library",
+        reviews: "reviews",
         models: "models",
         skills: "skills",
         skillEditor: "skills",
@@ -484,28 +494,27 @@
         if (state === "Failed") runDot.classList.add("error");
       }
 
-      function setView(view) {
+      function setView(view, tabOverride) {
         const screens = VIEW_SCREENS[view] ?? VIEW_SCREENS.selection;
         ingestScreen.hidden = !screens.includes("ingest");
         readingScreen.hidden = !screens.includes("reading");
         reviewScreen.hidden = !screens.includes("review");
         libraryScreen.hidden = !screens.includes("library");
+        reviewsScreen.hidden = !screens.includes("reviews");
         modelSetupScreen.hidden = !screens.includes("models");
         skillsScreen.hidden = !screens.includes("skills");
         skillEditorScreen.hidden = !screens.includes("skill-editor");
         startupState.hidden = true;
-        document.body.classList.remove("booting", "selection-open", "reading-open", "review-open", "library-open", "model-setup-open", "skills-open", "skill-editor-open");
+        document.body.classList.remove("booting", "selection-open", "reading-open", "review-open", "library-open", "reviews-open", "model-setup-open", "skills-open", "skill-editor-open");
         document.body.classList.add(`${view}-open`);
-        const activeTab = VIEW_TAB[view];
+        const activeTab = tabOverride ?? VIEW_TAB[view];
         navTabs.forEach((tab) => {
           if (tab.dataset.view === activeTab) tab.setAttribute("aria-current", "page");
           else tab.removeAttribute("aria-current");
         });
-        backToReading.hidden = view !== "review";
-        if (view === "library") {
-          void loadLibraryContent();
-          void loadReviewHistory();
-        }
+        backToReading.hidden = view !== "review" || reviewOpenedFromHistory;
+        if (view === "library") void loadLibraryContent();
+        if (view === "reviews") void loadReviewHistory();
         if (view === "skills") void loadUserSkills();
       }
 
@@ -566,17 +575,20 @@
 
       /** Loads the reviews that were run before, so a past result can be opened again. */
       async function loadReviewHistory() {
-        reviewHistoryList.innerHTML = '<div class="library-empty">正在读取审查记录…</div>';
+        reviewsList.innerHTML = '<p class="reviews-empty">正在读取审查记录…</p>';
         try {
           const response = await fetch("/api/reviews");
           const data = await response.json().catch(() => ({}));
           if (!response.ok) throw new Error(data.error || "审查记录读取失败。");
           const reviews = Array.isArray(data.reviews) ? data.reviews : [];
           if (reviews.length === 0) {
-            reviewHistoryList.innerHTML = '<div class="library-empty">还没有跑过审查</div>';
+            reviewsSummary.textContent = "还没有跑过审查。";
+            reviewsList.innerHTML = '<p class="reviews-empty">在「上传」里读几份文档，或者在「资料库」里勾选两份跑一次。</p>';
             return;
           }
-          reviewHistoryList.innerHTML = reviews.map((review) => {
+          reviewsSummary.textContent = `共 ${reviews.length} 次审查。`;
+          reviewsList.innerHTML = reviews.map((review) => {
+            const titles = review.titles.join("、") || review.id;
             const details = [
               `${review.documentCount} 份文档`,
               `${review.claimCount} 条关键数据`,
@@ -584,22 +596,20 @@
               formatLibraryDate(review.createdAt),
             ].filter(Boolean).join(" · ");
             return `
-              <article class="library-item">
-                <div>
-                  <h3 class="library-item-title" title="${escapeHtml(review.titles.join("、"))}">${escapeHtml(review.titles.join("、") || review.id)}</h3>
-                  <p class="library-item-meta">${escapeHtml(details)}</p>
+              <article class="review-row">
+                <div class="review-row-body">
+                  <span class="review-row-title" title="${escapeHtml(titles)}">${escapeHtml(titles)}</span>
+                  <span class="review-row-meta">${escapeHtml(details)}</span>
                 </div>
-                <div class="library-item-actions">
-                  <button class="ghost open-review" type="button" data-review-id="${escapeHtml(review.id)}">打开</button>
-                </div>
+                <button class="ghost review-row-open" type="button" data-review-id="${escapeHtml(review.id)}">打开</button>
               </article>
             `;
           }).join("");
-          reviewHistoryList.querySelectorAll("[data-review-id]").forEach((button) => {
+          reviewsList.querySelectorAll("[data-review-id]").forEach((button) => {
             button.addEventListener("click", () => void openStoredReview(button.dataset.reviewId));
           });
         } catch (error) {
-          reviewHistoryList.innerHTML = `<div class="library-empty library-error">${escapeHtml(error instanceof Error ? error.message : "审查记录读取失败。")}</div>`;
+          reviewsList.innerHTML = `<p class="reviews-empty reviews-error">${escapeHtml(error instanceof Error ? error.message : "审查记录读取失败。")}</p>`;
         }
       }
 
@@ -774,7 +784,7 @@
           const response = await fetch(`/api/reviews/${encodeURIComponent(reviewId)}`);
           const data = await response.json().catch(() => ({}));
           if (!response.ok) throw new Error(data.error || "这份审查已经不在了。");
-          applyReviewResult(data);
+          applyReviewResult(data, { fromHistory: true });
           setRunState("Ready", `已打开审查 ${reviewId.slice(0, 8)}。`);
         } catch (error) {
           setRunState("Failed", error instanceof Error ? error.message : "审查打开失败。");
@@ -1454,13 +1464,14 @@
        *     score, claims: [Claim, Claim], evidence: EvidenceSpan[] }] }
        * 后端换成任何实现，只要喂这个结构，前端不用动。
        */
-      function applyReviewResult(data) {
+      function applyReviewResult(data, options = {}) {
         result = data;
+        reviewOpenedFromHistory = Boolean(options.fromHistory);
         renderReviewedDocuments(data?.documents ?? []);
         renderLedger();
         renderReport(data?.reportMarkdown ?? "");
         renderComparePanels(data?.documents ?? []);
-        setView("review");
+        setView("review", options.fromHistory ? "reviews" : undefined);
       }
 
       /** Fills the two side-by-side document panes. */

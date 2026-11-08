@@ -28,7 +28,7 @@ For standard bases, OpenAI and Anthropic Base URLs include `/v1`; Gemini uses `/
 ```text
 Any entry state
 ┌───────────────────────────────────────────────────────────────┐
-│ CD  CrossDoc    [上传][资料库][模型配置]                        │
+│ CD  CrossDoc    [上传][资料库][审查记录][模型配置]             │
 ├───────────────────────────────────────────────────────────────┤
 │                    模型配置                                   │
 │      配置不阻塞浏览，但开始读取前需要主模型可用                 │
@@ -112,7 +112,7 @@ A missing role, an unsupported protocol, a missing model id, or an invalid Base 
 AppEntry
 ├── StartupState (while GET /api/settings resolves)
 └── Workspace
-    ├── TopNav (上传 / 资料库 / 模型配置)
+    ├── TopNav (上传 / 资料库 / 审查记录 / 模型配置 / 我的技能)
     ├── SelectionView
     ├── ReadingView
     ├── LibraryView

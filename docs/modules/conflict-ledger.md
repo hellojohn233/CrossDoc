@@ -125,4 +125,4 @@ A review is a durable artifact, and the console can reopen one. The ledger there
 
 Both are produced by the same `reviewResponseBody()` on the server, so a reopened review shows exactly what the original run showed — the same documents, the same conflicts, the same report.
 
-`GET /api/reviews` lists what was run before, newest first. Each entry carries the review id, the creation time, the document titles, and the counts. The Library view renders that list next to the archived documents, and `打开` loads the stored body into the console.
+`GET /api/reviews` lists what was run before, newest first. Each entry carries the review id, the creation time, the document titles, and the counts. The `审查记录` view renders that list on its own page, and `打开` loads the stored body into the console.
