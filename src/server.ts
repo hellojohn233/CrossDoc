@@ -18,7 +18,7 @@ import {
   validateUserSkill,
   writeUserSkill,
 } from "./skills/user-store.js";
-import { getLibraryDocument, listLibraryDocuments, saveLibraryDocument } from "./storage/library-store.js";
+import { clearLibraryDocuments, deleteLibraryDocument, getLibraryDocument, listLibraryDocuments, saveLibraryDocument } from "./storage/library-store.js";
 import { LocalDatabase, type ModelProfile, type ModelProtocol, type ModelRole } from "./storage/database.js";
 import { listReviewArtifacts, readReviewArtifact, writeReviewArtifacts } from "./storage/review-store.js";
 import type { ReviewResult } from "./core/types.js";
@@ -823,6 +823,27 @@ export function createWebApp(options: WebAppOptions = {}) {
       })) });
     } catch (error) {
       response.status(500).json({ error: error instanceof Error ? error.message : "Unable to read the library." });
+    }
+  });
+
+  app.delete("/api/library", async (_request, response) => {
+    try {
+      const removed = await clearLibraryDocuments(libraryDirectory, database);
+      response.json({ removed });
+    } catch (error) {
+      response.status(500).json({ error: error instanceof Error ? error.message : "Unable to clear the archive." });
+    }
+  });
+
+  app.delete("/api/library/:id", async (request, response) => {
+    const { id } = request.params;
+    if (!id || !documentIdPattern.test(id)) return response.status(404).json({ error: "Document not found." });
+    try {
+      const deleted = await deleteLibraryDocument(id, libraryDirectory, database);
+      if (!deleted) return response.status(404).json({ error: "Document not found." });
+      response.json({ deleted: true, id });
+    } catch (error) {
+      response.status(500).json({ error: error instanceof Error ? error.message : "Unable to remove the archive." });
     }
   });
 

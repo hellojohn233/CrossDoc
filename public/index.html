@@ -22,7 +22,7 @@
           <button class="nav-tab" type="button" data-view="library">文档</button>
           <button class="nav-tab" type="button" data-view="reviews">审查记录</button>
           <span class="nav-divider" aria-hidden="true"></span>
-          <button class="nav-tab" type="button" data-view="models">模型配置</button>
+          <button class="nav-tab" type="button" data-view="models">设置</button>
           <button class="nav-tab" type="button" data-view="skills">我的技能</button>
         </nav>
         <div class="top-actions">
@@ -40,10 +40,18 @@
 
     <main class="model-setup-screen" id="model-setup-screen" hidden>
       <div class="model-setup-heading">
-        <h2>模型配置</h2>
-        <p>主模型负责概述与追问,视觉模型负责扫描页。配置不阻塞浏览,但开始读取前需要主模型可用。</p>
+        <h2>设置</h2>
+        <p>模型怎么连，文档存在哪。</p>
       </div>
-      <div class="model-setup-grid">
+
+      <section class="settings-block">
+        <div class="settings-block-head">
+          <div>
+            <h3 class="settings-block-title">模型</h3>
+            <p class="settings-block-note">主模型负责概述与追问,视觉模型负责扫描页。配置不阻塞浏览,但开始读取前需要主模型可用。</p>
+          </div>
+        </div>
+        <div class="model-setup-grid">
         <section class="model-setup-card" data-role="main">
           <header class="model-card-head">
             <div>
@@ -128,9 +136,22 @@
             <button class="primary save-profile" type="button">保存视觉模型</button>
           </div>
         </section>
-      </div>
-      <p class="model-setup-status" id="model-setup-status" aria-live="polite"></p>
-      <p class="model-setup-note">API Key 以明文保存在本机 <code>data/crossdoc.sqlite</code>,不会随文档上传。</p>
+        </div>
+        <p class="model-setup-status" id="model-setup-status" aria-live="polite"></p>
+        <p class="model-setup-note">API Key 以明文保存在本机 <code>data/crossdoc.sqlite</code>,不会随文档上传。</p>
+      </section>
+
+      <section class="settings-block">
+        <div class="settings-block-head">
+          <div>
+            <h3 class="settings-block-title">归档存储</h3>
+            <p class="settings-block-note">每读一份文档就归档一次。同样的内容传了多次，每一次都留在这里。</p>
+          </div>
+          <button class="ghost danger" id="archive-clear" type="button">清空归档</button>
+        </div>
+        <p class="settings-block-status" id="archive-status" aria-live="polite"></p>
+        <div class="archive-list" id="archive-list" aria-live="polite"></div>
+      </section>
     </main>
 
     <main class="skills-screen" id="skills-screen" hidden>
@@ -339,6 +360,9 @@
       const retryStartup = document.querySelector("#retry-startup");
       const modelSetupScreen = document.querySelector("#model-setup-screen");
       const modelSetupStatus = document.querySelector("#model-setup-status");
+      const archiveList = document.querySelector("#archive-list");
+      const archiveStatus = document.querySelector("#archive-status");
+      const archiveClear = document.querySelector("#archive-clear");
       const modelSetupProfiles = { main: null, vision: null };
       const skillsScreen = document.querySelector("#skills-screen");
       const skillEditorScreen = document.querySelector("#skill-editor-screen");
@@ -517,6 +541,7 @@
         if (view === "library") void loadLibraryContent();
         if (view === "reviews") void loadReviewHistory();
         if (view === "skills") void loadUserSkills();
+        if (view === "models") void loadArchiveStorage();
       }
 
       function setPipeline(activeIndex) {
@@ -611,6 +636,96 @@
           });
         } catch (error) {
           reviewsList.innerHTML = `<p class="reviews-empty reviews-error">${escapeHtml(error instanceof Error ? error.message : "审查记录读取失败。")}</p>`;
+        }
+      }
+
+      // ── 归档存储 ────────────────────────────────────────────
+      // 每读一份文档就归档一次，归档存储把每一次归档都列出来：包括内容相同的那几份。
+      // 用户在这里能删掉其中一份，也能一次清空。
+
+      function formatArchiveTime(iso) {
+        const date = new Date(iso);
+        if (Number.isNaN(date.getTime())) return "";
+        const pad = (value) => String(value).padStart(2, "0");
+        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+      }
+
+      function setArchiveStatus(message, tone = "") {
+        archiveStatus.textContent = message;
+        archiveStatus.className = `settings-block-status${tone ? ` settings-block-status-${tone}` : ""}`;
+      }
+
+      async function loadArchiveStorage() {
+        try {
+          const response = await fetch("/api/library");
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(data.error || "归档读取失败。");
+          renderArchiveStorage(Array.isArray(data.documents) ? data.documents : []);
+        } catch (error) {
+          archiveList.innerHTML = `<p class="archive-empty">${escapeHtml(error instanceof Error ? error.message : "归档读取失败。")}</p>`;
+        }
+      }
+
+      function renderArchiveStorage(documents) {
+        if (documents.length === 0) {
+          archiveClear.disabled = true;
+          archiveList.innerHTML = '<p class="archive-empty">还没有归档任何文档。在「上传」里读一份文档，就会归档在这里。</p>';
+          return;
+        }
+        archiveClear.disabled = false;
+        const groups = new Map();
+        for (const document of documents) {
+          const key = document.sha256 || document.id;
+          if (!groups.has(key)) groups.set(key, []);
+          groups.get(key).push(document);
+        }
+        archiveList.innerHTML = [...groups.values()].map((group) => {
+          const sorted = [...group].sort((left, right) => String(left.uploadedAt).localeCompare(String(right.uploadedAt)));
+          const count = sorted.length > 1 ? `${sorted.length} 份 · 内容相同` : "1 份";
+          return `
+            <section class="archive-group">
+              <div class="archive-group-head">
+                <span class="archive-group-title">${escapeHtml(sorted[0].title)}</span>
+                <span class="archive-group-count">${escapeHtml(count)}</span>
+              </div>
+              ${sorted.map((document) => `
+                <div class="archive-row">
+                  <span class="archive-row-time">${escapeHtml(formatArchiveTime(document.uploadedAt))}</span>
+                  <span class="archive-row-hash">${escapeHtml(document.sha256 ? document.sha256.slice(0, 12) : "—")}</span>
+                  <button class="ghost archive-row-delete" type="button" data-archive-delete="${escapeHtml(document.id)}">删除</button>
+                </div>
+              `).join("")}
+            </section>
+          `;
+        }).join("");
+        archiveList.querySelectorAll("[data-archive-delete]").forEach((button) => {
+          button.addEventListener("click", () => void removeArchive(button.dataset.archiveDelete));
+        });
+      }
+
+      async function removeArchive(id) {
+        if (!window.confirm("删掉这一份归档？源文件和 Markdown 会一起消失。")) return;
+        try {
+          const response = await fetch(`/api/library/${encodeURIComponent(id)}`, { method: "DELETE" });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(data.error || "删除失败。");
+          setArchiveStatus("已删除这一份归档。", "ok");
+          await loadArchiveStorage();
+        } catch (error) {
+          setArchiveStatus(error instanceof Error ? error.message : "删除失败。", "error");
+        }
+      }
+
+      async function clearArchive() {
+        if (!window.confirm("清空全部归档？所有文档的源文件和 Markdown 都会消失，删掉就找不回来了。")) return;
+        try {
+          const response = await fetch("/api/library", { method: "DELETE" });
+          const data = await response.json().catch(() => ({}));
+          if (!response.ok) throw new Error(data.error || "清空失败。");
+          setArchiveStatus(`已清空 ${data.removed ?? 0} 份归档。`, "ok");
+          await loadArchiveStorage();
+        } catch (error) {
+          setArchiveStatus(error instanceof Error ? error.message : "清空失败。", "error");
         }
       }
 
@@ -1590,6 +1705,7 @@
         void importUserSkillFile(file);
       });
       modelSetupScreen.querySelectorAll(".load-models").forEach((button) => button.addEventListener("click", () => loadModelsForSection(button.closest(".model-setup-card"))));
+      archiveClear.addEventListener("click", () => void clearArchive());
       modelSetupScreen.querySelectorAll(".save-profile").forEach((button) => button.addEventListener("click", () => saveModelSettings(button.closest(".model-setup-card"))));
       retryStartup.addEventListener("click", () => void initializeFirstRun());
       document.querySelectorAll(".test-profile").forEach((button) => {

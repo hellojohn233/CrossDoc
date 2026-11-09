@@ -1,4 +1,4 @@
-import { copyFile, mkdir, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readdir, rm, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
 import type { ParsedDocument } from "../core/claims.js";
@@ -103,4 +103,58 @@ export function getLibraryDocument(
     ...(stored.markdownPath ? { markdownPath: resolveDataPath(activeDatabase.dataDirectory, stored.markdownPath) } : {}),
     ...(stored.documentJsonPath ? { documentJsonPath: resolveDataPath(activeDatabase.dataDirectory, stored.documentJsonPath) } : {}),
   };
+}
+
+/** An archive id is a directory name, never a path. */
+const archiveIdPattern = /^[A-Za-z0-9_-]{1,128}$/;
+
+/**
+ * Removes one archived document: its directory and its index row.
+ *
+ * The index and the files have to go together. A row without files would
+ * offer a document that cannot be opened; files without a row would stay on
+ * disk forever, because nothing else knows they are there.
+ *
+ * @returns whether an archive was there to remove
+ */
+export async function deleteLibraryDocument(
+  id: string,
+  libraryDirectory = defaultLibraryDirectory,
+  database?: LocalDatabase,
+): Promise<boolean> {
+  if (!archiveIdPattern.test(id)) return false;
+  const root = resolve(libraryDirectory);
+  const entryDirectory = resolve(root, id);
+  // The id is a directory name, so it cannot leave the library. The check
+  // stays anyway: a caller that passes something else gets nothing.
+  if (entryDirectory !== root && !entryDirectory.startsWith(`${root}/`)) return false;
+  const activeDatabase = database ?? databaseFor(dirname(root));
+  if (!activeDatabase.getDocument(id)) return false;
+  await rm(entryDirectory, { recursive: true, force: true });
+  activeDatabase.deleteDocument(id);
+  return true;
+}
+
+/**
+ * Removes every archived document.
+ *
+ * @returns how many archives were removed
+ */
+export async function clearLibraryDocuments(
+  libraryDirectory = defaultLibraryDirectory,
+  database?: LocalDatabase,
+): Promise<number> {
+  const root = resolve(libraryDirectory);
+  const activeDatabase = database ?? databaseFor(dirname(root));
+  const entries = await readdir(root, { withFileTypes: true }).catch(() => []);
+  let removed = 0;
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    await rm(resolve(root, entry.name), { recursive: true, force: true });
+    removed += 1;
+  }
+  // The index is emptied as a whole, so a stray row without a directory
+  // cannot survive the cleanup.
+  activeDatabase.deleteAllDocuments();
+  return removed;
 }

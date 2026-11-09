@@ -1,4 +1,4 @@
-# Model Setup Layout
+# Settings Layout
 
 Status: Implementation contract
 
@@ -28,9 +28,9 @@ For standard bases, OpenAI and Anthropic Base URLs include `/v1`; Gemini uses `/
 ```text
 Any entry state
 ┌───────────────────────────────────────────────────────────────┐
-│ CD  CrossDoc    [上传][文档][审查记录][模型配置]               │
+│ CD  CrossDoc    [上传][文档][审查记录][设置]                   │
 ├───────────────────────────────────────────────────────────────┤
-│                    模型配置                                   │
+│                     设置                                     │
 │      配置不阻塞浏览，但开始读取前需要主模型可用                 │
 │                                                               │
 │  ┌─────────────────────────────────────────────────────────┐  │
@@ -61,7 +61,7 @@ The two roles are stacked, not side by side. A role is a block of settings, not 
 
 The main model comes first and is what the page is for. The vision model is marked `可选`, because a review without a vision profile still works on text pages. The page width is capped so the settings read as a form rather than a stretched table.
 
-The selection view stays free of any model notice; the `模型配置` tab is the only way in.
+The selection view stays free of any model notice; the `设置` tab is the only way in. The settings view is titled `设置`: it holds the models and the archive storage.
 
 ## Connection Test
 
@@ -87,7 +87,7 @@ A missing role, an unsupported protocol, a missing model id, or an invalid Base 
 | Model name field | One role | Selects a discovered ID or accepts a manually entered ID if discovery is unavailable. |
 | `测试连接` | One role | Calls `POST /api/settings/models/test` with the values currently in the form and reports whether the endpoint answered. Does not save the profile or key. |
 | `保存主模型` / `保存视觉模型` | One role | Saves that role's Base URL, protocol, model ID, and key to SQLite. The other role remains independent. |
-| `模型配置` header tab | Global | Switches to the configuration view from any other view; the active tab carries `aria-current="page"`. |
+| `设置` header tab | Global | Switches to the settings view from any other view; the active tab carries `aria-current="page"`. |
 | Reload / direct visit | App entry | Fetches settings, then always opens document selection. Saved profiles only decide the per-role status shown inside the configuration view. |
 
 ## State Variants
@@ -112,18 +112,30 @@ A missing role, an unsupported protocol, a missing model id, or an invalid Base 
 AppEntry
 ├── StartupState (while GET /api/settings resolves)
 └── Workspace
-    ├── TopNav (上传 / 文档 / 审查记录 / 模型配置 / 我的技能)
+    ├── TopNav (上传 / 文档 / 审查记录 / 设置 / 我的技能)
     ├── SelectionView
     ├── ReadingView
     ├── LibraryView
     ├── ReviewConsole
-    └── ModelSetupView
-        ├── MainModelPanel
-        └── VisionModelPanel
+    └── SettingsView
+        ├── ModelBlock
+        │   ├── MainModelPanel
+        │   └── VisionModelPanel
+        └── ArchiveBlock
+            ├── ArchiveGroupList
+            └── ClearArchiveButton
 ```
 
 ## Page Entry Points
 
 - `/` always opens document selection; configuration never intercepts entry.
-- The header `模型配置` tab is the only entry point for the configuration view.
+- The header `设置` tab is the only entry point for the settings view.
 - Successful setup saves settings to SQLite and refreshes the role status without a reload.
+
+## Archive Storage
+
+The settings view has a second block, `归档存储`, below the models. Every read archives a document, and the archive keeps every upload, so the archive grows with use. The block exists because the archive is the one part of the product the user cannot empty by any other means.
+
+The block lists every archive, not the folded document list: archives that share content sit in one group under the document's name, and each archive is a row of its own with the moment it arrived and the first twelve characters of its content hash. Each row has a `删除` action; the block has a `清空归档` action. Both ask for a confirmation first, because a removed archive is gone: its source file and its Markdown go with the index row.
+
+An archive and its index row are removed together. A row without files would offer a document that cannot be opened, and files without a row would sit on disk with nothing left to find them.

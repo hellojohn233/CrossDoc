@@ -21,7 +21,7 @@ The header is a text navigation, not a row of buttons. The brand sits on the lef
 ```text
 Selection
 ┌───────────────────────────────────────────────────────┐
-│ CrossDoc   [上传][文档][审查记录][模型配置]              │
+│ CrossDoc   [上传][文档][审查记录][设置]                  │
 ├───────────────────────────────────────────────────────┤
 │                                                       │
 │                 拖放文件或文件夹                       │
@@ -44,7 +44,7 @@ Reading
 
 Library
 ┌───────────────────────────────────────────────────────┐
-│ CrossDoc  [上传][文档][审查记录][模型配置][我的技能]      │
+│ CrossDoc  [上传][文档][审查记录][设置][我的技能]          │
 ├───────────────────────────────────────────────────────┤
 │ 文档                                                   │
 │ 读过的文档都在这里。勾选两份以上就能直接发起审查。      │
@@ -62,7 +62,7 @@ Library
 
 Review history
 ┌───────────────────────────────────────────────────────┐
-│ CrossDoc  [上传][文档][审查记录][模型配置][我的技能]      │
+│ CrossDoc  [上传][文档][审查记录][设置][我的技能]          │
 ├───────────────────────────────────────────────────────┤
 │ 审查记录                                               │
 │ 跑过的审查与报告。点「打开」回到当时的冲突清单。         │
@@ -74,7 +74,7 @@ Review history
 
 My skills
 ┌───────────────────────────────────────────────────────┐
-│ CrossDoc  [上传][文档][审查记录][模型配置][我的技能]      │
+│ CrossDoc  [上传][文档][审查记录][设置][我的技能]          │
 ├───────────────────────────────────────────────────────┤
 │ 我的技能                                  [新建][导入]  │
 │ 只补充「这个领域抽什么、什么差异算严重」，审查流程不变。 │
@@ -87,7 +87,7 @@ My skills
 
 My skills, editor
 ┌───────────────────────────────────────────────────────┐
-│ CrossDoc  [上传][文档][审查记录][模型配置][我的技能]      │
+│ CrossDoc  [上传][文档][审查记录][设置][我的技能]          │
 ├───────────────────────────────────────────────────────┤
 │ [← 返回列表]                                        │
 │ 编辑 prospectus-review                               │
@@ -173,7 +173,7 @@ The agent marks sources using `[[cite:<document-id>:<page-number>]]`. The client
 | Citation link | Overview or answer | Opens the archived PDF at the cited page in a new tab. |
 | `取消读取` | Active read | Cancels the active Pi Agent run and preserves already archived documents. |
 | `返回选择文件` | Reading | Leaves the session view and returns to file selection; the Library remains unchanged. |
-| `上传` / `文档` / `审查记录` / `模型配置` / `我的技能` | Header tabs | Switches between the selection, Library, review history, model configuration, and skills views; the active tab carries `aria-current="page"`. |
+| `上传` / `文档` / `审查记录` / `设置` / `我的技能` | Header tabs | Switches between the selection, Library, review history, settings, and skills views; the active tab carries `aria-current="page"`. |
 | `返回阅读` | Review console | Returns to the reading view of the active session and re-attaches the event stream. |
 | Document checkbox | Library | Picks an archived document for a review. The selection bar reports the count and enables the review action from two documents up. Only the primary row of a content group carries a checkbox; the copies are the same content. |
 | `另有 N 份相同内容` | Library | Expands or collapses the copies archived under a document. The control's label and `aria-expanded` follow the state. |
@@ -208,7 +208,7 @@ At desktop widths, keep the source list at approximately 300px and let the readi
 App
 ├── Header
 │   ├── Brand
-│   └── TopNav (上传 / 文档 / 审查记录 / 模型配置 / 我的技能)
+│   └── TopNav (上传 / 文档 / 审查记录 / 设置 / 我的技能)
 ├── SelectionView
 │   ├── FilePicker
 │   ├── FolderPicker
@@ -242,7 +242,7 @@ App
 - Selection and Reading share `/` and switch state client-side.
 - The document list opens through the `文档` header tab and `/api/library`.
 - The review history opens through the `审查记录` header tab and `/api/reviews`.
-- Model configuration opens through the `模型配置` header tab.
+- The settings view opens through the `设置` header tab. It holds the model profiles and the archive storage.
 - The user's own skills open through the `我的技能` header tab and use `/api/skills`.
 - Source citations use `/api/library/:id/source#page=:page`.
 - Agent session operations use `/api/read` and `/api/read/:sessionId/*`.

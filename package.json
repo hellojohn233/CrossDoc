@@ -23,6 +23,7 @@
     "verify:review-library": "tsx scripts/verify-review-library.mjs",
     "verify:library-identity": "tsx scripts/verify-library-identity.mjs",
     "verify:library-groups": "tsx scripts/verify-library-groups.mjs",
+    "verify:library-delete": "tsx scripts/verify-library-delete.mjs",
     "verify:pdf-page-render": "tsx scripts/verify-pdf-page-render.mjs",
     "verify:pdf-vector-classification": "tsx scripts/verify-pdf-vector-classification.mjs",
     "verify:document-search": "tsx scripts/verify-document-search.mjs",

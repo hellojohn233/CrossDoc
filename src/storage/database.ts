@@ -249,6 +249,24 @@ export class LocalDatabase {
       FROM documents WHERE id = ?`).get(id) as StoredDocument | undefined;
   }
 
+  /**
+   * Drops one archived document from the index.
+   *
+   * @returns whether a row was there to drop
+   */
+  deleteDocument(id: string): boolean {
+    return this.db.prepare("DELETE FROM documents WHERE id = ?").run(id).changes > 0;
+  }
+
+  /**
+   * Drops every archived document from the index.
+   *
+   * @returns how many rows were dropped
+   */
+  deleteAllDocuments(): number {
+    return this.db.prepare("DELETE FROM documents").run().changes;
+  }
+
   getModelProfile(role: ModelRole): ModelProfile | undefined {
     const row = this.db.prepare(`SELECT role, provider, protocol, model_id AS modelId, base_url AS baseUrl, api_key AS apiKey,
       options_json AS optionsJson FROM model_configs WHERE role = ?`).get(role) as (ModelProfile & { optionsJson: string }) | undefined;

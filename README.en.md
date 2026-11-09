@@ -89,7 +89,7 @@ After build, the CLI entry is:
 node dist/cli.js review "./examples/docs/*.pdf"
 ```
 
-Model profiles are configured in the web UI, not through environment variables. Open the `模型配置` / model configuration tab in the header and set the main model and the scan-page vision model separately; the settings are stored in the local `data/crossdoc.sqlite` together with the API key. Configuration never blocks browsing — you can still enter the app and browse the library — but starting a read needs the main model. The vision model must support image input; the main model may be text-only. This is a single-user local app: the web server binds to `127.0.0.1` only, and the API key is stored as plaintext in that SQLite file. Start the Web UI:
+Model profiles are configured in the web UI, not through environment variables. Open the `设置` / settings tab in the header and set the main model and the scan-page vision model separately; the settings are stored in the local `data/crossdoc.sqlite` together with the API key. Configuration never blocks browsing — you can still enter the app and browse the library — but starting a read needs the main model. The vision model must support image input; the main model may be text-only. This is a single-user local app: the web server binds to `127.0.0.1` only, and the API key is stored as plaintext in that SQLite file. Start the Web UI:
 
 ```bash
 npm run dev:web
@@ -103,7 +103,7 @@ http://localhost:5177
 
 The Web UI is the reading surface: upload PDFs, let the Pi Agent parse them by file format, read scanned pages with the vision model, then produce a short overview and answer follow-up questions in the same session. Reading progress is sent as replayable SSE events, and citations open the archived PDF at the cited page. The deterministic consistency review stays available on its own `/api/review` route.
 
-The header is the only navigation entry point, with five tabs: `上传` / `文档` / `审查记录` / `模型配置` / `我的技能`. The active tab carries `aria-current="page"`.
+The header is the only navigation entry point, with five tabs: `上传` / `文档` / `审查记录` / `设置` / `我的技能`. The active tab carries `aria-current="page"`.
 
 Uploads are staged in `.crossdoc/uploads/`; review JSON and Markdown are kept in `.crossdoc/reviews/`. Successfully reviewed documents are also archived locally in `data/library/<document ID>/` with `source.pdf`, `document.md`, and `metadata.json`. The local data directory is ignored by Git. The library tab lists archived documents; the upload tab never previews them.
 
