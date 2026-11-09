@@ -18,7 +18,7 @@ import {
   validateUserSkill,
   writeUserSkill,
 } from "./skills/user-store.js";
-import { clearLibraryDocuments, clearTrash, deleteLibraryDocument, getLibraryDocument, listLibraryDocuments, listTrashedDocuments, purgeTrashedDocument, restoreLibraryDocument, saveLibraryDocument } from "./storage/library-store.js";
+import { clearLibraryDocuments, deleteLibraryDocument, getLibraryDocument, listLibraryDocuments, saveLibraryDocument } from "./storage/library-store.js";
 import { LocalDatabase, type ModelProfile, type ModelProtocol, type ModelRole } from "./storage/database.js";
 import { listReviewArtifacts, readReviewArtifact, writeReviewArtifacts } from "./storage/review-store.js";
 import type { ReviewResult } from "./core/types.js";
@@ -842,47 +842,6 @@ export function createWebApp(options: WebAppOptions = {}) {
       const deleted = await deleteLibraryDocument(id, libraryDirectory, database);
       if (!deleted) return response.status(404).json({ error: "Document not found." });
       response.json({ deleted: true, id });
-    } catch (error) {
-      response.status(500).json({ error: error instanceof Error ? error.message : "Unable to remove the archive." });
-    }
-  });
-
-  app.post("/api/library/:id/restore", async (request, response) => {
-    const { id } = request.params;
-    if (!id || !documentIdPattern.test(id)) return response.status(404).json({ error: "Document not found." });
-    try {
-      const restored = await restoreLibraryDocument(id, libraryDirectory, database);
-      if (!restored) return response.status(404).json({ error: "Document not found." });
-      response.json({ restored: true, id });
-    } catch (error) {
-      response.status(500).json({ error: error instanceof Error ? error.message : "Unable to restore the archive." });
-    }
-  });
-
-  app.get("/api/trash", async (_request, response) => {
-    try {
-      response.json({ documents: await listTrashedDocuments(libraryDirectory) });
-    } catch (error) {
-      response.status(500).json({ error: error instanceof Error ? error.message : "Unable to read the trash." });
-    }
-  });
-
-  app.delete("/api/trash", async (_request, response) => {
-    try {
-      const removed = await clearTrash(libraryDirectory);
-      response.json({ removed });
-    } catch (error) {
-      response.status(500).json({ error: error instanceof Error ? error.message : "Unable to empty the trash." });
-    }
-  });
-
-  app.delete("/api/trash/:id", async (request, response) => {
-    const { id } = request.params;
-    if (!id || !documentIdPattern.test(id)) return response.status(404).json({ error: "Document not found." });
-    try {
-      const purged = await purgeTrashedDocument(id, libraryDirectory);
-      if (!purged) return response.status(404).json({ error: "Document not found." });
-      response.json({ purged: true, id });
     } catch (error) {
       response.status(500).json({ error: error instanceof Error ? error.message : "Unable to remove the archive." });
     }
