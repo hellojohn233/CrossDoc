@@ -14,6 +14,8 @@ Status: Implementation contract
 
 The page has four states: selection, reading, the Library, and the review console. Model configuration and the user's own skills are two more peer views reachable from the header; neither gates entry, so the app always opens on selection. If the main model is incomplete, selection shows a non-blocking notice that links to the configuration view. Starting a read replaces the selection view with the reading view. The Library, the configuration view, and the skills view stay reachable from the header at any time. Returning to selection is explicit; it does not discard files already archived.
 
+The header is a text navigation, not a row of buttons. The brand sits on the left, the tabs follow as plain words, and the current tab is marked by ink type and a two-pixel rule on the header's bottom edge. A hairline separates the workflow tabs (upload, Library, review history) from the setup tabs (model configuration, user's skills), because the two groups are not the same kind of thing.
+
 ## Page-Level Layout
 
 ```text
