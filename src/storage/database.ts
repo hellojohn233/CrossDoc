@@ -250,6 +250,25 @@ export class LocalDatabase {
   }
 
   /**
+   * Puts an archived document back into the index as it was.
+   *
+   * A restored document keeps the moment it first arrived and the moment it
+   * was last used: a document that comes back is the same document, not a new
+   * upload.
+   */
+  restoreDocument(document: StoredDocument): void {
+    this.db.prepare(`
+      INSERT INTO documents
+        (id, title, source_name, format, pages, uploaded_at, last_used_at, file_size, sha256, source_path, document_json_path, markdown_path)
+      VALUES (@id, @title, @sourceName, @format, @pages, @uploadedAt, @lastUsedAt, @fileSize, @sha256, @sourcePath, @documentJsonPath, @markdownPath)
+      ON CONFLICT(id) DO UPDATE SET title=excluded.title, source_name=excluded.source_name,
+        format=excluded.format, pages=excluded.pages, uploaded_at=excluded.uploaded_at,
+        last_used_at=excluded.last_used_at, file_size=excluded.file_size, sha256=excluded.sha256,
+        source_path=excluded.source_path, document_json_path=excluded.document_json_path, markdown_path=excluded.markdown_path
+    `).run(document);
+  }
+
+  /**
    * Drops one archived document from the index.
    *
    * @returns whether a row was there to drop

@@ -74,6 +74,10 @@ await archiveDocument(archiveOne, "合同a.pdf", "content-a");
 await archiveDocument(archiveTwo, "合同b.pdf", "content-b");
 await archiveDocument(archiveThree, "合同a.pdf", "content-a");
 
+// The archive as it looked before anything was removed.
+const originalOne = database.getDocument(archiveOne);
+assert.ok(originalOne);
+
 await check("归档列表给出每一份归档，包括内容相同的那几份", async () => {
   const response = await fetch(`${base}/api/library`);
   assert.equal(response.status, 200);
@@ -138,6 +142,60 @@ await check("清空一个已经空的归档是安全的", async () => {
   const response = await fetch(`${base}/api/library`, { method: "DELETE" });
   assert.equal(response.status, 200);
   assert.equal((await response.json()).removed, 0);
+});
+
+await check("删掉的归档进了回收站，没有被销毁", async () => {
+  const response = await fetch(`${base}/api/trash`);
+  assert.equal(response.status, 200);
+  const data = await response.json();
+  assert.equal(data.documents.length, 3);
+  const ids = data.documents.map((document) => document.id).sort();
+  assert.deepEqual(ids, [archiveOne, archiveThree, archiveTwo].sort());
+  assert.ok(data.documents.every((document) => document.deletedAt));
+});
+
+await check("回收站里的归档可以恢复，回到原来的样子", async () => {
+  const response = await fetch(`${base}/api/library/${encodeURIComponent(archiveOne)}/restore`, { method: "POST" });
+  assert.equal(response.status, 200);
+  const after = database.getDocument(archiveOne);
+  assert.ok(after);
+  // 恢复的是原来那份文档，不是新上传的一次。
+  assert.equal(after.uploadedAt, originalOne.uploadedAt);
+  assert.equal(after.sha256, originalOne.sha256);
+  assert.equal(after.title, originalOne.title);
+  const listed = await (await fetch(`${base}/api/library`)).json();
+  assert.equal(listed.documents.length, 1);
+  const trashed = await (await fetch(`${base}/api/trash`)).json();
+  assert.equal(trashed.documents.length, 2);
+  await assert.rejects(() => rm(resolve(libraryDirectory, archiveOne)));
+});
+
+await check("恢复之后源文件又能打开了", async () => {
+  const response = await fetch(`${base}/api/library/${encodeURIComponent(archiveOne)}/source`);
+  assert.equal(response.status, 200);
+});
+
+await check("回收站里的一份可以彻底删除", async () => {
+  const response = await fetch(`${base}/api/trash/${encodeURIComponent(archiveTwo)}`, { method: "DELETE" });
+  assert.equal(response.status, 200);
+  const trashed = await (await fetch(`${base}/api/trash`)).json();
+  assert.equal(trashed.documents.length, 1);
+  const purgeAgain = await fetch(`${base}/api/trash/${encodeURIComponent(archiveTwo)}`, { method: "DELETE" });
+  assert.equal(purgeAgain.status, 404);
+});
+
+await check("回收站可以一次清空", async () => {
+  const response = await fetch(`${base}/api/trash`, { method: "DELETE" });
+  assert.equal(response.status, 200);
+  assert.equal((await response.json()).removed, 1);
+  const trashed = await (await fetch(`${base}/api/trash`)).json();
+  assert.deepEqual(trashed.documents, []);
+});
+
+await check("清空回收站不动还活着的归档", async () => {
+  const listed = await (await fetch(`${base}/api/library`)).json();
+  assert.equal(listed.documents.length, 1);
+  assert.equal(listed.documents[0].id, archiveOne);
 });
 
 server.close();

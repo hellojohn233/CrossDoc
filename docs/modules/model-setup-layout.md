@@ -121,9 +121,12 @@ AppEntry
         ├── ModelBlock
         │   ├── MainModelPanel
         │   └── VisionModelPanel
-        └── ArchiveBlock
-            ├── ArchiveGroupList
-            └── ClearArchiveButton
+        ├── ArchiveBlock
+        │   ├── ArchiveGroupList
+        │   └── ClearArchiveButton
+        └── TrashBlock
+            ├── TrashedDocumentList
+            └── ClearTrashButton
 ```
 
 ## Page Entry Points
@@ -136,6 +139,14 @@ AppEntry
 
 The settings view has a second block, `归档存储`, below the models. Every read archives a document, and the archive keeps every upload, so the archive grows with use. The block exists because the archive is the one part of the product the user cannot empty by any other means.
 
-The block lists every archive, not the folded document list: archives that share content sit in one group under the document's name, and each archive is a row of its own with the moment it arrived and the first twelve characters of its content hash. Each row has a `删除` action; the block has a `清空归档` action. Both ask for a confirmation first, because a removed archive is gone: its source file and its Markdown go with the index row.
+The block lists every archive, not the folded document list: archives that share content sit in one group under the document's name, and each archive is a row of its own with the moment it arrived and the first twelve characters of its content hash. Each row has a `删除` action; the block has a `清空归档` action. Both ask for a confirmation first.
 
 An archive and its index row are removed together. A row without files would offer a document that cannot be opened, and files without a row would sit on disk with nothing left to find them.
+
+### The Trash
+
+A removal does not destroy anything. The archive's files move to `data/trash/<id>/` and a note goes with them, carrying the index fields the row had, so the archive can be put back exactly as it was. The index row leaves the library, which is why the document list and the archive list no longer show it.
+
+The settings view has a third block, `回收站`, that lists what is waiting there: the document's name, when it was thrown away, a `恢复` action and a `彻底删除` action. Restoring brings the document back with the moment it first arrived — a document that comes back is the same document, not a new upload — and its source file opens again. Emptying the trash is the only thing that is final.
+
+`清空归档` puts every archive in the trash rather than destroying it, so one click can be undone.

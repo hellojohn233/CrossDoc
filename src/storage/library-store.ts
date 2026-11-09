@@ -1,5 +1,5 @@
-import { copyFile, mkdir, readdir, rm, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { copyFile, mkdir, readFile, readdir, rename, rm, writeFile } from "node:fs/promises";
+import { dirname, relative, resolve, sep } from "node:path";
 
 import type { ParsedDocument } from "../core/claims.js";
 import { LocalDatabase, resolveDataPath, type StoredDocument } from "./database.js";
@@ -108,8 +108,34 @@ export function getLibraryDocument(
 /** An archive id is a directory name, never a path. */
 const archiveIdPattern = /^[A-Za-z0-9_-]{1,128}$/;
 
+/** A removed archive, kept so it can be brought back. */
+export interface TrashedDocument {
+  id: string;
+  title: string;
+  sourceName: string;
+  format: string;
+  pages: number;
+  uploadedAt: string;
+  lastUsedAt: string;
+  fileSize: number;
+  sha256: string;
+  /** When the archive was thrown away. */
+  deletedAt: string;
+}
+
+/** Where removed archives wait. */
+function trashDirectory(libraryDirectory: string): string {
+  return resolve(resolve(libraryDirectory), "..", "trash");
+}
+
+/** A path inside the data directory, the way the index stores it. */
+function dataRelative(dataDirectory: string, absolutePath: string): string {
+  return relative(dataDirectory, absolutePath).split(sep).join("/");
+}
+
 /**
- * Removes one archived document: its directory and its index row.
+ * Moves one archived document to the trash: its files move, its index row
+ * goes away, and a note goes with it.
  *
  * The index and the files have to go together. A row without files would
  * offer a document that cannot be opened; files without a row would stay on
@@ -129,14 +155,24 @@ export async function deleteLibraryDocument(
   // stays anyway: a caller that passes something else gets nothing.
   if (entryDirectory !== root && !entryDirectory.startsWith(`${root}/`)) return false;
   const activeDatabase = database ?? databaseFor(dirname(root));
-  if (!activeDatabase.getDocument(id)) return false;
-  await rm(entryDirectory, { recursive: true, force: true });
+  const stored = activeDatabase.getDocument(id);
+  if (!stored) return false;
+  const trashRoot = trashDirectory(root);
+  await mkdir(trashRoot, { recursive: true });
+  const trashEntry = resolve(trashRoot, id);
+  await rm(trashEntry, { recursive: true, force: true });
+  await rename(entryDirectory, trashEntry);
+  await writeFile(
+    resolve(trashEntry, "trash.json"),
+    `${JSON.stringify({ ...stored, deletedAt: new Date().toISOString() }, null, 2)}\n`,
+    "utf8",
+  );
   activeDatabase.deleteDocument(id);
   return true;
 }
 
 /**
- * Removes every archived document.
+ * Moves every archived document to the trash.
  *
  * @returns how many archives were removed
  */
@@ -150,11 +186,111 @@ export async function clearLibraryDocuments(
   let removed = 0;
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
-    await rm(resolve(root, entry.name), { recursive: true, force: true });
-    removed += 1;
+    if (await deleteLibraryDocument(entry.name, root, activeDatabase)) removed += 1;
   }
   // The index is emptied as a whole, so a stray row without a directory
   // cannot survive the cleanup.
   activeDatabase.deleteAllDocuments();
+  return removed;
+}
+
+/** Lists what is waiting in the trash, newest first. */
+export async function listTrashedDocuments(libraryDirectory = defaultLibraryDirectory): Promise<TrashedDocument[]> {
+  const trashRoot = trashDirectory(resolve(libraryDirectory));
+  const entries = await readdir(trashRoot, { withFileTypes: true }).catch(() => []);
+  const trashed: TrashedDocument[] = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const note = resolve(trashRoot, entry.name, "trash.json");
+    const content = await readFile(note, "utf8").catch(() => "");
+    if (!content) continue;
+    try {
+      const parsed = JSON.parse(content) as TrashedDocument;
+      trashed.push({ ...parsed, id: entry.name });
+    } catch {
+      // A note that cannot be read is not something that can be restored.
+    }
+  }
+  return trashed.sort((left, right) => String(right.deletedAt).localeCompare(String(left.deletedAt)));
+}
+
+/**
+ * Brings one archive back from the trash.
+ *
+ * The document keeps the moment it first arrived: it comes back as the same
+ * document, not as a new upload.
+ *
+ * @returns whether there was something to bring back
+ */
+export async function restoreLibraryDocument(
+  id: string,
+  libraryDirectory = defaultLibraryDirectory,
+  database?: LocalDatabase,
+): Promise<boolean> {
+  if (!archiveIdPattern.test(id)) return false;
+  const root = resolve(libraryDirectory);
+  const trashRoot = trashDirectory(root);
+  const trashEntry = resolve(trashRoot, id);
+  if (trashEntry !== trashRoot && !trashEntry.startsWith(`${trashRoot}/`)) return false;
+  const content = await readFile(resolve(trashEntry, "trash.json"), "utf8").catch(() => "");
+  if (!content) return false;
+  const note = JSON.parse(content) as TrashedDocument;
+  const activeDatabase = database ?? databaseFor(dirname(root));
+  const entryDirectory = resolve(root, id);
+  await mkdir(root, { recursive: true });
+  await rm(entryDirectory, { recursive: true, force: true });
+  await rename(trashEntry, entryDirectory);
+  await rm(resolve(entryDirectory, "trash.json"), { force: true });
+  const dataDirectory = activeDatabase.dataDirectory;
+  activeDatabase.restoreDocument({
+    id: note.id,
+    title: note.title,
+    sourceName: note.sourceName,
+    format: note.format,
+    pages: note.pages,
+    uploadedAt: note.uploadedAt,
+    lastUsedAt: note.lastUsedAt,
+    fileSize: note.fileSize,
+    sha256: note.sha256,
+    sourcePath: dataRelative(dataDirectory, resolve(entryDirectory, "source.pdf")),
+    documentJsonPath: dataRelative(dataDirectory, resolve(entryDirectory, "document.json")),
+    markdownPath: dataRelative(dataDirectory, resolve(entryDirectory, "document.md")),
+  });
+  return true;
+}
+
+/**
+ * Throws one archive away for good.
+ *
+ * @returns whether there was something in the trash
+ */
+export async function purgeTrashedDocument(
+  id: string,
+  libraryDirectory = defaultLibraryDirectory,
+): Promise<boolean> {
+  if (!archiveIdPattern.test(id)) return false;
+  const trashRoot = trashDirectory(resolve(libraryDirectory));
+  const trashEntry = resolve(trashRoot, id);
+  if (trashEntry !== trashRoot && !trashEntry.startsWith(`${trashRoot}/`)) return false;
+  const content = await readFile(resolve(trashEntry, "trash.json"), "utf8").catch(() => "");
+  if (!content) return false;
+  await rm(trashEntry, { recursive: true, force: true });
+  return true;
+}
+
+/**
+ * Throws the whole trash away for good.
+ *
+ * @returns how many archives were thrown away
+ */
+export async function clearTrash(libraryDirectory = defaultLibraryDirectory): Promise<number> {
+  const trashRoot = trashDirectory(resolve(libraryDirectory));
+  const entries = await readdir(trashRoot, { withFileTypes: true }).catch(() => []);
+  let removed = 0;
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    await rm(resolve(trashRoot, entry.name), { recursive: true, force: true });
+    removed += 1;
+  }
   return removed;
 }

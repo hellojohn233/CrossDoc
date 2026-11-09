@@ -372,6 +372,10 @@
       .archive-row-time { color: var(--muted); font-size: 12.5px; font-variant-numeric: tabular-nums; }
       .archive-row-hash { overflow: hidden; color: var(--faint); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
       .archive-row-delete { justify-self: end; padding: 4px 10px; font-size: 12px; }
+      .trash-row { grid-template-columns: minmax(0, 1fr) 148px auto; }
+      .trash-row .archive-row-title { font-size: 13.5px; font-weight: 600; }
+      .archive-row-actions { display: flex; align-items: center; gap: 8px; justify-self: end; }
+      .archive-row-restore, .archive-row-purge { padding: 4px 10px; font-size: 12px; }
       .archive-empty { margin: 0; padding: 26px 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); color: var(--muted); font-size: 13px; text-align: center; }
       .model-setup-grid { display: grid; gap: 18px; }
       .model-setup-card { display: grid; align-content: start; gap: 16px; padding: 22px 24px; border: 1px solid var(--line-dark); border-radius: var(--radius); background: var(--panel); box-shadow: var(--shadow-sm); }

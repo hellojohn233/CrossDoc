@@ -67,9 +67,12 @@ The settings UI can request the endpoint's model list after Base URL, protocol, 
 - The setup form has no provider selector. Each role shows Base URL, protocol type, model selection with a `加载模型` action, and API Key. A model ID may also be entered manually.
 - Reading and library endpoints use the stored profile and SQLite metadata. Existing PDF citation/source URLs remain stable.
 - `GET /api/library` returns every archived document, including repeated content, each with its `sha256`, `uploadedAt`, and `lastUsedAt`. The grouping into one row per document is a client-side rendering rule, not a server-side filter, so no archive is hidden from the API.
-- `DELETE /api/library/:id` removes one archive: its directory and its index row together. The id has to be a UUID, and an id that does not match is a 404.
-- `DELETE /api/library` removes every archive and empties the index. It reports how many archives went.
-- The settings view's `归档存储` block lists every archive, including the copies the document list folds away, and offers both removals.
+- `DELETE /api/library/:id` removes one archive: its files move to `data/trash/<id>/` and its index row goes away. The id has to be a UUID, and an id that does not match is a 404.
+- `DELETE /api/library` removes every archive the same way and empties the index. It reports how many archives went.
+- `GET /api/trash` lists what is waiting in the trash, with the index fields each archive had and the moment it was removed.
+- `POST /api/library/:id/restore` puts one archive back where it was, keeping the moment it first arrived.
+- `DELETE /api/trash/:id` throws one archive away for good. `DELETE /api/trash` empties the whole trash.
+- The settings view's `归档存储` block lists every archive, including the copies the document list folds away, and offers both removals. Its `回收站` block lists what can still be brought back.
 
 ## Boundaries
 
