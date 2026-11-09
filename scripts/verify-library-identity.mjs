@@ -98,6 +98,8 @@ const workspace = await mkdtemp(join(tmpdir(), "crossdoc-library-identity-"));
 const libraryDirectory = join(workspace, "library");
 const dataDirectory = workspace;
 const uploadDirectory = join(workspace, "uploads");
+// 审查产物不能落到真实的 .crossdoc/reviews 里去。
+const reviewDirectory = join(workspace, "reviews");
 
 const models = makeModels();
 const app = createWebApp({
@@ -105,6 +107,7 @@ const app = createWebApp({
   libraryDirectory,
   dataDirectory,
   uploadDirectory,
+  reviewDirectory,
   models,
   agentFactory: async (options) => {
     const ids = options.documents.map((document) => document.id);

@@ -167,6 +167,8 @@ async function main() {
   const uploadDirectory = join(root, "uploads");
   const libraryDirectory = join(root, "library");
   const limitedUploadDirectory = join(root, "limited-uploads");
+  // 审查产物不能落到真实的 .crossdoc/reviews 里去。
+  const reviewDirectory = join(root, "reviews");
   await mkdir(uploadDirectory, { recursive: true });
   await mkdir(libraryDirectory, { recursive: true });
   await mkdir(limitedUploadDirectory, { recursive: true });
@@ -177,6 +179,7 @@ async function main() {
   const app = createWebApp({
     uploadDirectory,
     libraryDirectory,
+    reviewDirectory,
     publicDirectory: join(process.cwd(), "public"),
     pdfjsDirectory: join(process.cwd(), "node_modules/pdfjs-dist/build"),
     agentFactory: async (options) => {
