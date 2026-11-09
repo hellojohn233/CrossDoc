@@ -109,6 +109,8 @@ The review history has a page of its own, under `审查记录`. The Library keep
 
 The document list is grouped by content. A document's identity is its content, and every upload is still archived, so the same contract uploaded three times is one row with two copies underneath it. The oldest copy in a group is the primary row and carries the checkbox; the copies carry none, because they are the same content and picking one would mean picking the others. The copies are collapsed behind a control that reads `另有 N 份相同内容 ▾` and toggles to `收起相同内容 ▴`. A notice above the list reports how many groups repeat and how many archives that is in total. The row metadata shows the first-archived date, and the last-used date as well when it differs — reviewing a document does not make it newly archived.
 
+The row is a document, not a record, so it reads like one: the file name is the heading, the details are the line under it, and the two links to the source file and to the converted Markdown are quiet text on the right. The name and the details carry the weight; the links do not.
+
 ## API Contract
 
 All endpoints are local to the Web server. The session map is in memory; the durable user artifact remains in `data/library/<document-id>/`.

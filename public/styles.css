@@ -586,10 +586,14 @@
       .library-item {
         display: grid;
         grid-template-columns: auto minmax(0, 1fr) auto;
-        gap: 20px;
+        gap: 16px;
         align-items: center;
-        padding: 22px 18px;
+        padding: 14px 20px;
         border-bottom: 1px solid var(--line);
+      }
+
+      .library-item:hover {
+        background: var(--panel-soft);
       }
 
       .library-pick {
@@ -650,20 +654,21 @@
       }
 
       .library-duplicates {
-        display: block;
-        margin: -6px 0 12px 34px;
-        padding: 4px 0;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin: -4px 0 12px 36px;
+        padding: 2px 0;
         border: 0;
         background: none;
-        color: var(--blue);
+        color: var(--muted);
         font: inherit;
         font-size: 12px;
-        font-weight: 700;
         cursor: pointer;
       }
 
       .library-duplicates:hover {
-        text-decoration: underline;
+        color: var(--ink);
       }
 
       .library-copies {
@@ -684,38 +689,34 @@
       .library-item-title {
         overflow: hidden;
         margin: 0;
-        font-size: 16px;
+        font-size: 15px;
+        font-weight: 600;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
 
       .library-item-meta {
-        margin: 7px 0 0;
+        margin: 4px 0 0;
         color: var(--muted);
         font-size: 12px;
       }
 
       .library-item-actions {
         display: flex;
-        gap: 8px;
+        align-items: center;
+        gap: 14px;
       }
 
       .library-item-actions a {
-        display: inline-flex;
-        min-height: 38px;
-        align-items: center;
-        padding: 7px 11px;
-        border: 1px solid var(--line);
-        border-radius: 5px;
-        color: var(--ink);
-        font-size: 13px;
-        font-weight: 760;
+        color: var(--muted);
+        font-size: 12.5px;
         text-decoration: none;
+        white-space: nowrap;
       }
 
       .library-item-actions a:hover {
-        border-color: var(--line-dark);
-        background: var(--panel);
+        color: var(--ink);
+        text-decoration: underline;
       }
 
       .library-error {
