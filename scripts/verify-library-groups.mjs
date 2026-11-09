@@ -62,7 +62,7 @@ await check("G4 主条目是组里最早归档的那份", async () => {
   assert.deepEqual(groups[0].copies.map((copy) => copy.id), ["b", "c"]);
 });
 
-await check("G5 空资料库不报错", async () => {
+await check("G5 空文档列表不报错", async () => {
   assert.deepEqual(groupLibraryByContent([]), []);
   assert.deepEqual(groupLibraryByContent(undefined), []);
 });
@@ -116,7 +116,7 @@ await check("G10 渲染会转义标题里的标记", async () => {
 });
 
 await check("G11 空库给一个空状态", async () => {
-  assert.match(renderLibraryGroups([]), /资料库还是空的/);
+  assert.match(renderLibraryGroups([]), /文档列表还是空的/);
 });
 
 await check("G12 最近使用时间和首次归档时间分开显示", async () => {

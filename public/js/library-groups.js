@@ -106,7 +106,7 @@ function libraryRow(document, options = {}) {
  */
 export function renderLibraryGroups(documents, options = {}) {
   const list = Array.isArray(documents) ? documents : [];
-  if (list.length === 0) return '<div class="library-empty">资料库还是空的</div>';
+  if (list.length === 0) return '<div class="library-empty">文档列表还是空的</div>';
   const escape = options.escape ?? escapeLibraryHtml;
   const picked = options.picked ?? (() => false);
   const groups = groupLibraryByContent(list);

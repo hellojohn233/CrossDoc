@@ -179,7 +179,7 @@ assert.ok(address && typeof address === "object");
 const base = `http://127.0.0.1:${address.port}`;
 
 try {
-  await check("L1 资料库里选两份文档就能发起审查", async () => {
+  await check("L1 文档列表里选两份文档就能发起审查", async () => {
     let index = 0;
     models.streamSimple = () => {
       const call = scriptedCalls(documentA, documentB)[index++];
@@ -245,7 +245,7 @@ try {
     assert.ok(traversal.status === 400 || traversal.status === 404, `越界 id 被挡住，实际 ${traversal.status}`);
   });
 
-  await check("L5 从资料库发起审查时参数不合法就拒绝", async () => {
+  await check("L5 从文档列表发起审查时参数不合法就拒绝", async () => {
     const empty = await fetch(`${base}/api/review/from-library`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

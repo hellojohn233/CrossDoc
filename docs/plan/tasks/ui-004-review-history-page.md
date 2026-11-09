@@ -29,7 +29,7 @@ The user picked A.
 
 ### The history is a header tab of its own
 
-`审查记录` sits between `资料库` and `模型配置`. The Library keeps the documents and the selection bar; the history keeps one row per review: the document titles, the counts, the time, and `打开`.
+`审查记录` sits between the document list and `模型配置`. The Library keeps the documents and the selection bar; the history keeps one row per review: the document titles, the counts, the time, and `打开`.
 
 ### Opening a stored review keeps the tab marked
 

@@ -64,7 +64,7 @@ The first UI needs a concise initial overview, a question input after reading, s
 
 ```text
 ┌─────────────────────────────────────────────────────────┐
-│ CrossDoc                                      资料库入口 │
+│ CrossDoc                                        文档入口 │
 ├─────────────────────────────────────────────────────────┤
 │ 文件列表 / 目录树             │ 阅读结果                 │
 │                               │                          │

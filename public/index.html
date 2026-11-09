@@ -19,7 +19,7 @@
         </div>
         <nav class="top-nav" aria-label="主导航">
           <button class="nav-tab" type="button" data-view="selection">上传</button>
-          <button class="nav-tab" type="button" data-view="library">资料库</button>
+          <button class="nav-tab" type="button" data-view="library">文档</button>
           <button class="nav-tab" type="button" data-view="reviews">审查记录</button>
           <span class="nav-divider" aria-hidden="true"></span>
           <button class="nav-tab" type="button" data-view="models">模型配置</button>
@@ -239,12 +239,12 @@
     <main class="library-screen" id="library-screen" hidden>
       <header class="library-header">
         <div>
-          <h2>资料库</h2>
-          <p>源文件与转换后的 Markdown</p>
+          <h2>文档</h2>
+          <p>读过的文档都在这里。勾选两份以上就能直接发起审查。</p>
         </div>
       </header>
       <section class="library-list" id="library-list" aria-live="polite">
-        <div class="library-empty">正在读取资料库…</div>
+        <div class="library-empty">正在读取文档…</div>
       </section>
       <div class="library-actions" id="library-actions" hidden>
         <span id="library-selection-count">未选择文档</span>
@@ -532,11 +532,11 @@
       }
 
       async function loadLibraryContent() {
-        libraryList.innerHTML = '<div class="library-empty">正在读取资料库…</div>';
+        libraryList.innerHTML = '<div class="library-empty">正在读取文档…</div>';
         try {
           const response = await fetch("/api/library");
           const data = await response.json().catch(() => ({}));
-          if (!response.ok) throw new Error(data.error || "资料库读取失败。");
+          if (!response.ok) throw new Error(data.error || "文档读取失败。");
           const documents = Array.isArray(data.documents) ? data.documents : [];
           libraryList.innerHTML = renderLibraryGroups(documents, {
             picked: (id) => libraryPicked.has(id),
@@ -562,7 +562,7 @@
           });
           updateLibrarySelection();
         } catch (error) {
-          libraryList.innerHTML = `<div class="library-empty library-error">${escapeHtml(error instanceof Error ? error.message : "资料库读取失败。")}</div>`;
+          libraryList.innerHTML = `<div class="library-empty library-error">${escapeHtml(error instanceof Error ? error.message : "文档读取失败。")}</div>`;
         }
       }
 
@@ -584,7 +584,7 @@
           const reviews = Array.isArray(data.reviews) ? data.reviews : [];
           if (reviews.length === 0) {
             reviewsSummary.textContent = "还没有跑过审查。";
-            reviewsList.innerHTML = '<p class="reviews-empty">在「上传」里读几份文档，或者在「资料库」里勾选两份跑一次。</p>';
+            reviewsList.innerHTML = '<p class="reviews-empty">在「上传」里读几份文档，或者在「文档」里勾选两份跑一次。</p>';
             return;
           }
           reviewsSummary.textContent = `共 ${reviews.length} 次审查。`;
@@ -802,7 +802,7 @@
         reviewLibrarySelection.disabled = true;
         readingEvents?.close();
         setView("review");
-        setRunState("Running", "正在用资料库里的文档审查。");
+        setRunState("Running", "正在用文档列表里的文档审查。");
         setPipeline(0);
         try {
           const response = await fetch("/api/review/from-library", {
@@ -1047,7 +1047,7 @@
             <div><div class="reading-file-name">${escapeHtml(item.title)}</div>
               <div class="reading-file-state">${escapeHtml(labels[item.state] || item.state)}${item.pages ? ` · ${escapeHtml(item.pages)} 页` : ""}</div>
               ${item.error ? `<p class="reading-file-error">${escapeHtml(item.error)}</p>` : ""}
-              ${item.duplicateOf ? `<p class="reading-file-duplicate">这份内容已在资料库里（${escapeHtml(item.duplicateOf.title)}，${escapeHtml(formatLibraryDate(item.duplicateOf.uploadedAt))}），会作为一份新的归档保存。</p>` : ""}
+              ${item.duplicateOf ? `<p class="reading-file-duplicate">这份内容已在文档列表里（${escapeHtml(item.duplicateOf.title)}，${escapeHtml(formatLibraryDate(item.duplicateOf.uploadedAt))}），会作为一份新的归档保存。</p>` : ""}
             </div>
           </div>`).join("");
       }
