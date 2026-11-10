@@ -11,6 +11,7 @@ import multer from "multer";
 import { createBuiltinModels, createCrossDocAgent, CrossDocVisionModelConfigError, profileRequestOptions, resolveModelProfile, type CrossDocAgentOptions, type ScopedDocument } from "./agent.js";
 import { runConsistencyReview } from "./review-run.js";
 import { loadSkills } from "./skills/loader.js";
+import { listBuiltinSkills } from "./skills/builtin-store.js";
 import {
   deleteUserSkill,
   importUserSkill,
@@ -746,6 +747,14 @@ export function createWebApp(options: WebAppOptions = {}) {
       response.json({ skills: await listUserSkills(userSkillsDirectory) });
     } catch (error) {
       response.status(500).json({ error: error instanceof Error ? error.message : "Unable to read the skills." });
+    }
+  });
+
+  app.get("/api/skills/builtin", async (_request, response) => {
+    try {
+      response.json({ skills: await listBuiltinSkills() });
+    } catch (error) {
+      response.status(500).json({ error: error instanceof Error ? error.message : "Unable to read the built-in skills." });
     }
   });
 

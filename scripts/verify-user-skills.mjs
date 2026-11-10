@@ -245,6 +245,27 @@ const address = server.address();
 assert.ok(address && typeof address === "object");
 const base = `http://127.0.0.1:${address.port}`;
 
+await check("U19 GET /api/skills/builtin 列出内置 skill，带正文，且不能改", async () => {
+  const response = await fetch(`${base}/api/skills/builtin`);
+  assert.equal(response.status, 200);
+  const data = await response.json();
+  assert.ok(data.skills.length >= 3, "内置 skill 至少要有几个");
+  const review = data.skills.find((skill) => skill.name === "consistency-review");
+  assert.ok(review, "consistency-review 应该在列表里");
+  assert.match(review.body, /Consistency review/);
+  assert.ok(review.description.length > 0);
+  // 内置 skill 的正文可以被读，但改不了。
+  const refused = await fetch(`${base}/api/skills/consistency-review`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ description: "改一下", body: "改一下" }),
+  });
+  assert.equal(refused.status, 409);
+  const unchanged = await (await fetch(`${base}/api/skills/builtin`)).json();
+  const same = unchanged.skills.find((skill) => skill.name === "consistency-review");
+  assert.equal(same.body, review.body);
+});
+
 await check("U13 GET /api/skills 列出使用者自己的 skill", async () => {
   const before = await (await fetch(`${base}/api/skills`)).json();
   assert.deepEqual(before.skills, [], "刚开始应该一份都没有");

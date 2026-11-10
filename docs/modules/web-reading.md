@@ -78,28 +78,48 @@ My skills
 ├───────────────────────────────────────────────────────┤
 │ 我的技能                                  [新建][导入]  │
 │ 只补充「这个领域抽什么、什么差异算严重」，审查流程不变。 │
-│ 共 1 份领域 skill。内置的流程 skill 不在这里…          │
 ├───────────────────────────────────────────────────────┤
-│ ┌──┐  prospectus-review                     [编辑]    │
+│ 我的 skill                                          1 份│
+│ ┌──┐  prospectus-review                      [查看]    │
 │ │ P │  用于审查证券招股说明书。当这批文档是招股书…      │
 │ └──┘  更新于 2026-11-08 00:46                         │
+├───────────────────────────────────────────────────────┤
+│ 内置 skill                                          5 份│
+│ 内置 skill 是审查流程本身，跟着代码发布，只能查看。     │
+│ ┌──┐  consistency-review                    [查看]    │
+│ │ C │  Check whether the key data in a set of docum…   │
+│ └──┘  内置 · 随代码发布                                 │
 └───────────────────────────────────────────────────────┘
 
-My skills, editor
+My skills, a skill
 ┌───────────────────────────────────────────────────────┐
-│ CrossDoc  [上传][文档][审查记录][设置][我的技能]          │
+│ [← 返回列表]                          [编辑]           │
+│ prospectus-review                                     │
+│ 用于审查证券招股说明书。当这批文档是招股书…             │
+│ 你的 skill                                            │
 ├───────────────────────────────────────────────────────┤
-│ [← 返回列表]                                        │
-│ 编辑 prospectus-review                               │
+│ # 招股说明书审查                                      │
+│ 本领域该抽的关键数据：                                 │
+│ · `revenue` — 营业收入                                │
+└───────────────────────────────────────────────────────┘
+
+My skills, editing
+┌───────────────────────────────────────────────────────┐
+│ [← 返回列表]                                         │
+│ prospectus-review                                     │
 ├───────────────────────────────────────────────────────┤
 │ 名称  [prospectus-review                            ]  │
 │ 描述  [用于审查证券招股说明书…                       ]  │
-│ 正文  [本领域该抽哪些关键数据…                      ]  │
-│ [保存]  [删除]                                        │
+│ 正文  [# 招股说明书审查                              ]  │
+│ [保存]  [取消]  [删除]                                │
 └───────────────────────────────────────────────────────┘
 ```
 
 The skill list is not a table. One skill is one row, and the row carries its own hierarchy: the name is the heading, the description is the second line, and the last change is a quiet note under it. Nothing is sorted into equal-weight columns, because a skill is not a record — it is a document with a name and a body.
+
+The list has two blocks, because a skill is one of two things. The user's own skills carry domain knowledge and can be changed; the built-in skills are the review procedure and the guard rails, they ship with the code, and they can only be read. A built-in skill therefore has no edit action at all, and the detail page says so where it would otherwise offer one.
+
+A skill opens as a document: the Markdown, rendered, the way it was written. Editing is a second step, because a skill is read far more often than it is written, and an editor is not the place to read one. `编辑` turns the page into the source, and only `保存` writes it. A built-in skill has no `编辑` button, so it cannot be turned into the source at all.
 
 The reading file list is ordered by the original browser selection. It shows file name and one compact state: waiting, reading, ready, or failed. A file whose content is already in the Library also says so: *这份内容已在文档列表里（title，date），会作为一份新的归档保存。* The right side shows the overview first and appends Q&A turns below it. Page citations use an inline linked marker such as `[第 3 页]`.
 
@@ -179,7 +199,10 @@ The agent marks sources using `[[cite:<document-id>:<page-number>]]`. The client
 | `另有 N 份相同内容` | Library | Expands or collapses the copies archived under a document. The control's label and `aria-expanded` follow the state. |
 | `用选中文件审查` | Library | Starts a review over the picked documents and switches to the review console. The documents are read from the library, not uploaded. |
 | `打开` on a review record | Review history | Loads a stored review into the review console. The `审查记录` tab stays marked as the current one, and `返回阅读` is hidden because the console does not belong to the running read. |
-| `新建` | My skills | Clears the editor so a new skill can be written. |
+| `查看` | My skills | Opens a skill as a document: the Markdown, rendered. A built-in skill opens the same way and offers no edit action. |
+| `编辑` | My skill detail | Turns the rendered skill into its source. The built-in skills have no such action. |
+| `取消` | My skill detail | Goes back to the rendered skill without writing anything. |
+| `新建` | My skills | Opens the editor with an empty skill. |
 | `导入 .md` | My skills | Reads a `SKILL.md` the user brought along and fills the editor with it. It does not save it. |
 | `保存` | My skills | Writes the skill. The message says it takes effect on the next review. |
 | `删除` | My skills | Removes the skill after a confirmation. |
@@ -243,7 +266,7 @@ App
 - The document list opens through the `文档` header tab and `/api/library`.
 - The review history opens through the `审查记录` header tab and `/api/reviews`.
 - The settings view opens through the `设置` header tab. It holds the model profiles and the archive storage.
-- The user's own skills open through the `我的技能` header tab and use `/api/skills`.
+- The user's own skills open through the `我的技能` header tab and use `/api/skills`; the built-in skills come from `/api/skills/builtin` and are read-only.
 - Source citations use `/api/library/:id/source#page=:page`.
 - Agent session operations use `/api/read` and `/api/read/:sessionId/*`.
 - Review history uses `/api/reviews` and `/api/reviews/:id`; a review over archived documents uses `/api/review/from-library`.

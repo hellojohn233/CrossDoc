@@ -19,6 +19,7 @@
     "verify:review-semantics": "tsx scripts/verify-review-semantics.mjs",
     "verify:skills": "tsx scripts/verify-skills.mjs",
     "verify:user-skills": "tsx scripts/verify-user-skills.mjs",
+    "verify:markdown": "node scripts/verify-markdown.mjs",
     "verify:web-read": "tsx scripts/verify-web-read.mjs",
     "verify:review-library": "tsx scripts/verify-review-library.mjs",
     "verify:library-identity": "tsx scripts/verify-library-identity.mjs",

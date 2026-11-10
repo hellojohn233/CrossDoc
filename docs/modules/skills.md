@@ -94,6 +94,14 @@ The user's skills live under `data/skills/`, which is ignored by Git like the re
 
 The My Skills page lists them flat. One skill is one file. There is no categorization, no tagging, no inheritance, and no template library: the point is that the user brings one file, not that the application manages a collection.
 
+### Reading a skill
+
+The page has two blocks. The user's own skills come first; the built-in ones follow, and they can only be read. A built-in skill is the procedure and the guard rails, and a rule the user cannot see is a rule the user cannot argue with, so `GET /api/skills/builtin` returns their bodies along with the files they point at.
+
+A skill opens as a document: the Markdown, rendered by `public/js/markdown.js`. The renderer escapes the text before it marks it up, and it keeps a link only when the target is an ordinary web address, because a skill is text that someone can type.
+
+Editing is a second step on purpose. A skill is read far more often than it is written, and an editor is not the place to read one. `编辑` turns the rendered skill into its source, and only `保存` writes it. A built-in skill has no `编辑` action, so it cannot be turned into the source at all.
+
 ### The vocabulary does not need to become data
 
 A domain skill lists its keys in its own body, and the agent uses them. Nothing in the alignment code has to change for that to work:
