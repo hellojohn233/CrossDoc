@@ -507,6 +507,20 @@
           .replaceAll("'", "&#039;");
       }
 
+      /**
+       * 浏览器对「连不上服务器」只会说 Failed to fetch。
+       *
+       * 这句话对用户没用，所以换成一个能照着做的说法。
+       */
+      function readableError(error, fallback) {
+        const message = error instanceof Error ? error.message : String(error ?? "");
+        if (!message) return fallback;
+        if (/failed to fetch|networkerror|load failed|connection refused/i.test(message)) {
+          return "连不上本机的 CrossDoc 服务。确认它还在运行（npm run dev:web），然后刷新页面。";
+        }
+        return message;
+      }
+
       function setRunState(state, message) {
         currentRunState = state;
         statusText.textContent = message;
@@ -587,7 +601,7 @@
           });
           updateLibrarySelection();
         } catch (error) {
-          libraryList.innerHTML = `<div class="library-empty library-error">${escapeHtml(error instanceof Error ? error.message : "文档读取失败。")}</div>`;
+          libraryList.innerHTML = `<div class="library-empty library-error">${escapeHtml(readableError(error, "文档读取失败。"))}</div>`;
         }
       }
 
@@ -635,7 +649,7 @@
             button.addEventListener("click", () => void openStoredReview(button.dataset.reviewId));
           });
         } catch (error) {
-          reviewsList.innerHTML = `<p class="reviews-empty reviews-error">${escapeHtml(error instanceof Error ? error.message : "审查记录读取失败。")}</p>`;
+          reviewsList.innerHTML = `<p class="reviews-empty reviews-error">${escapeHtml(readableError(error, "审查记录读取失败。"))}</p>`;
         }
       }
 
@@ -662,7 +676,7 @@
           if (!response.ok) throw new Error(data.error || "归档读取失败。");
           renderArchiveStorage(Array.isArray(data.documents) ? data.documents : []);
         } catch (error) {
-          archiveList.innerHTML = `<p class="archive-empty">${escapeHtml(error instanceof Error ? error.message : "归档读取失败。")}</p>`;
+          archiveList.innerHTML = `<p class="archive-empty">${escapeHtml(readableError(error, "归档读取失败。"))}</p>`;
         }
       }
 
@@ -791,7 +805,7 @@
           }
           renderUserSkillList();
         } catch (error) {
-          skillList.innerHTML = `<p class="skills-empty skills-status-error">${escapeHtml(error instanceof Error ? error.message : "技能读取失败。")}</p>`;
+          skillList.innerHTML = `<p class="skills-empty skills-status-error">${escapeHtml(readableError(error, "技能读取失败。"))}</p>`;
         }
       }
 
@@ -1032,7 +1046,7 @@
           setView("selection");
         } catch (error) {
           document.body.classList.remove("booting");
-          startupMessage.textContent = error instanceof Error ? error.message : "设置读取失败。";
+          startupMessage.textContent = readableError(error, "设置读取失败。");
           retryStartup.hidden = false;
           refreshModelStatus();
         }
@@ -1107,7 +1121,7 @@
             ? `${role === "main" ? "主模型" : "视觉模型"}已保存。`
             : "设置已保存，但缺少 API Key。";
         } catch (error) {
-          modelSetupStatus.textContent = error instanceof Error ? error.message : "模型设置保存失败。";
+          modelSetupStatus.textContent = readableError(error, "模型设置保存失败。");
           modelSetupStatus.classList.add("error");
         } finally {
           button.disabled = false;
@@ -1147,7 +1161,7 @@
           status.classList.add("ok");
           if (data.note) status.title = data.note;
         } catch (error) {
-          status.textContent = error instanceof Error ? error.message : "连接测试失败。";
+          status.textContent = readableError(error, "连接测试失败。");
           status.classList.add("error");
         } finally {
           button.disabled = false;
