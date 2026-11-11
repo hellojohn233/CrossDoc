@@ -1,16 +1,47 @@
-# CrossDoc
-
 <p align="center">
-  <img src="./public/crossdoc-logo.svg" alt="CrossDoc" width="72" height="62" />
+  <img src="./docs/assets/crossdoc-banner.jpg" alt="Two documents compared side by side: a blue bar runs straight across the same line of both documents, marking a value that agrees; below it an amber bar is of different length on each document, with a ≠ in the gap, marking a field that conflicts" width="100%" />
 </p>
 
-[中文](./README.md) | English
+<p align="center">
+  <img src="./public/crossdoc-logo.svg" alt="CrossDoc mark" width="56" height="48" />
+</p>
 
-CrossDoc — an evidence-grounded document consistency review agent, built on Pi.
+<h1 align="center">CrossDoc</h1>
+
+<p align="center">
+  <b>An evidence-grounded document consistency review agent, built on Pi</b><br />
+  <sub>Read · Extract · Align · Verify — every conclusion carries the original wording and the page it came from</sub>
+</p>
+
+<p align="center">
+  <a href="./README.md">中文</a> · <a href="./README.en.md"><b>English</b></a>
+</p>
+
+<p align="center">
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-125ACA?style=for-the-badge&logo=opensourceinitiative&logoColor=white" alt="MIT license" /></a>
+  <img src="https://img.shields.io/badge/Node.js-%3E%3D22.19-5FA04E?style=for-the-badge&logo=node.js&logoColor=white" alt="Node.js 22.19 or later" />
+  <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/PDF-125ACA?style=for-the-badge&logo=adobeacrobatreader&logoColor=white" alt="PDF input" />
+  <img src="https://img.shields.io/badge/Pi_Agent_Runtime-112441?style=for-the-badge&logo=anthropic&logoColor=white" alt="Built on the Pi agent runtime" />
+</p>
+
+<p align="center">
+  <img src="https://skillicons.dev/icons?i=typescript,nodejs,express,sqlite,npm" alt="Tech stack: TypeScript, Node.js, Express, SQLite, npm" height="44" />
+</p>
+
+---
 
 CrossDoc is not a Pi demo. Pi is the minimal agent runtime; CrossDoc is the domain system around multi-document consistency review: parse, extract, compare, verify, and report contradictions with evidence.
 
 > What the mark means: the two deep-ink blocks are two documents, the blue bar running across them is the line that **agrees** once the documents are aligned, and the broken amber bar is the line that **conflicts**. The vector source lives in [`public/crossdoc-logo.svg`](./public/crossdoc-logo.svg).
+
+<p align="center">
+  <img src="./docs/assets/crossdoc-review.png" alt="The conflict ledger: 3 documents, 22 key data points, 4 pending. Each entry names a mismatch — value 120000 ↔ 150000, payment term 45 days ↔ 90 days — together with its source document, page, quoted wording, verdict and evidence chips" width="100%" />
+</p>
+
+<p align="center">
+  <sub>The conflict ledger — every entry names its source document, page, quoted wording, verdict and evidence</sub>
+</p>
 
 ## Core Idea
 
@@ -182,6 +213,10 @@ Current data flow:
 - Pi wiring remains isolated in `src/agent.ts`; parsing and report generation do not depend on Pi.
 
 The request-scoped Pi Agent, the automatic overview, and follow-up questions with source-page citations are connected. Next steps are the DOCX/XLSX loaders and a skill-level evaluation corpus for the review.
+
+## License
+
+CrossDoc is open source under the [MIT](./LICENSE) license.
 
 ## Acknowledgements
 

@@ -1,16 +1,47 @@
-# CrossDoc
-
 <p align="center">
-  <img src="./public/crossdoc-logo.svg" alt="CrossDoc" width="72" height="62" />
+  <img src="./docs/assets/crossdoc-banner.jpg" alt="两份文档并排比对：一条蓝色横条横向贯穿两份文档的同一行，表示该行取值一致；下方一条琥珀横条在两份文档上长短不同、缺口处标着 ≠，表示同一个字段取到了冲突的值" width="100%" />
 </p>
 
-[中文](./README.md) | [English](./README.en.md)
+<p align="center">
+  <img src="./public/crossdoc-logo.svg" alt="CrossDoc 标志" width="56" height="48" />
+</p>
 
-CrossDoc — 一个基于证据的文档一致性审查 Agent，构建在 Pi 之上。
+<h1 align="center">CrossDoc</h1>
+
+<p align="center">
+  <b>基于证据的文档一致性审查 Agent，构建在 Pi 之上</b><br />
+  <sub>读取 · 抽取 · 对齐 · 校验 —— 每一条结论都带着原文原话和页码</sub>
+</p>
+
+<p align="center">
+  <a href="./README.md"><b>中文</b></a> · <a href="./README.en.md">English</a>
+</p>
+
+<p align="center">
+  <a href="./LICENSE"><img src="https://img.shields.io/badge/license-MIT-125ACA?style=for-the-badge&logo=opensourceinitiative&logoColor=white" alt="MIT 许可证" /></a>
+  <img src="https://img.shields.io/badge/Node.js-%3E%3D22.19-5FA04E?style=for-the-badge&logo=node.js&logoColor=white" alt="Node.js 22.19 及以上" />
+  <img src="https://img.shields.io/badge/TypeScript-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
+  <img src="https://img.shields.io/badge/PDF-125ACA?style=for-the-badge&logo=adobeacrobatreader&logoColor=white" alt="PDF 输入" />
+  <img src="https://img.shields.io/badge/Pi_Agent_Runtime-112441?style=for-the-badge&logo=anthropic&logoColor=white" alt="基于 Pi 的 Agent 运行时" />
+</p>
+
+<p align="center">
+  <img src="https://skillicons.dev/icons?i=typescript,nodejs,express,sqlite,npm" alt="技术栈：TypeScript、Node.js、Express、SQLite、npm" height="44" />
+</p>
+
+---
 
 CrossDoc 不是一个 Pi demo。Pi 是最小化的 Agent 运行时；CrossDoc 是围绕多文档一致性审查构建的领域系统：读取、抽取、比较、验证，并用证据报告文档之间的矛盾。
 
 > 标志含义：两个深墨色块代表两份文档，中间贯穿的蓝条代表跨文档对齐后**一致**的那一行，底部断开的琥珀条代表**冲突**的那一行。矢量源在 [`public/crossdoc-logo.svg`](./public/crossdoc-logo.svg)。
+
+<p align="center">
+  <img src="./docs/assets/crossdoc-review.png" alt="冲突清单界面：3 份文档、22 项关键数据、4 项待处理，逐条列出「数值不一致 120000 ↔ 150000」「付款期限不一致 45 天 ↔ 90 天」，每一条都带来源文档、页码、原文原话、判定与证据" width="100%" />
+</p>
+
+<p align="center">
+  <sub>冲突清单 —— 每一条都标注来源文档、页码、原文原话、判定与证据</sub>
+</p>
 
 ## 核心思想
 
@@ -199,6 +230,10 @@ CrossDoc/
 - Pi 接入仍隔离在 `src/agent.ts`,格式解析和报告生成不依赖 Pi。
 
 Web 阅读入口、request-scoped Pi Agent、自动概述和引用来源页的后续提问已接通。后续可以在同一 source-location 契约下增加 DOCX、XLSX 与图片加载器。
+
+## 许可证
+
+本项目以 [MIT](./LICENSE) 许可证开源。
 
 ## 致谢
 
